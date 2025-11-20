@@ -1,5 +1,5 @@
 {
-  "$schema": "https://developer.openfin.co/schema/app.json",
+
   "_comment": "OpenFin Runtime Version: Using 42.138.103.1 which is compatible with @openfin/core ^42.103.1 and @openfin/workspace ^22.3.27. OpenFin supports multiple runtime versions in parallel via RVM (Runtime Version Manager).",
   "devtools_port": 9090,
   "licenseKey": "stern-trading-demo",
