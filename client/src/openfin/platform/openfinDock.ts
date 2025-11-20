@@ -167,6 +167,32 @@ export async function register(config: {
       clientAPIVersion: registration?.clientAPIVersion,
       workspaceVersion: registration?.workspaceVersion
     }, 'dock');
+
+    // Version compatibility check
+    const workspaceVersion = registration?.workspaceVersion;
+    if (workspaceVersion) {
+      const versionMajor = parseInt(workspaceVersion.split('.')[0]);
+      const MIN_WORKSPACE_VERSION = 17; // Minimum version for nested menu support
+
+      if (versionMajor < MIN_WORKSPACE_VERSION) {
+        logger.error(`Incompatible Workspace version detected: ${workspaceVersion}. Minimum required: ${MIN_WORKSPACE_VERSION}.x`, undefined, 'dock');
+        logger.error('Nested menus and other features may not work correctly.', undefined, 'dock');
+        logger.error(`To fix: Clear OpenFin cache at %LocalAppData%\\OpenFin\\cache and restart`, undefined, 'dock');
+
+        // Show notification to user
+        try {
+          fin.Notification.create({
+            body: `⚠️ Workspace ${workspaceVersion} Detected\n\nThis version is incompatible (requires ${MIN_WORKSPACE_VERSION}.x+).\nNested menus will not work.\n\nPlease contact IT to update OpenFin Workspace.`,
+            title: 'OpenFin Version Warning',
+            category: 'Workspace Version',
+            icon: config.icon
+          });
+        } catch (notifError) {
+          logger.warn('Could not show version warning notification', notifError, 'dock');
+        }
+      }
+    }
+
     return registration;
   } catch (error) {
     logger.error('Failed to register dock', error, 'dock');
@@ -802,7 +828,7 @@ export function dockGetCustomActions(): CustomActionsMap {
 
         // Create window using actual HTML file with data in URL hash
         const dataHash = encodeURIComponent(JSON.stringify(diagnosticData));
-        const diagWindow = await fin.Window.create({
+        await fin.Window.create({
           name: 'system-diagnostics-' + Date.now(),
           url: `http://localhost:5173/system-diagnostics.html#${dataHash}`,
           autoShow: true,

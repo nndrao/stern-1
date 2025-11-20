@@ -97,7 +97,10 @@ export class EngineRegistry {
    * Create engine based on provider type
    */
   private createEngine(providerId: string, config: ProviderConfig): ProviderEngine {
-    switch (config.providerType) {
+    // Normalize provider type to lowercase for case-insensitive matching
+    const providerType = config.providerType?.toLowerCase();
+
+    switch (providerType) {
       case 'stomp':
         return new StompEngine(providerId, config as any, this.broadcastManager);
 
@@ -114,7 +117,7 @@ export class EngineRegistry {
         throw new Error('Mock provider not yet implemented');
 
       default:
-        throw new Error(`Unknown provider type: ${config.providerType}`);
+        throw new Error(`Unknown provider type: ${config.providerType} (normalized: ${providerType})`);
     }
   }
 

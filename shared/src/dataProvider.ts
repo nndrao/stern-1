@@ -17,35 +17,36 @@ export type ProviderType = typeof PROVIDER_TYPES[keyof typeof PROVIDER_TYPES];
 
 /**
  * Provider type to ComponentSubType mapping
- * Maps lowercase frontend provider types to capitalized backend componentSubTypes
+ * Now using lowercase throughout for consistency with engine registry
  */
 export const PROVIDER_TYPE_TO_COMPONENT_SUBTYPE: Record<ProviderType, string> = {
-  [PROVIDER_TYPES.STOMP]: 'Stomp',
-  [PROVIDER_TYPES.REST]: 'Rest',
-  [PROVIDER_TYPES.WEBSOCKET]: 'WebSocket',
-  [PROVIDER_TYPES.SOCKETIO]: 'SocketIO',
-  [PROVIDER_TYPES.MOCK]: 'Mock',
-  [PROVIDER_TYPES.APPDATA]: 'AppData'
+  [PROVIDER_TYPES.STOMP]: 'stomp',
+  [PROVIDER_TYPES.REST]: 'rest',
+  [PROVIDER_TYPES.WEBSOCKET]: 'websocket',
+  [PROVIDER_TYPES.SOCKETIO]: 'socketio',
+  [PROVIDER_TYPES.MOCK]: 'mock',
+  [PROVIDER_TYPES.APPDATA]: 'appdata'
 };
 
 /**
  * ComponentSubType to Provider type mapping
- * Maps capitalized backend componentSubTypes to lowercase frontend provider types
+ * Supports both lowercase (new standard) and capitalized (backward compatibility)
  */
 export const COMPONENT_SUBTYPE_TO_PROVIDER_TYPE: Record<string, ProviderType> = {
-  'Stomp': PROVIDER_TYPES.STOMP,
-  'Rest': PROVIDER_TYPES.REST,
-  'WebSocket': PROVIDER_TYPES.WEBSOCKET,
-  'SocketIO': PROVIDER_TYPES.SOCKETIO,
-  'Mock': PROVIDER_TYPES.MOCK,
-  'AppData': PROVIDER_TYPES.APPDATA,
-  // Lowercase fallbacks for backward compatibility
+  // Lowercase (new standard)
   'stomp': PROVIDER_TYPES.STOMP,
   'rest': PROVIDER_TYPES.REST,
   'websocket': PROVIDER_TYPES.WEBSOCKET,
   'socketio': PROVIDER_TYPES.SOCKETIO,
   'mock': PROVIDER_TYPES.MOCK,
-  'appdata': PROVIDER_TYPES.APPDATA
+  'appdata': PROVIDER_TYPES.APPDATA,
+  // Capitalized (backward compatibility for existing configs)
+  'Stomp': PROVIDER_TYPES.STOMP,
+  'Rest': PROVIDER_TYPES.REST,
+  'WebSocket': PROVIDER_TYPES.WEBSOCKET,
+  'SocketIO': PROVIDER_TYPES.SOCKETIO,
+  'Mock': PROVIDER_TYPES.MOCK,
+  'AppData': PROVIDER_TYPES.APPDATA
 };
 
 /**
