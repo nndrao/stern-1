@@ -1,0 +1,71 @@
+{
+  "$schema": "https://developer.openfin.co/schema/app.json",
+  "_comment": "OpenFin Runtime Version: Using 42.138.103.1 which is compatible with @openfin/core ^42.103.1 and @openfin/workspace ^22.3.27. OpenFin supports multiple runtime versions in parallel via RVM (Runtime Version Manager).",
+  "devtools_port": 9090,
+  "licenseKey": "stern-trading-demo",
+  "runtime": {
+    "arguments": "--v=1 --inspect --remote-debugging-port=9222",
+    "version": "42.138.103.1"
+  },
+  "platform": {
+    "uuid": "stern-platform",
+    "icon": "http://localhost:5173/star.svg",
+    "autoShow": false,
+    "providerUrl": "http://localhost:5173/platform/provider",
+    "preventQuitOnLastWindowClosed": true,
+    "defaultWindowOptions": {
+      "customData": {
+        "platformContext": {
+          "apiUrl": "http://localhost:3001",
+          "environment": "local",
+          "description": "REST API endpoint for configuration service"
+        }
+      }
+    },
+    "defaultViewOptions": {
+      "customData": {
+        "platformContext": {
+          "apiUrl": "http://localhost:3001",
+          "environment": "local",
+          "description": "REST API endpoint for configuration service"
+        }
+      }
+    }
+  },
+  "desktopSettings": {
+    "systemApps": {
+      "workspace": {
+        "customConfig": {
+          "disableOpenFinAnalytics": true
+        }
+      }
+    }
+  },
+  "shortcut": {
+    "company": "Stern Trading",
+    "description": "Stern Trading Platform",
+    "icon": "http://localhost:5173/star.png",
+    "name": "Stern Trading Platform",
+    "target": ["desktop", "start-menu"]
+  },
+  "supportInformation": {
+    "company": "Stern Trading",
+    "product": "Stern Trading Platform",
+    "email": "support@sterntrading.com",
+    "forwardErrorReports": false
+  },
+  "customSettings": {
+    "apps": [
+      {
+        "appId": "stern-blotter",
+        "name": "stern-blotter",
+        "title": "Stern Blotter",
+        "description": "Main trading blotter",
+        "url": "http://localhost:5173/",
+        "manifestType": "view",
+        "icons": [{ "src": "http://localhost:5173/star.png" }],
+        "tags": ["trading", "blotter"]
+      }
+    ]
+  }
+}

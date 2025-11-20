@@ -1,0 +1,45 @@
+{
+  "name": "@stern/openfin-platform",
+  "version": "1.0.0",
+  "description": "Reusable OpenFin platform library with dock, theming, IAB events, and workspace services",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rimraf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "openfin",
+    "workspace",
+    "platform",
+    "dock",
+    "theme",
+    "iab",
+    "trading"
+  ],
+  "author": "Stern Development Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "@openfin/core": "^42.103.1",
+    "@openfin/workspace": "^22.3.27",
+    "@openfin/workspace-platform": "^22.3.27",
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@openfin/core": "^42.103.1",
+    "@openfin/workspace": "^22.3.27",
+    "@openfin/workspace-platform": "^22.3.27",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.3",
+    "rimraf": "^5.0.5"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

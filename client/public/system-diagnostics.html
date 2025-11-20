@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Diagnostics</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: #f8fafc;
+    }
+
+    .banner {
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      font-weight: 500;
+    }
+
+    .banner-success {
+      background: #10b981;
+      color: white;
+    }
+
+    .banner-error {
+      background: #ef4444;
+      color: white;
+    }
+
+    .section {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid #334155;
+    }
+
+    .section h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: #60a5fa;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 8px;
+    }
+
+    .info-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .info-row {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 12px;
+    }
+
+    .info-label {
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .info-value {
+      color: #f8fafc;
+      font-family: 'Courier New', monospace;
+      word-break: break-all;
+    }
+
+    .version-mismatch {
+      color: #fbbf24;
+      font-weight: 600;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #94a3b8;
+    }
+
+    .error {
+      background: #7f1d1d;
+      color: #fca5a5;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>System Diagnostics</h1>
+
+    <div id="content">
+      <div class="loading">Loading diagnostics...</div>
+    </div>
+  </div>
+
+  <script>
+    console.log('[DIAGNOSTICS HTML] Page loaded');
+
+    // Auto-load diagnostics from URL hash on page load
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log('[DIAGNOSTICS HTML] DOMContentLoaded, checking for data...');
+
+      // Try to get data from URL hash
+      if (window.location.hash) {
+        try {
+          const hashData = window.location.hash.substring(1); // Remove the '#'
+          const data = JSON.parse(decodeURIComponent(hashData));
+          console.log('[DIAGNOSTICS HTML] Data loaded from URL hash:', data);
+          displayDiagnostics(data);
+        } catch (error) {
+          console.error('[DIAGNOSTICS HTML] Failed to parse URL hash data:', error);
+          document.getElementById('content').innerHTML = `
+            <div class="error">
+              Error loading diagnostics data: ${error.message}
+            </div>
+          `;
+        }
+      } else {
+        console.log('[DIAGNOSTICS HTML] No hash data found, waiting for injection...');
+      }
+    });
+
+    // This function displays the diagnostic data
+    // Also expose as window function for external calls
+    window.displayDiagnostics = function displayDiagnostics(data) {
+      console.log('[DIAGNOSTICS HTML] displayDiagnostics called with data:', data);
+      try {
+        const content = document.getElementById('content');
+
+        // Check for version mismatches
+        // Runtime version should be in the 42.x family (more flexible matching)
+        const expectedRuntimeMajor = '42';
+        const expectedWorkspace = '22.3.27';
+        const expectedClientAPI = '22.3.27';
+
+        // Runtime is OK if it starts with major version 42
+        const runtimeMismatch = !data.runtime.startsWith(expectedRuntimeMajor + '.');
+        const workspaceMismatch = data.workspace !== 'Not available' && data.workspace !== expectedWorkspace;
+        const clientAPIMismatch = data.clientAPI !== 'Not available' && data.clientAPI !== expectedClientAPI;
+        const hasMismatch = runtimeMismatch || workspaceMismatch || clientAPIMismatch;
+
+        let html = '';
+
+        // Banner
+        if (hasMismatch) {
+          html += `
+            <div class="banner banner-error">
+              ⚠️ Version Mismatch Detected!<br>
+              This may cause inconsistent behavior with nested menus and other features.
+              Please update to the expected versions listed below.
+            </div>
+          `;
+        } else {
+          html += `
+            <div class="banner banner-success">
+              ✓ All versions match expected configuration
+            </div>
+          `;
+        }
+
+        // OpenFin Runtime Section
+        html += `
+          <div class="section">
+            <h2>OpenFin Runtime</h2>
+            <div class="info-grid">
+              <div class="info-row">
+                <div class="info-label">Current Version:</div>
+                <div class="info-value ${runtimeMismatch ? 'version-mismatch' : ''}">${data.runtime}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Expected Version:</div>
+                <div class="info-value">${expectedRuntimeMajor}.x (any patch version)</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Architecture:</div>
+                <div class="info-value">${data.arch || 'N/A'}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">GPU:</div>
+                <div class="info-value">${data.gpu || 'N/A'}</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Workspace Section
+        html += `
+          <div class="section">
+            <h2>OpenFin Workspace</h2>
+            <div class="info-grid">
+              <div class="info-row">
+                <div class="info-label">Workspace Version:</div>
+                <div class="info-value ${workspaceMismatch ? 'version-mismatch' : ''}">${data.workspace}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Expected Version:</div>
+                <div class="info-value">${expectedWorkspace}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Client API Version:</div>
+                <div class="info-value ${clientAPIMismatch ? 'version-mismatch' : ''}">${data.clientAPI}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Expected Client API:</div>
+                <div class="info-value">${expectedClientAPI}</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // System Information Section
+        html += `
+          <div class="section">
+            <h2>System Information</h2>
+            <div class="info-grid">
+              <div class="info-row">
+                <div class="info-label">Machine ID:</div>
+                <div class="info-value">${data.machineId || 'N/A'}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">User:</div>
+                <div class="info-value">${data.user || 'N/A'}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Monitors:</div>
+                <div class="info-value">${data.monitorCount || 0}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Primary Monitor:</div>
+                <div class="info-value">${data.primaryMonitor || 'N/A'}</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Nested Menu Support Section
+        html += `
+          <div class="section">
+            <h2>Feature Compatibility</h2>
+            <div class="info-grid">
+              <div class="info-row">
+                <div class="info-label">Nested Menus:</div>
+                <div class="info-value">${hasMismatch ? '⚠️ May not work correctly' : '✓ Supported'}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Minimum Required:</div>
+                <div class="info-value">Workspace 17.0+</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Recommendation:</div>
+                <div class="info-value">
+                  ${hasMismatch ? 'Update to expected versions above' : 'Current versions are optimal'}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        content.innerHTML = html;
+      } catch (error) {
+        document.getElementById('content').innerHTML = `
+          <div class="error">
+            Error displaying diagnostics: ${error.message}
+          </div>
+        `;
+      }
+    };
+  </script>
+</body>
+</html>
