@@ -173,13 +173,14 @@ export class DataProviderConfigService {
       logger.debug('Fetching data providers by user', { userId }, 'DataProviderConfigService');
 
       const response = await apiClient.get<UnifiedConfig[]>(`${this.baseUrl}/by-user/${userId}`, {
-        params: { includeDeleted: false }
+        params: {
+          componentType: COMPONENT_TYPES.DATA_PROVIDER,
+          includeDeleted: false
+        }
       });
 
-      // Filter by componentType=DataProvider (new structure)
-      const providers = response.data
-        .filter(config => config.componentType === COMPONENT_TYPES.DATA_PROVIDER)
-        .map(config => this.fromUnifiedConfig(config));
+      // Map to DataProviderConfig format
+      const providers = response.data.map(config => this.fromUnifiedConfig(config));
 
       logger.debug('Data providers fetched', { count: providers.length }, 'DataProviderConfigService');
 
