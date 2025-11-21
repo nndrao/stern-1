@@ -13,7 +13,7 @@ export const COMPONENT_TYPES = {
   CHART: 'chart',
   WATCHLIST: 'watchlist',
   NEWS: 'news',
-  DOCK: 'Dock',
+  DOCK: 'dock',
   CUSTOM: 'custom',
 } as const;
 
@@ -22,7 +22,7 @@ export const COMPONENT_SUBTYPES = {
   AG_GRID: 'ag-grid',
   LINE_CHART: 'line-chart',
   BAR_CHART: 'bar-chart',
-  DOCK_APPLICATIONS_MENU_ITEMS: 'DockApplicationsMenuItems',
+  DOCK_APPLICATIONS_MENU_ITEMS: 'dock-applications-menu-items',
 } as const;
 
 /**
