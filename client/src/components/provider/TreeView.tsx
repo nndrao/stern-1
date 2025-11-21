@@ -155,7 +155,6 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             >
               {icon}
             </Button>
-            {itemIcon}
             <span className="flex-1 truncate">{item.caption}</span>
             {item.children && item.children.length > 0 && (
               <span className="text-xs text-muted-foreground">
