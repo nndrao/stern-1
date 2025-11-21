@@ -159,6 +159,7 @@ export function StompConfigurationForm({ name, config, onChange, onNameChange, o
   }, [selectedFields, inferredFields]);
 
   // Save inferred fields and columns back to config whenever they change
+  // FIXED: Removed onChange from dependencies to prevent infinite loop
   useEffect(() => {
     if (inferredFields.length > 0 || committedSelectedFields.size > 0) {
       const inferredFieldsData = inferredFields.map(field => convertFieldNodeToInfo(field));
@@ -225,7 +226,8 @@ export function StompConfigurationForm({ name, config, onChange, onNameChange, o
         onChange('columnDefinitions', allColumns);
       }
     }
-  }, [inferredFields, committedSelectedFields, manualColumns, fieldColumnOverrides, onChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inferredFields, committedSelectedFields, manualColumns, fieldColumnOverrides]);
 
   // Ensure manualTopics is always true (topics are always configured manually)
   useEffect(() => {

@@ -96,12 +96,14 @@ export function useAppData(): UseAppDataReturn {
   }, []);
 
   // Subscribe to AppData updates via IAB
+  // FIXED: Properly register async cleanup function to prevent IAB subscription leak
   useEffect(() => {
     if (typeof window === 'undefined' || !window.fin) {
       return; // Not in OpenFin
     }
 
     let isSubscribed = true;
+    let cleanup: (() => Promise<void>) | null = null;
 
     const subscribeToUpdates = async () => {
       try {
@@ -140,7 +142,7 @@ export function useAppData(): UseAppDataReturn {
 
         logger.debug('Subscribed to AppData updates', undefined, 'useAppData');
 
-        // Cleanup function
+        // Return cleanup function
         return async () => {
           isSubscribed = false;
           try {
@@ -156,13 +158,20 @@ export function useAppData(): UseAppDataReturn {
         };
       } catch (error) {
         logger.error('Failed to subscribe to AppData updates', error, 'useAppData');
+        return null;
       }
     };
 
-    subscribeToUpdates();
+    // Register the cleanup function when async completes
+    subscribeToUpdates().then(fn => {
+      cleanup = fn;
+    });
 
     return () => {
       isSubscribed = false;
+      if (cleanup) {
+        cleanup();
+      }
     };
   }, []);
 

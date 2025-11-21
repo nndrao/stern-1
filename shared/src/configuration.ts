@@ -119,28 +119,29 @@ export interface CleanupResult {
 }
 
 // Component type constants
+// REFACTORED: Standardized all values to lowercase/kebab-case for consistency
 export const COMPONENT_TYPES = {
   DATASOURCE: 'datasource',
-  DATA_PROVIDER: 'DataProvider',  // For data provider configurations
+  DATA_PROVIDER: 'data-provider',  // For data provider configurations
   GRID: 'grid',
   DATA_GRID: 'data-grid',
   PROFILE: 'profile',
   WORKSPACE: 'workspace',
   THEME: 'theme',
   LAYOUT: 'layout',
-  DOCK: 'Dock'  // For dock configurations
+  DOCK: 'dock'  // For dock configurations
 } as const;
 
 export const COMPONENT_SUBTYPES = {
-  // Data Provider subtypes
-  STOMP: 'Stomp',
-  WEBSOCKET: 'WebSocket',
-  SOCKETIO: 'SocketIO',
-  REST: 'Rest',
-  MOCK: 'Mock',
+  // Data Provider subtypes - all lowercase for consistency
+  STOMP: 'stomp',
+  WEBSOCKET: 'websocket',
+  SOCKETIO: 'socketio',
+  REST: 'rest',
+  MOCK: 'mock',
 
   // Dock subtypes
-  DOCK_APPLICATIONS_MENU_ITEMS: 'DockApplicationsMenuItems',  // Singleton for dock menu items
+  DOCK_APPLICATIONS_MENU_ITEMS: 'dock-applications-menu-items',  // Singleton for dock menu items
 
   // Generic subtypes
   DEFAULT: 'default',

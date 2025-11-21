@@ -11,6 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlayCircle, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { StompProviderConfig } from '@stern/shared-types';
+import { STOMP_DEFAULTS } from '@/config/defaults';
+import { logger } from '@/utils/logger';
 
 interface ConnectionTabProps {
   name: string;
@@ -26,12 +28,13 @@ export function ConnectionTab({
   onNameChange,
 }: ConnectionTabProps) {
   // Initialize keyColumn with default value if not set
+  // FIXED: Added proper dependencies and replaced console.log with logger
   useEffect(() => {
     if (!config.keyColumn) {
-      console.log('[ConnectionTab] Initializing keyColumn with default: positionId');
-      onChange({ keyColumn: 'positionId' });
+      logger.info('Initializing keyColumn with default', { defaultKey: STOMP_DEFAULTS.DEFAULT_KEY_COLUMN }, 'ConnectionTab');
+      onChange({ keyColumn: STOMP_DEFAULTS.DEFAULT_KEY_COLUMN });
     }
-  }, []); // Run only once on mount
+  }, [config.keyColumn, onChange]);
 
   const handleChange = (field: keyof StompProviderConfig) => (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange({ [field]: e.target.value });
