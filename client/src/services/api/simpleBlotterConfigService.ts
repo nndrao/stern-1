@@ -168,6 +168,43 @@ export class SimpleBlotterConfigService {
   }
 
   /**
+   * Update blotter componentSubType
+   * Updates the componentSubType field on the UnifiedConfig
+   */
+  async updateComponentSubType(
+    configId: string,
+    componentSubType: string,
+    userId: string
+  ): Promise<{ config: SimpleBlotterConfig; unified: UnifiedConfig }> {
+    try {
+      logger.info('Updating blotter componentSubType', { configId, componentSubType }, 'SimpleBlotterConfigService');
+
+      // Get existing config
+      const existing = await this.getBlotterConfig(configId);
+      if (!existing) {
+        throw new Error(`Blotter config not found: ${configId}`);
+      }
+
+      // Update with componentSubType included
+      const response = await apiClient.put<UnifiedConfig>(`${this.baseUrl}/${configId}`, {
+        config: existing.config,
+        componentSubType,
+        lastUpdatedBy: userId
+      });
+
+      logger.info('Blotter componentSubType updated', { configId, componentSubType }, 'SimpleBlotterConfigService');
+
+      return {
+        config: this.blotterFromUnifiedConfig(response.data),
+        unified: response.data
+      };
+    } catch (error) {
+      logger.error('Failed to update blotter componentSubType', error, 'SimpleBlotterConfigService');
+      throw error;
+    }
+  }
+
+  /**
    * Get or create blotter configuration
    * If config exists, returns it. Otherwise creates a new one with defaults.
    */
@@ -467,6 +504,107 @@ export class SimpleBlotterConfigService {
       return layouts[0];
     } catch (error) {
       logger.error('Failed to get default layout', error, 'SimpleBlotterConfigService');
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // Blotter Duplication (with all layouts)
+  // ============================================================================
+
+  /**
+   * Duplicate a blotter and all its layouts to a new configId
+   * Used when duplicating a view in OpenFin - creates a complete copy with new IDs
+   *
+   * @param sourceConfigId - The source blotter's configId (viewInstanceId)
+   * @param newConfigId - The new blotter's configId (new viewInstanceId)
+   * @param userId - User performing the duplication
+   * @param newName - Optional new name for the blotter (defaults to "Copy of {original}")
+   * @returns The new blotter config and all cloned layouts
+   */
+  async duplicateBlotterWithLayouts(
+    sourceConfigId: string,
+    newConfigId: string,
+    userId: string,
+    newName?: string
+  ): Promise<{
+    blotter: { config: SimpleBlotterConfig; unified: UnifiedConfig };
+    layouts: Array<{ config: SimpleBlotterLayoutConfig; unified: UnifiedConfig }>;
+    layoutIdMapping: Record<string, string>; // Maps old layout IDs to new layout IDs
+  }> {
+    try {
+      logger.info('Duplicating blotter with layouts', { sourceConfigId, newConfigId }, 'SimpleBlotterConfigService');
+
+      // 1. Get source blotter config
+      const sourceBlotter = await this.getBlotterConfig(sourceConfigId);
+      if (!sourceBlotter) {
+        throw new Error(`Source blotter config not found: ${sourceConfigId}`);
+      }
+
+      // 2. Get all source layouts
+      const sourceLayouts = await this.getLayoutsByBlotter(sourceConfigId);
+      logger.debug('Found source layouts', { count: sourceLayouts.length }, 'SimpleBlotterConfigService');
+
+      // 3. Create mapping of old layout IDs to new layout IDs
+      const layoutIdMapping: Record<string, string> = {};
+
+      // 4. Clone each layout to the new blotter
+      const clonedLayouts: Array<{ config: SimpleBlotterLayoutConfig; unified: UnifiedConfig }> = [];
+
+      for (const sourceLayout of sourceLayouts) {
+        const newLayout = await this.createLayout(
+          newConfigId, // New parent blotter ID
+          userId,
+          sourceLayout.unified.name, // Keep same name
+          sourceLayout.config // Clone the config
+        );
+
+        clonedLayouts.push(newLayout);
+        layoutIdMapping[sourceLayout.unified.configId] = newLayout.unified.configId;
+
+        logger.debug('Cloned layout', {
+          oldId: sourceLayout.unified.configId,
+          newId: newLayout.unified.configId,
+          name: sourceLayout.unified.name
+        }, 'SimpleBlotterConfigService');
+      }
+
+      // 5. Update blotter config with new layout ID references
+      const updatedBlotterConfig: SimpleBlotterConfig = {
+        ...sourceBlotter.config,
+        // Update defaultLayoutId to point to cloned layout
+        defaultLayoutId: sourceBlotter.config.defaultLayoutId
+          ? layoutIdMapping[sourceBlotter.config.defaultLayoutId]
+          : undefined,
+        // Update lastSelectedLayoutId to point to cloned layout
+        lastSelectedLayoutId: sourceBlotter.config.lastSelectedLayoutId
+          ? layoutIdMapping[sourceBlotter.config.lastSelectedLayoutId]
+          : undefined,
+      };
+
+      // 6. Create the new blotter config
+      const blotterName = newName || `Copy of ${sourceBlotter.unified.name}`;
+      const newBlotter = await this.createBlotterConfig(
+        newConfigId,
+        userId,
+        blotterName,
+        updatedBlotterConfig
+      );
+
+      logger.info('Blotter duplicated successfully', {
+        sourceConfigId,
+        newConfigId,
+        layoutCount: clonedLayouts.length,
+        defaultLayoutId: newBlotter.config.defaultLayoutId
+      }, 'SimpleBlotterConfigService');
+
+      return {
+        blotter: newBlotter,
+        layouts: clonedLayouts,
+        layoutIdMapping
+      };
+    } catch (error) {
+      logger.error('Failed to duplicate blotter with layouts', error, 'SimpleBlotterConfigService');
       throw error;
     }
   }

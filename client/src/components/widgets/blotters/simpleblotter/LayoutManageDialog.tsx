@@ -2,9 +2,10 @@
  * LayoutManageDialog Component
  *
  * Dialog for managing layouts - rename, delete, duplicate, set default.
+ * Also displays blotter config info (configId, componentType, componentSubType).
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +44,8 @@ import {
   Check,
   X,
   Loader2,
-  Layout
+  Layout,
+  Save
 } from 'lucide-react';
 import { UnifiedConfig, SimpleBlotterLayoutConfig } from '@stern/shared-types';
 import { cn } from '@/lib/utils';
@@ -49,6 +53,12 @@ import { cn } from '@/lib/utils';
 export interface LayoutInfo {
   config: SimpleBlotterLayoutConfig;
   unified: UnifiedConfig;
+}
+
+export interface BlotterInfo {
+  configId: string;
+  componentType: string;
+  componentSubType?: string;
 }
 
 export interface LayoutManageDialogProps {
@@ -62,6 +72,8 @@ export interface LayoutManageDialogProps {
   defaultLayoutId?: string;
   /** Currently selected layout ID */
   selectedLayoutId?: string;
+  /** Blotter configuration info */
+  blotterInfo?: BlotterInfo;
   /** Callback to rename a layout */
   onRename: (layoutId: string, newName: string) => Promise<void>;
   /** Callback to delete a layout */
@@ -72,6 +84,8 @@ export interface LayoutManageDialogProps {
   onSetDefault: (layoutId: string) => Promise<void>;
   /** Callback when a layout is selected */
   onSelect?: (layoutId: string) => void;
+  /** Callback to save componentSubType */
+  onSaveComponentSubType?: (subType: string) => Promise<void>;
 }
 
 interface LayoutItemProps {
@@ -118,8 +132,8 @@ const LayoutItem: React.FC<LayoutItemProps> = ({
   return (
     <div
       className={cn(
-        'flex items-center gap-2 p-2 rounded-md hover:bg-accent/50 cursor-pointer group',
-        isSelected && 'bg-accent'
+        'flex items-center gap-2 px-3 py-2 rounded-md border cursor-pointer transition-colors hover:bg-accent/50',
+        isSelected && 'bg-accent border-primary'
       )}
       onClick={() => !isEditing && onSelect()}
     >
@@ -134,7 +148,7 @@ const LayoutItem: React.FC<LayoutItemProps> = ({
               value={editName}
               onChange={(e) => onEditNameChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="h-7 text-sm"
+              className="h-6 text-xs"
               autoFocus
               disabled={isProcessing}
               onClick={(e) => e.stopPropagation()}
@@ -142,7 +156,7 @@ const LayoutItem: React.FC<LayoutItemProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-6 w-6 flex-shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
                 onEditSave();
@@ -150,30 +164,38 @@ const LayoutItem: React.FC<LayoutItemProps> = ({
               disabled={isProcessing}
             >
               {isProcessing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Check className="h-4 w-4 text-green-600" />
+                <Check className="h-3 w-3 text-green-600" />
               )}
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-6 w-6 flex-shrink-0"
               onClick={(e) => {
                 e.stopPropagation();
                 onEditCancel();
               }}
               disabled={isProcessing}
             >
-              <X className="h-4 w-4 text-muted-foreground" />
+              <X className="h-3 w-3 text-muted-foreground" />
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <span className="text-sm truncate">{layout.unified.name}</span>
-            {isDefault && (
-              <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
-            )}
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-medium truncate">{layout.unified.name}</span>
+              {isDefault && (
+                <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+              )}
+            </div>
+            <span
+              className="text-[10px] text-muted-foreground truncate font-mono leading-tight"
+              title={layout.unified.configId}
+            >
+              {layout.unified.configId}
+            </span>
           </div>
         )}
       </div>
@@ -185,10 +207,10 @@ const LayoutItem: React.FC<LayoutItemProps> = ({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 opacity-0 group-hover:opacity-100"
+              className="h-6 w-6 flex-shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -239,11 +261,13 @@ export const LayoutManageDialog: React.FC<LayoutManageDialogProps> = ({
   layouts,
   defaultLayoutId,
   selectedLayoutId,
+  blotterInfo,
   onRename,
   onDelete,
   onDuplicate,
   onSetDefault,
   onSelect,
+  onSaveComponentSubType,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -251,6 +275,42 @@ export const LayoutManageDialog: React.FC<LayoutManageDialogProps> = ({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [duplicateDialogId, setDuplicateDialogId] = useState<string | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
+
+  // ComponentSubType editing state
+  const [editedSubType, setEditedSubType] = useState(blotterInfo?.componentSubType || '');
+  const [isSubTypeModified, setIsSubTypeModified] = useState(false);
+  const [isSavingSubType, setIsSavingSubType] = useState(false);
+
+  // Track if we've initialized for this dialog open
+  const [lastOpenState, setLastOpenState] = useState(false);
+
+  // Reset subType state only when dialog opens (transitions from closed to open)
+  // Use primitive values instead of object reference to avoid resetting on every render
+  useEffect(() => {
+    // Only reset when dialog transitions from closed to open
+    if (open && !lastOpenState) {
+      setEditedSubType(blotterInfo?.componentSubType || '');
+      setIsSubTypeModified(false);
+    }
+    setLastOpenState(open);
+  }, [open, blotterInfo?.componentSubType, lastOpenState]);
+
+  const handleSubTypeChange = (value: string) => {
+    setEditedSubType(value);
+    setIsSubTypeModified(value !== (blotterInfo?.componentSubType || ''));
+  };
+
+  const handleSaveSubType = async () => {
+    if (!onSaveComponentSubType || !isSubTypeModified) return;
+
+    setIsSavingSubType(true);
+    try {
+      await onSaveComponentSubType(editedSubType);
+      setIsSubTypeModified(false);
+    } finally {
+      setIsSavingSubType(false);
+    }
+  };
 
   const handleEditStart = (layout: LayoutInfo) => {
     setEditingId(layout.unified.configId);
@@ -319,25 +379,95 @@ export const LayoutManageDialog: React.FC<LayoutManageDialogProps> = ({
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Manage Layouts</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="sm:max-w-[520px] h-[520px] flex flex-col gap-4 p-5 overflow-hidden">
+          <DialogHeader className="pb-0">
+            <DialogTitle className="text-lg font-semibold">Manage Layouts</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
               View, edit, and organize your saved layouts.
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[400px] pr-4">
+          {/* Blotter Config Info Section - Elegant Design */}
+          {blotterInfo && (
+            <div className="flex-shrink-0 rounded-lg border bg-gradient-to-br from-muted/40 to-muted/20 p-4">
+              {/* Config ID - Prominent display */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
+                  <Layout className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Config ID</p>
+                  <p className="font-mono text-xs truncate" title={blotterInfo.configId}>
+                    {blotterInfo.configId}
+                  </p>
+                </div>
+              </div>
+
+              {/* Type badges and SubType input */}
+              <div className="flex items-center gap-3">
+                {/* Component Type Badge */}
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">Type</span>
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                    {blotterInfo.componentType}
+                  </span>
+                </div>
+
+                {/* SubType - Editable */}
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1 block">SubType</span>
+                  <div className="flex gap-1.5">
+                    <Input
+                      id="componentSubType"
+                      value={editedSubType}
+                      onChange={(e) => handleSubTypeChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="e.g., trades, positions"
+                      className="h-7 text-xs flex-1 px-2.5 bg-background/50"
+                      autoComplete="off"
+                      disabled={isSavingSubType}
+                    />
+                    <Button
+                      size="sm"
+                      variant={isSubTypeModified ? 'default' : 'ghost'}
+                      className={cn(
+                        "h-7 w-7 p-0",
+                        isSubTypeModified && "bg-primary hover:bg-primary/90"
+                      )}
+                      onClick={handleSaveSubType}
+                      disabled={!isSubTypeModified || isSavingSubType || !onSaveComponentSubType}
+                    >
+                      {isSavingSubType ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Save className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Layouts Section Header */}
+          <div className="flex items-center justify-between flex-shrink-0">
+            <Label className="text-sm font-medium">
+              Layouts ({layouts.length})
+            </Label>
+          </div>
+
+          {/* Layouts List - Scrollable, takes remaining space */}
+          <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">
             {layouts.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Layout className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No layouts saved yet.</p>
-                <p className="text-sm mt-1">
+              <div className="flex flex-col items-center justify-center py-6 text-muted-foreground border border-dashed rounded-md">
+                <Layout className="h-8 w-8 mb-2 opacity-50" />
+                <p className="text-sm font-medium">No layouts saved yet.</p>
+                <p className="text-xs mt-1">
                   Save your current grid configuration to create a layout.
                 </p>
               </div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-1.5 pb-1">
                 {layouts.map((layout) => (
                   <LayoutItem
                     key={layout.unified.configId}

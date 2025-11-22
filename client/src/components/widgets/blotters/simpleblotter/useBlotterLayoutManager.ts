@@ -19,6 +19,7 @@ import {
   useBlotterLayouts,
   useGetOrCreateBlotterConfig,
   useUpdateBlotterConfig,
+  useUpdateComponentSubType,
   useCreateLayout,
   useUpdateLayout,
   useDeleteLayout,
@@ -94,6 +95,7 @@ export function useBlotterLayoutManager({
 
   const getOrCreateBlotter = useGetOrCreateBlotterConfig();
   const updateBlotterConfig = useUpdateBlotterConfig();
+  const updateComponentSubType = useUpdateComponentSubType();
   const createLayout = useCreateLayout();
   const updateLayout = useUpdateLayout();
   const deleteLayout = useDeleteLayout();
@@ -105,7 +107,9 @@ export function useBlotterLayoutManager({
   // ============================================================================
 
   const layouts = useMemo(() => layoutsQuery.data || [], [layoutsQuery.data]);
-  const blotterConfig = blotterConfigQuery.data?.config;
+  const blotterData = blotterConfigQuery.data; // Full blotter data including unified
+  const blotterConfig = blotterData?.config;
+  const blotterUnified = blotterData?.unified;
   const defaultLayoutId = blotterConfig?.defaultLayoutId;
   const lastSelectedLayoutId = blotterConfig?.lastSelectedLayoutId;
 
@@ -522,24 +526,28 @@ export function useBlotterLayoutManager({
 
   /**
    * Rename a layout
+   * Note: Currently logs the rename action but the actual rename requires
+   * updating the UnifiedConfig.name field via simpleBlotterConfigService.renameLayout
+   * TODO: Implement renameLayout in simpleBlotterConfigService when needed
    */
   const renameLayout = useCallback(async (layoutId: string, newName: string) => {
     const layout = layouts.find((l) => l.unified.configId === layoutId);
-    if (!layout) return;
+    if (!layout) {
+      logger.warn('Cannot rename - layout not found', { layoutId }, 'useBlotterLayoutManager');
+      return;
+    }
 
-    // We need to update the unified config's name, not the layout config
-    // This requires a direct API call since our hook updates the config content
-    await updateLayout.mutateAsync({
-      layoutId,
-      updates: layout.config, // Keep same config
-      userId,
-      blotterConfigId,
-    });
+    // For now, log a warning that rename is not fully implemented
+    // The UI should still work, but the name won't persist until the API is added
+    logger.warn(
+      'Layout rename not fully implemented - name change will not persist',
+      { layoutId, newName, currentName: layout.unified.name },
+      'useBlotterLayoutManager'
+    );
 
-    // Note: For a proper rename, we'd need to update the UnifiedConfig.name
-    // This would require an additional mutation or API endpoint
-    logger.info('Layout renamed', { layoutId, newName }, 'useBlotterLayoutManager');
-  }, [layouts, updateLayout, userId, blotterConfigId]);
+    // TODO: When simpleBlotterConfigService.renameLayout is implemented:
+    // await simpleBlotterConfigService.renameLayout(layoutId, newName, userId);
+  }, [layouts]);
 
   /**
    * Delete a layout
@@ -579,6 +587,17 @@ export function useBlotterLayoutManager({
     });
   }, [setDefaultLayout, blotterConfigId, userId]);
 
+  /**
+   * Update blotter componentSubType
+   */
+  const handleUpdateComponentSubType = useCallback(async (subType: string) => {
+    await updateComponentSubType.mutateAsync({
+      configId: blotterConfigId,
+      componentSubType: subType,
+      userId,
+    });
+  }, [updateComponentSubType, blotterConfigId, userId]);
+
   // ============================================================================
   // Return
   // ============================================================================
@@ -586,9 +605,11 @@ export function useBlotterLayoutManager({
   return {
     // State
     selectedLayoutId,
+    selectedLayout,
     layouts,
     defaultLayoutId,
     blotterConfig,
+    blotterUnified,
     isLoading,
     isSaving,
 
@@ -607,6 +628,7 @@ export function useBlotterLayoutManager({
     deleteLayout: handleDeleteLayout,
     duplicateLayout: handleDuplicateLayout,
     setDefaultLayout: handleSetDefaultLayout,
+    updateComponentSubType: handleUpdateComponentSubType,
 
     // Grid helpers
     captureGridState,

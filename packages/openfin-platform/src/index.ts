@@ -24,6 +24,10 @@ export * from './services/cache';
 export { createWorkspaceStorageOverride } from './storage/WorkspaceStorageProvider';
 export { ConfigurationApiClient } from './api/configurationApi';
 
+// Browser Override
+export { createBrowserOverride, combineOverrides, createCustomActions, VIEW_CONTEXT_MENU_ACTIONS } from './browser/BrowserOverride';
+export type { BrowserOverrideConfig, ViewContextMenuActionHandler } from './browser/BrowserOverride';
+
 // Utils
 export * from './utils/openfinUtils';
 

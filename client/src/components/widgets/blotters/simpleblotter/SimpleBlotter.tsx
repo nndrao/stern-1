@@ -13,7 +13,7 @@
  * - Connection state tracking in ref to avoid toolbar re-renders
  */
 
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { GridApi, ColDef, GridReadyEvent, GetContextMenuItemsParams } from 'ag-grid-community';
 import { ModuleRegistry } from 'ag-grid-community';
@@ -31,6 +31,7 @@ import { LayoutSaveDialog } from './LayoutSaveDialog';
 import { LayoutManageDialog } from './LayoutManageDialog';
 import { useBlotterLayoutManager } from './useBlotterLayoutManager';
 import { COMPONENT_TYPES } from '@stern/shared-types';
+import { logger } from '@/utils/logger';
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([AllEnterpriseModule]);
@@ -174,17 +175,17 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     },
   });
 
-  // Register callbacks for layout application IMMEDIATELY
-  // This must happen before any layout is applied, so we use useMemo to ensure
-  // it runs synchronously during render, not in an effect
-  useMemo(() => {
+  // Register callbacks for layout application IMMEDIATELY (before paint)
+  // useLayoutEffect runs synchronously after DOM mutations but before paint,
+  // ensuring callbacks are registered before any layout is applied
+  useLayoutEffect(() => {
     layoutManager.registerApplyCallbacks({
       onProviderChange: (providerId) => {
-        console.log('[SimpleBlotter] Layout applying provider:', providerId);
+        logger.debug('Layout applying provider', { providerId }, 'SimpleBlotter');
         setSelectedProviderId(providerId);
       },
       onToolbarStateChange: (state) => {
-        console.log('[SimpleBlotter] Layout applying toolbar state:', state);
+        logger.debug('Layout applying toolbar state', { state }, 'SimpleBlotter');
         setIsToolbarCollapsed(state.isCollapsed);
         setIsToolbarPinned(state.isPinned);
       },
@@ -225,7 +226,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       );
     })
     .catch((error) => {
-      console.error('[SimpleBlotter] Failed to load providers:', error);
+      logger.error('Failed to load providers', error, 'SimpleBlotter');
       onErrorRef.current?.(error instanceof Error ? error : new Error('Failed to load providers'));
     });
   }, [platform.configService, userId]);
@@ -234,11 +235,17 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // Initialize Blotter Layout (on mount)
   // ============================================================================
 
+  // Store initializeBlotter in ref to avoid dependency issues while ensuring
+  // it only runs once on mount
+  const initializeBlotterRef = useRef(layoutManager.initializeBlotter);
+  initializeBlotterRef.current = layoutManager.initializeBlotter;
+
   useEffect(() => {
-    layoutManager.initializeBlotter().catch((error) => {
-      console.error('[SimpleBlotter] Failed to initialize blotter layout:', error);
+    initializeBlotterRef.current().catch((error) => {
+      logger.error('Failed to initialize blotter layout', error, 'SimpleBlotter');
+      onErrorRef.current?.(error instanceof Error ? error : new Error('Failed to initialize blotter layout'));
     });
-  }, []); // Run once on mount
+  }, []); // Run once on mount - uses ref to access latest initializeBlotter
 
   // Track if we've applied the initial layout
   const initialLayoutAppliedRef = useRef(false);
@@ -252,46 +259,39 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     }
 
     // Wait for layouts to load and a layout to be selected (from initializeBlotter)
-    if (layoutManager.layouts.length > 0 && layoutManager.selectedLayoutId) {
-      const layout = layoutManager.layouts.find(
-        (l) => l.unified.configId === layoutManager.selectedLayoutId
-      );
-      if (layout) {
-        console.log('[SimpleBlotter] Applying initial layout', {
-          layoutId: layoutManager.selectedLayoutId,
-          providerId: layout.config.selectedProviderId,
-          toolbarState: layout.config.toolbarState,
-        });
-        layoutManager.applyLayoutToGrid(layout.config);
-        initialLayoutAppliedRef.current = true;
-      }
+    // Use selectedLayout from layoutManager (already memoized) to avoid duplicate lookup
+    if (layoutManager.selectedLayout) {
+      logger.debug('Applying initial layout', {
+        layoutId: layoutManager.selectedLayoutId,
+        providerId: layoutManager.selectedLayout.config.selectedProviderId,
+        toolbarState: layoutManager.selectedLayout.config.toolbarState,
+      }, 'SimpleBlotter');
+      layoutManager.applyLayoutToGrid(layoutManager.selectedLayout.config);
+      initialLayoutAppliedRef.current = true;
     }
-  }, [layoutManager.layouts, layoutManager.selectedLayoutId, layoutManager.applyLayoutToGrid]);
+  }, [layoutManager.selectedLayout, layoutManager.selectedLayoutId, layoutManager.applyLayoutToGrid]);
 
   // Re-apply grid state when grid becomes ready (if we already applied provider/toolbar)
   useEffect(() => {
-    if (gridReady && layoutManager.selectedLayoutId && initialLayoutAppliedRef.current) {
-      const layout = layoutManager.layouts.find(
-        (l) => l.unified.configId === layoutManager.selectedLayoutId
-      );
-      if (layout) {
-        console.log('[SimpleBlotter] Re-applying grid state after grid ready', {
-          layoutId: layoutManager.selectedLayoutId,
-          columnCount: layout.config.columnState?.length || 0,
+    // Use selectedLayout from layoutManager to avoid duplicate lookup
+    if (gridReady && layoutManager.selectedLayout && initialLayoutAppliedRef.current) {
+      const { config } = layoutManager.selectedLayout;
+      logger.debug('Re-applying grid state after grid ready', {
+        layoutId: layoutManager.selectedLayoutId,
+        columnCount: config.columnState?.length || 0,
+      }, 'SimpleBlotter');
+      // Only apply grid state (column, filter, sort) - provider/toolbar already applied
+      if (gridApiRef.current && config.columnState?.length > 0) {
+        gridApiRef.current.applyColumnState({
+          state: config.columnState,
+          applyOrder: true,
         });
-        // Only apply grid state (column, filter, sort) - provider/toolbar already applied
-        if (gridApiRef.current && layout.config.columnState?.length > 0) {
-          gridApiRef.current.applyColumnState({
-            state: layout.config.columnState,
-            applyOrder: true,
-          });
-        }
-        if (gridApiRef.current && layout.config.filterState) {
-          gridApiRef.current.setFilterModel(layout.config.filterState);
-        }
+      }
+      if (gridApiRef.current && config.filterState) {
+        gridApiRef.current.setFilterModel(config.filterState);
       }
     }
-  }, [gridReady, layoutManager.layouts, layoutManager.selectedLayoutId]);
+  }, [gridReady, layoutManager.selectedLayout, layoutManager.selectedLayoutId]);
 
   // ============================================================================
   // Load Provider Columns (when provider selected)
@@ -311,11 +311,11 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
           const cols = createColumnDefs(columnsData);
           setColumns(cols);
         } else {
-          console.warn('[SimpleBlotter] No columns found in config');
+          logger.warn('No columns found in config', { selectedProviderId }, 'SimpleBlotter');
         }
       })
       .catch((error) => {
-        console.error('[SimpleBlotter] Failed to load columns:', error);
+        logger.error('Failed to load columns', error, 'SimpleBlotter');
         onErrorRef.current?.(error instanceof Error ? error : new Error('Failed to load columns'));
       });
   }, [selectedProviderId, platform.configService]);
@@ -333,7 +333,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // Separate effect to watch for config loaded state changes
   useEffect(() => {
     if (adapter?.isConfigLoaded !== isConfigLoadedRef.current) {
-      console.log('[SimpleBlotter] Config loaded state changed:', adapter?.isConfigLoaded);
+      logger.debug('Config loaded state changed', { isConfigLoaded: adapter?.isConfigLoaded }, 'SimpleBlotter');
       isConfigLoadedRef.current = adapter?.isConfigLoaded || false;
     }
   }, [adapter?.isConfigLoaded]);
@@ -343,41 +343,47 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // ============================================================================
 
   useEffect(() => {
-    console.log('[SimpleBlotter] Connection effect triggered', {
+    logger.debug('Connection effect triggered', {
       hasAdapter: !!adapterRef.current,
       isConfigLoaded: isConfigLoadedRef.current,
       gridReady,
       selectedProviderId
-    });
+    }, 'SimpleBlotter');
 
     // Use adapterRef.current to access adapter without depending on it
     const currentAdapter = adapterRef.current;
 
     if (!currentAdapter || !isConfigLoadedRef.current || !gridReady) {
-      console.log('[SimpleBlotter] Skipping connection - conditions not met');
+      logger.debug('Skipping connection - conditions not met', {
+        hasAdapter: !!currentAdapter,
+        isConfigLoaded: isConfigLoadedRef.current,
+        gridReady
+      }, 'SimpleBlotter');
       return;
     }
 
-    console.log('[SimpleBlotter] Setting up data handlers and connecting...');
+    logger.info('Setting up data handlers and connecting', { selectedProviderId }, 'SimpleBlotter');
 
-    // Setup data handlers with detailed logging
+    // Setup data handlers
     currentAdapter.setOnSnapshot((rows) => {
-      console.log(`[SNAPSHOT-LOADING] Batch received: ${rows.length} rows, total before: ${snapshotRowsRef.current.length}`);
-      console.log(`[SNAPSHOT-LOADING] Grid ready: ${gridReady}, API available: ${!!gridApiRef.current}, already loaded: ${snapshotLoadedRef.current}`);
+      logger.debug('Snapshot batch received', {
+        batchSize: rows.length,
+        totalBefore: snapshotRowsRef.current.length,
+        gridReady,
+        apiAvailable: !!gridApiRef.current,
+        alreadyLoaded: snapshotLoadedRef.current
+      }, 'SimpleBlotter');
 
       snapshotRowsRef.current.push(...rows);
-      console.log(`[SNAPSHOT-LOADING] Total after accumulation: ${snapshotRowsRef.current.length}`);
 
       // Load immediately on first batch instead of waiting for complete event
       if (gridApiRef.current && !snapshotLoadedRef.current) {
-        console.log(`[SNAPSHOT-LOADING] Loading first batch (${snapshotRowsRef.current.length} rows) into grid NOW`);
+        logger.debug('Loading first batch into grid', { rowCount: snapshotRowsRef.current.length }, 'SimpleBlotter');
         gridApiRef.current.setGridOption('rowData', snapshotRowsRef.current);
         snapshotLoadedRef.current = true;
         setIsLoading(false);
         setRowCount(snapshotRowsRef.current.length);
-        console.log(`[SNAPSHOT-LOADING] ✅ Grid populated with first batch`);
       } else if (gridApiRef.current && snapshotLoadedRef.current) {
-        console.log(`[SNAPSHOT-LOADING] Adding ${rows.length} rows incrementally`);
         gridApiRef.current.applyTransactionAsync({ add: rows });
         setRowCount(snapshotRowsRef.current.length);
       }
@@ -385,27 +391,30 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
 
     currentAdapter.setOnSnapshotComplete(() => {
       const loadTime = loadStartTimeRef.current ? Date.now() - loadStartTimeRef.current : 0;
-      console.log(`[SNAPSHOT-LOADING] ✅ Snapshot complete: ${snapshotRowsRef.current.length} total rows in ${loadTime}ms`);
-      console.log(`[SNAPSHOT-LOADING] Final state - already loaded: ${snapshotLoadedRef.current}, grid rows: ${gridApiRef.current?.getDisplayedRowCount() || 0}`);
+      logger.info('Snapshot complete', {
+        totalRows: snapshotRowsRef.current.length,
+        loadTimeMs: loadTime,
+        displayedRows: gridApiRef.current?.getDisplayedRowCount() || 0
+      }, 'SimpleBlotter');
       setLoadTimeMs(loadTime);
       setIsLoading(false);
     });
 
     currentAdapter.setOnUpdate((rows) => {
       if (snapshotLoadedRef.current && gridApiRef.current) {
-        // Remove verbose logging from hot path
+        // No logging on hot path for performance
         gridApiRef.current.applyTransactionAsync({ update: rows });
       }
     });
 
     currentAdapter.setOnError((error) => {
-      console.error('[SimpleBlotter] Provider error:', error);
+      logger.error('Provider error', error, 'SimpleBlotter');
       setIsLoading(false);
       onErrorRef.current?.(error);
     });
 
     // Connect to provider
-    console.log('[SimpleBlotter] Connecting to provider...');
+    logger.info('Connecting to provider', { selectedProviderId }, 'SimpleBlotter');
     setIsLoading(true);
     loadStartTimeRef.current = Date.now();
     setLoadTimeMs(null);
@@ -420,14 +429,14 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
 
     // Cleanup - use ref to get latest adapter
     return () => {
-      console.log('[SimpleBlotter] Disconnecting from provider');
+      logger.debug('Disconnecting from provider', {}, 'SimpleBlotter');
       if (adapterRef.current) {
         adapterRef.current.disconnect();
         isConnectedRef.current = false;
       }
     };
     // CRITICAL: Do NOT include adapter in dependencies - it changes on every render
-    // Use adapterRef.current instead, which is kept in sync by the effect on lines 192-195
+    // Use adapterRef.current instead, which is kept in sync by the effect above
   }, [gridReady, selectedProviderId]);
 
   // ============================================================================
@@ -444,7 +453,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         }
       })
       .catch((error) => {
-        console.error('[SimpleBlotter] Failed to reload columns after config update:', error);
+        logger.error('Failed to reload columns after config update', error, 'SimpleBlotter');
       });
   }, [platform.configService]);
 
@@ -455,13 +464,13 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   useEffect(() => {
     if (!platform.isOpenFin) return;
 
-    console.log('[SimpleBlotter] Subscribing to OpenFin events...');
+    logger.debug('Subscribing to OpenFin events', {}, 'SimpleBlotter');
 
     // Subscribe to data refresh - reload data when requested
     const unsubRefresh = platform.subscribeToEvent(
       OpenFinCustomEvents.DATA_REFRESH,
       (data) => {
-        console.log('[SimpleBlotter] Data refresh event received', data);
+        logger.debug('Data refresh event received', { data }, 'SimpleBlotter');
         if (adapterRef.current?.isConnected) {
           adapterRef.current.disconnect();
           setTimeout(() => adapterRef.current?.connect(), 100);
@@ -473,7 +482,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     const unsubConfig = platform.subscribeToEvent(
       OpenFinCustomEvents.CONFIG_UPDATED,
       (data) => {
-        console.log('[SimpleBlotter] Config update event received', data);
+        logger.debug('Config update event received', { data }, 'SimpleBlotter');
         if (data.componentType === COMPONENT_TYPES.DATA_PROVIDER && data.configId === selectedProviderId) {
           // Use memoized column loading function
           loadColumnsForProvider(selectedProviderId);
@@ -485,7 +494,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     const unsubProviderStatus = platform.subscribeToEvent(
       OpenFinCustomEvents.PROVIDER_STATUS,
       (data) => {
-        console.log('[SimpleBlotter] Provider status event received', data);
+        logger.debug('Provider status event received', { data }, 'SimpleBlotter');
       }
     );
 
@@ -494,7 +503,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       unsubRefresh();
       unsubConfig();
       unsubProviderStatus();
-      console.log('[SimpleBlotter] Unsubscribed from OpenFin events');
+      logger.debug('Unsubscribed from OpenFin events', {}, 'SimpleBlotter');
     };
   }, [platform, selectedProviderId, loadColumnsForProvider]);
 
@@ -503,7 +512,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // ============================================================================
 
   const handleGridReady = useCallback((event: GridReadyEvent) => {
-    console.log('[SimpleBlotter] Grid ready');
+    logger.debug('Grid ready', {}, 'SimpleBlotter');
     gridApiRef.current = event.api;
     gridReadyRef.current = true;
     setGridReady(true);
@@ -516,7 +525,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // ============================================================================
 
   const handleProviderSelect = useCallback((providerId: string) => {
-    console.log('[SimpleBlotter] Provider selected:', providerId);
+    logger.debug('Provider selected', { providerId }, 'SimpleBlotter');
     setSelectedProviderId(providerId);
     setGridReady(false);
     gridReadyRef.current = false;
@@ -614,11 +623,17 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         layouts={layoutManager.layouts}
         defaultLayoutId={layoutManager.defaultLayoutId}
         selectedLayoutId={layoutManager.selectedLayoutId ?? undefined}
+        blotterInfo={layoutManager.blotterUnified ? {
+          configId: layoutManager.blotterUnified.configId,
+          componentType: layoutManager.blotterUnified.componentType,
+          componentSubType: layoutManager.blotterUnified.componentSubType,
+        } : undefined}
         onRename={layoutManager.renameLayout}
         onDelete={layoutManager.deleteLayout}
         onDuplicate={layoutManager.duplicateLayout}
         onSetDefault={layoutManager.setDefaultLayout}
         onSelect={layoutManager.selectLayout}
+        onSaveComponentSubType={layoutManager.updateComponentSubType}
       />
 
       {/* Grid */}

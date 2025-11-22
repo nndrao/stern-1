@@ -51,10 +51,17 @@ export function useBlotterConfig(configId: string | null) {
       if (!configId) return null;
       logger.debug('Fetching blotter config', { configId }, 'useBlotterConfig');
       const result = await simpleBlotterConfigService.getBlotterConfig(configId);
-      logger.debug('Blotter config fetched', { configId, found: !!result }, 'useBlotterConfig');
+      logger.debug('Blotter config fetched', {
+        configId,
+        found: !!result,
+        hasUnified: !!result?.unified,
+        componentSubType: result?.unified?.componentSubType
+      }, 'useBlotterConfig');
       return result;
     },
     enabled: !!configId,
+    // Don't cache null results for long - the config might be created by getOrCreateBlotterConfig
+    staleTime: 0,
   });
 }
 
@@ -82,10 +89,18 @@ export function useGetOrCreateBlotterConfig() {
     },
     onSuccess: (result) => {
       // Update cache with the blotter config
-      queryClient.setQueryData(
-        blotterConfigKeys.detail(result.unified.configId),
-        { config: result.config, unified: result.unified }
-      );
+      // setQueryData immediately updates the cache and triggers re-renders
+      const queryKey = blotterConfigKeys.detail(result.unified.configId);
+      logger.debug('Setting blotter config in cache', {
+        configId: result.unified.configId,
+        hasUnified: !!result.unified,
+        componentSubType: result.unified.componentSubType
+      }, 'useGetOrCreateBlotterConfig');
+
+      queryClient.setQueryData(queryKey, {
+        config: result.config,
+        unified: result.unified
+      });
     },
     onError: (error: Error) => {
       logger.error('Failed to get/create blotter config', error, 'useGetOrCreateBlotterConfig');
@@ -131,6 +146,50 @@ export function useUpdateBlotterConfig() {
       toast({
         title: 'Save Failed',
         description: error.message || 'Failed to save blotter settings',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to update blotter componentSubType
+ */
+export function useUpdateComponentSubType() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      configId,
+      componentSubType,
+      userId
+    }: {
+      configId: string;
+      componentSubType: string;
+      userId: string;
+    }) => {
+      logger.info('Updating componentSubType', { configId, componentSubType }, 'useUpdateComponentSubType');
+      const result = await simpleBlotterConfigService.updateComponentSubType(configId, componentSubType, userId);
+      logger.info('ComponentSubType updated', { configId, componentSubType }, 'useUpdateComponentSubType');
+      return result;
+    },
+    onSuccess: (result, variables) => {
+      // Update cache
+      queryClient.setQueryData(
+        blotterConfigKeys.detail(variables.configId),
+        { config: result.config, unified: result.unified }
+      );
+      toast({
+        title: 'SubType Saved',
+        description: 'Component subtype updated successfully',
+      });
+    },
+    onError: (error: Error) => {
+      logger.error('Failed to update componentSubType', error, 'useUpdateComponentSubType');
+      toast({
+        title: 'Save Failed',
+        description: error.message || 'Failed to save component subtype',
         variant: 'destructive',
       });
     },
@@ -432,6 +491,62 @@ export function useSetDefaultLayout() {
       toast({
         title: 'Update Failed',
         description: error.message || 'Failed to set default layout',
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Hook to duplicate a blotter with all its layouts
+ * Used when duplicating a view in OpenFin
+ */
+export function useDuplicateBlotterWithLayouts() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      sourceConfigId,
+      newConfigId,
+      userId,
+      newName
+    }: {
+      sourceConfigId: string;
+      newConfigId: string;
+      userId: string;
+      newName?: string;
+    }) => {
+      logger.info('Duplicating blotter with layouts', { sourceConfigId, newConfigId }, 'useDuplicateBlotterWithLayouts');
+      const result = await simpleBlotterConfigService.duplicateBlotterWithLayouts(
+        sourceConfigId,
+        newConfigId,
+        userId,
+        newName
+      );
+      logger.info('Blotter duplicated', {
+        sourceConfigId,
+        newConfigId,
+        layoutCount: result.layouts.length
+      }, 'useDuplicateBlotterWithLayouts');
+      return result;
+    },
+    onSuccess: (result, variables) => {
+      // Update cache with the new blotter config
+      queryClient.setQueryData(
+        blotterConfigKeys.detail(variables.newConfigId),
+        { config: result.blotter.config, unified: result.blotter.unified }
+      );
+      toast({
+        title: 'View Duplicated',
+        description: `Blotter and ${result.layouts.length} layout(s) duplicated successfully`,
+      });
+    },
+    onError: (error: Error) => {
+      logger.error('Failed to duplicate blotter with layouts', error, 'useDuplicateBlotterWithLayouts');
+      toast({
+        title: 'Duplication Failed',
+        description: error.message || 'Failed to duplicate blotter and layouts',
         variant: 'destructive',
       });
     },

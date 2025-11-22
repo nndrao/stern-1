@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { init } from '@openfin/workspace-platform';
-import { useOpenfinTheme, createWorkspaceStorageOverride } from '@stern/openfin-platform';
+import {
+  useOpenfinTheme,
+  createWorkspaceStorageOverride,
+  createBrowserOverride,
+  createCustomActions,
+  VIEW_CONTEXT_MENU_ACTIONS
+} from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
 import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
 import { DataProviderEditor } from '@/components/provider/editors/DataProviderEditor';
@@ -11,6 +17,7 @@ import { logger } from '@/utils/logger';
 import { dockConfigService } from '@/services/api/dockConfigService';
 import { viewManager } from '@/services/viewManager';
 import { initializeOpenFinPlatformLibrary } from './openfinPlatformAdapter';
+import { handleDuplicateViewAction } from '../actions/viewActions';
 
 // Placeholder components for future features
 const SettingsPanel = () => (
@@ -158,6 +165,46 @@ export default function Provider() {
 
         logger.info('[WorkspaceStorage] Configuring custom workspace storage with dual storage strategy', { apiBaseUrl, userId }, 'Provider');
 
+        // Create combined override with workspace storage and browser customizations
+        const workspaceStorageOverride = createWorkspaceStorageOverride({
+          apiBaseUrl,
+          userId,
+          enableFallback: true
+        });
+
+        const browserOverride = createBrowserOverride({
+          enableDuplicateWithLayouts: true
+        });
+
+        // Create custom actions handler for context menu items
+        const duplicateViewActionHandler = async (action: string, payload: { windowIdentity: { uuid: string; name: string }; selectedViews: { uuid: string; name: string }[]; customData?: unknown }) => {
+          logger.info('View context menu action triggered', { action, payload }, 'Provider');
+
+          if (action === VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS) {
+            // Handle each selected view
+            for (const viewIdentity of payload.selectedViews) {
+              const result = await handleDuplicateViewAction(viewIdentity);
+              if (!result.success) {
+                logger.error('Failed to duplicate view', { error: result.error, viewIdentity }, 'Provider');
+              } else {
+                logger.info('View duplicated successfully', { newViewId: result.newViewId }, 'Provider');
+              }
+            }
+          }
+        };
+
+        const customActions = {
+          ...dock.dockGetCustomActions(),
+          ...createCustomActions(duplicateViewActionHandler)
+        };
+
+        // Chain the overrides: first workspace storage, then browser
+        const combinedOverride = async (Base: any) => {
+          const StorageClass = await workspaceStorageOverride(Base);
+          // Create a wrapper that uses the storage class as the base
+          return browserOverride(() => StorageClass as any);
+        };
+
         await init({
           browser: {
             defaultWindowOptions: {
@@ -168,11 +215,7 @@ export default function Provider() {
               }
             }
           },
-          overrideCallback: createWorkspaceStorageOverride({
-            apiBaseUrl,
-            userId,
-            enableFallback: true
-          }),
+          overrideCallback: combinedOverride,
           theme: [{
             label: "Stern Theme",
             default: "dark",
@@ -225,7 +268,7 @@ export default function Provider() {
               }
             }
           }],
-          customActions: dock.dockGetCustomActions()
+          customActions
         });
 
         logger.info('Platform initialized, waiting for platform-api-ready...', undefined, 'Provider');
