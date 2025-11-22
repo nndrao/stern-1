@@ -29,7 +29,7 @@ export interface WorkspaceMetadata {
  */
 export interface WorkspaceConfiguration {
   configId: string;           // Maps to workspace.workspaceId
-  componentType: 'Workspace';  // Fixed value for workspace configs
+  componentType: 'workspace';  // Fixed value for workspace configs (lowercase)
   componentSubType?: 'openfin';
   userId: string;
   name: string;                // Maps to workspace.title
@@ -49,7 +49,7 @@ export interface WorkspaceConfiguration {
  */
 export interface PageConfiguration {
   configId: string;            // Maps to page.pageId
-  componentType: 'Page';       // Fixed value for page configs
+  componentType: 'page';       // Fixed value for page configs (lowercase)
   componentSubType?: 'openfin';
   userId: string;
   name: string;                // Maps to page.title
@@ -81,7 +81,7 @@ export function workspaceToConfiguration(
 ): Partial<WorkspaceConfiguration> {
   return {
     configId: workspace.workspaceId,
-    componentType: 'Workspace',
+    componentType: 'workspace',
     componentSubType: 'openfin',
     userId,
     name: workspace.title || 'Untitled Workspace',
@@ -108,7 +108,7 @@ export function pageToConfiguration(
 ): Partial<PageConfiguration> {
   return {
     configId: page.pageId,
-    componentType: 'Page',
+    componentType: 'page',
     componentSubType: 'openfin',
     userId,
     name: page.title || 'Untitled Page',

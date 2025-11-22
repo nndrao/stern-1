@@ -75,6 +75,7 @@ export class SqliteStorage implements IConfigurationStorage {
         configId TEXT PRIMARY KEY,
         appId TEXT NOT NULL,
         userId TEXT NOT NULL,
+        parentId TEXT,                  -- Optional parent config ID for hierarchical configs
         componentType TEXT NOT NULL,
         componentSubType TEXT,
         name TEXT NOT NULL,
@@ -97,10 +98,27 @@ export class SqliteStorage implements IConfigurationStorage {
       );
     `);
 
+    // Migration: Add parentId column if it doesn't exist (for existing databases)
+    try {
+      // Check if parentId column exists by querying table info
+      const tableInfo = this.db.exec("PRAGMA table_info(configurations)");
+      const columns = tableInfo[0]?.values?.map((row: any) => row[1]) || [];
+
+      if (!columns.includes('parentId')) {
+        console.log('[SqliteStorage] Migrating: Adding parentId column...');
+        this.db.run('ALTER TABLE configurations ADD COLUMN parentId TEXT');
+        console.log('[SqliteStorage] Migration complete: parentId column added');
+      }
+    } catch (error) {
+      // Column might already exist or table might be new - that's fine
+      console.log('[SqliteStorage] parentId column check/migration skipped:', error);
+    }
+
     // Create indexes for common queries
     this.db.run('CREATE INDEX IF NOT EXISTS idx_app_user ON configurations(appId, userId)');
     this.db.run('CREATE INDEX IF NOT EXISTS idx_component ON configurations(componentType, componentSubType)');
     this.db.run('CREATE INDEX IF NOT EXISTS idx_user ON configurations(userId)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_parent ON configurations(parentId)');  // For hierarchical queries
     this.db.run('CREATE INDEX IF NOT EXISTS idx_created ON configurations(creationTime)');
     this.db.run('CREATE INDEX IF NOT EXISTS idx_updated ON configurations(lastUpdated)');
     this.db.run('CREATE INDEX IF NOT EXISTS idx_deleted ON configurations(deletedAt)');
@@ -116,10 +134,10 @@ export class SqliteStorage implements IConfigurationStorage {
 
     const sql = `
       INSERT INTO configurations (
-        configId, appId, userId, componentType, componentSubType, name, description, icon,
+        configId, appId, userId, parentId, componentType, componentSubType, name, description, icon,
         config, settings, activeSetting, tags, category, isShared, isDefault, isLocked,
         createdBy, lastUpdatedBy, creationTime, lastUpdated, deletedAt, deletedBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     try {
@@ -127,6 +145,7 @@ export class SqliteStorage implements IConfigurationStorage {
         config.configId,
         config.appId,
         config.userId,
+        config.parentId || null,
         config.componentType,
         config.componentSubType || null,
         config.name,
@@ -216,7 +235,7 @@ export class SqliteStorage implements IConfigurationStorage {
 
     const sql = `
       UPDATE configurations SET
-        appId = ?, userId = ?, componentType = ?, componentSubType = ?, name = ?,
+        appId = ?, userId = ?, parentId = ?, componentType = ?, componentSubType = ?, name = ?,
         description = ?, icon = ?, config = ?, settings = ?, activeSetting = ?,
         tags = ?, category = ?, isShared = ?, isDefault = ?, isLocked = ?,
         lastUpdatedBy = ?, lastUpdated = ?
@@ -226,6 +245,7 @@ export class SqliteStorage implements IConfigurationStorage {
     this.db.run(sql, [
       updated.appId,
       updated.userId,
+      updated.parentId || null,
       updated.componentType,
       updated.componentSubType || null,
       updated.name,
@@ -376,10 +396,10 @@ export class SqliteStorage implements IConfigurationStorage {
 
     const sql = `
       INSERT INTO configurations (
-        configId, appId, userId, componentType, componentSubType, name, description, icon,
+        configId, appId, userId, parentId, componentType, componentSubType, name, description, icon,
         config, settings, activeSetting, tags, category, isShared, isDefault, isLocked,
         createdBy, lastUpdatedBy, creationTime, lastUpdated, deletedAt, deletedBy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     for (const config of configs) {
@@ -387,6 +407,7 @@ export class SqliteStorage implements IConfigurationStorage {
         config.configId,
         config.appId,
         config.userId,
+        config.parentId || null,
         config.componentType,
         config.componentSubType || null,
         config.name,
@@ -557,6 +578,11 @@ export class SqliteStorage implements IConfigurationStorage {
       params.push(...criteria.userIds);
     }
 
+    if (criteria.parentIds?.length) {
+      conditions.push(`parentId IN (${criteria.parentIds.map(() => '?').join(',')})`);
+      params.push(...criteria.parentIds);
+    }
+
     if (criteria.componentTypes?.length) {
       conditions.push(`componentType IN (${criteria.componentTypes.map(() => '?').join(',')})`);
       params.push(...criteria.componentTypes);
@@ -629,6 +655,7 @@ export class SqliteStorage implements IConfigurationStorage {
       configId: row.configId,
       appId: row.appId,
       userId: row.userId,
+      parentId: row.parentId || null,
       componentType: row.componentType,
       componentSubType: row.componentSubType,
       name: row.name,

@@ -9,7 +9,7 @@
  */
 
 import { StorageFactory } from '../src/storage/StorageFactory.js';
-import { UnifiedConfig } from '../src/types/configuration.js';
+import { UnifiedConfig, COMPONENT_TYPES, COMPONENT_SUBTYPES } from '../src/types/configuration.js';
 import { v4 as uuidv4 } from 'uuid';
 
 async function migrate() {
@@ -41,8 +41,8 @@ async function migrate() {
           configId: uuidv4(),
           appId: config.appId,
           userId: config.userId,
-          componentType: 'Dock',
-          componentSubType: 'DockApplicationsMenuItems',
+          componentType: COMPONENT_TYPES.DOCK,
+          componentSubType: COMPONENT_SUBTYPES.DOCK_APPLICATIONS_MENU_ITEMS,
           name: 'Applications Menu',
           description: 'Dock Applications Button Menu Items (Singleton)',
           icon: config.icon,
@@ -79,7 +79,7 @@ async function migrate() {
       }
 
       // If this was a data provider config mixed with dock items, clean it
-      if (config.componentType === 'dock' && 'providerType' in config.config) {
+      if (config.componentType === COMPONENT_TYPES.DOCK && 'providerType' in config.config) {
         console.log('  → Converting to pure DataProvider config');
 
         // Extract data provider fields
@@ -90,11 +90,11 @@ async function migrate() {
         const newProviderConfig: UnifiedConfig = {
           ...config,
           configId: uuidv4(),
-          componentType: 'DataProvider',
-          componentSubType: providerType === 'stomp' ? 'Stomp' :
-                           providerType === 'rest' ? 'Rest' :
-                           providerType === 'websocket' ? 'WebSocket' :
-                           providerType === 'socketio' ? 'SocketIO' : 'Mock',
+          componentType: COMPONENT_TYPES.DATA_PROVIDER,
+          componentSubType: providerType === 'stomp' ? COMPONENT_SUBTYPES.STOMP :
+                           providerType === 'rest' ? COMPONENT_SUBTYPES.REST :
+                           providerType === 'websocket' ? COMPONENT_SUBTYPES.WEBSOCKET :
+                           providerType === 'socketio' ? COMPONENT_SUBTYPES.SOCKETIO : COMPONENT_SUBTYPES.MOCK,
           name: `${config.name} (Data Provider)`,
           config: dataProviderConfig,
           creationTime: new Date(),
@@ -121,7 +121,7 @@ async function migrate() {
   console.log('Final configuration summary:');
   for (const config of finalConfigs) {
     console.log(`  ${config.componentType}/${config.componentSubType}: ${config.name}`);
-    if (config.componentType === 'Dock' && config.componentSubType === 'DockApplicationsMenuItems') {
+    if (config.componentType === COMPONENT_TYPES.DOCK && config.componentSubType === COMPONENT_SUBTYPES.DOCK_APPLICATIONS_MENU_ITEMS) {
       const menuCount = (config.config as any).menuItems?.length || 0;
       console.log(`    → ${menuCount} menu items`);
     }

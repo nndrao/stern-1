@@ -12,6 +12,12 @@ import type {
   Page
 } from '../types/workspace';
 
+// Component type constants - must match @stern/shared-types COMPONENT_TYPES
+const COMPONENT_TYPES = {
+  WORKSPACE: 'workspace',
+  PAGE: 'page'
+} as const;
+
 export interface ConfigurationQueryParams {
   componentType?: string;
   componentSubType?: string;
@@ -172,7 +178,7 @@ export class ConfigurationApiClient {
    */
   async getWorkspaces(userId: string, query?: string): Promise<Workspace[]> {
     const configs = await this.queryConfigurations({
-      componentType: 'Workspace',
+      componentType: COMPONENT_TYPES.WORKSPACE,
       userId,
       query
     }) as WorkspaceConfiguration[];
@@ -207,7 +213,7 @@ export class ConfigurationApiClient {
       const created = await this.createConfiguration({
         configId: workspace.workspaceId,
         appId: 'stern-platform',
-        componentType: 'Workspace',
+        componentType: COMPONENT_TYPES.WORKSPACE,
         componentSubType: 'openfin',
         userId,
         name: workspace.title || 'Untitled Workspace',
@@ -233,7 +239,7 @@ export class ConfigurationApiClient {
    */
   async getPages(userId: string, query?: string): Promise<Page[]> {
     const configs = await this.queryConfigurations({
-      componentType: 'Page',
+      componentType: COMPONENT_TYPES.PAGE,
       userId,
       query
     }) as PageConfiguration[];
@@ -268,7 +274,7 @@ export class ConfigurationApiClient {
       const created = await this.createConfiguration({
         configId: page.pageId,
         appId: 'stern-platform',
-        componentType: 'Page',
+        componentType: COMPONENT_TYPES.PAGE,
         componentSubType: 'openfin',
         userId,
         name: page.title || 'Untitled Page',

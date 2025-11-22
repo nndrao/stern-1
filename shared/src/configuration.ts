@@ -6,8 +6,11 @@ export interface UnifiedConfig {
   appId: string;              // Application identifier
   userId: string;             // User who owns this config
 
+  // === Parent-Child Relationship ===
+  parentId?: string | null;   // Optional parent config ID for hierarchical configs (e.g., layouts linked to blotter)
+
   // === Component Classification ===
-  componentType: string;      // 'datasource' | 'grid' | 'profile' | 'workspace' | 'theme' | 'layout'
+  componentType: string;      // 'datasource' | 'grid' | 'profile' | 'workspace' | 'theme' | 'layout' | 'simple-blotter' | 'simple-blotter-layout'
   componentSubType?: string;  // 'stomp' | 'rest' | 'default' | 'custom' | 'shared' | 'direct'
 
   // === Display ===
@@ -54,6 +57,7 @@ export interface ConfigurationFilter {
   configIds?: string[];           // Multiple config IDs
   appIds?: string[];              // Multiple app IDs
   userIds?: string[];             // Multiple user IDs
+  parentIds?: string[];           // Multiple parent config IDs (for hierarchical queries)
 
   // Component Classification Filters
   componentTypes?: string[];      // Multiple component types
@@ -127,9 +131,13 @@ export const COMPONENT_TYPES = {
   DATA_GRID: 'data-grid',
   PROFILE: 'profile',
   WORKSPACE: 'workspace',
+  PAGE: 'page',  // OpenFin workspace pages
   THEME: 'theme',
   LAYOUT: 'layout',
-  DOCK: 'dock'  // For dock configurations
+  DOCK: 'dock',  // For dock configurations
+  SIMPLE_BLOTTER: 'simple-blotter',  // SimpleBlotter parent configuration
+  SIMPLE_BLOTTER_LAYOUT: 'simple-blotter-layout',  // SimpleBlotter layout (child of simple-blotter)
+  CUSTOM: 'custom'  // For custom/demo components
 } as const;
 
 export const COMPONENT_SUBTYPES = {

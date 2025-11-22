@@ -245,6 +245,11 @@ export function createConfigurationRoutes(configService: ConfigurationService): 
         delete filterParams.appId;
       }
 
+      if (queryParams.parentId) {
+        filterParams.parentIds = [queryParams.parentId as string];
+        delete filterParams.parentId;
+      }
+
       // If pagination parameters are provided, use paginated query
       if (page || limit) {
         const result = await configService.queryConfigurationsWithPagination(
@@ -327,11 +332,11 @@ export function createConfigurationRoutes(configService: ConfigurationService): 
     asyncHandler(async (req: Request, res: Response) => {
       const { componentType } = req.params;
       const { componentSubType, includeDeleted } = req.query;
-      
-      logger.debug('Fetching configurations by component type', { 
-        componentType, 
-        componentSubType, 
-        includeDeleted 
+
+      logger.debug('Fetching configurations by component type', {
+        componentType,
+        componentSubType,
+        includeDeleted
       });
 
       const result = await configService.findByComponentType(
@@ -339,6 +344,37 @@ export function createConfigurationRoutes(configService: ConfigurationService): 
         componentSubType as string,
         includeDeleted === 'true'
       );
+      res.json(result);
+    })
+  );
+
+  /**
+   * GET /api/v1/configurations/by-parent/:parentId
+   * Get child configurations by parent ID
+   * Used for hierarchical configurations (e.g., layouts linked to a blotter)
+   * Optional query params: componentType, includeDeleted
+   */
+  router.get('/by-parent/:parentId',
+    asyncHandler(async (req: Request, res: Response) => {
+      const { parentId } = req.params;
+      const { includeDeleted, componentType } = req.query;
+
+      logger.debug('Fetching configurations by parent ID', {
+        parentId,
+        componentType,
+        includeDeleted
+      });
+
+      const criteria: ConfigurationFilter = {
+        parentIds: [parentId],
+        includeDeleted: includeDeleted === 'true'
+      };
+
+      if (componentType) {
+        criteria.componentTypes = [componentType as string];
+      }
+
+      const result = await configService.queryConfigurations(criteria);
       res.json(result);
     })
   );

@@ -27,6 +27,10 @@ import { OpenFinCustomEvents } from '@/openfin/types/openfinEvents';
 import { resolveValueFormatter } from '@/formatters';
 import { CollapsibleToolbar } from '@/components/ui/CollapsibleToolbar';
 import { BlotterToolbar } from './BlotterToolbar';
+import { LayoutSaveDialog } from './LayoutSaveDialog';
+import { LayoutManageDialog } from './LayoutManageDialog';
+import { useBlotterLayoutManager } from './useBlotterLayoutManager';
+import { COMPONENT_TYPES } from '@stern/shared-types';
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([AllEnterpriseModule]);
@@ -155,6 +159,39 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   }, [onError]);
 
   // ============================================================================
+  // Layout Manager
+  // ============================================================================
+
+  const layoutManager = useBlotterLayoutManager({
+    blotterConfigId: viewInstanceId,
+    userId,
+    blotterName: 'SimpleBlotter',
+    gridApi: gridApiRef.current,
+    selectedProviderId,
+    toolbarState: {
+      isCollapsed: isToolbarCollapsed,
+      isPinned: isToolbarPinned,
+    },
+  });
+
+  // Register callbacks for layout application IMMEDIATELY
+  // This must happen before any layout is applied, so we use useMemo to ensure
+  // it runs synchronously during render, not in an effect
+  useMemo(() => {
+    layoutManager.registerApplyCallbacks({
+      onProviderChange: (providerId) => {
+        console.log('[SimpleBlotter] Layout applying provider:', providerId);
+        setSelectedProviderId(providerId);
+      },
+      onToolbarStateChange: (state) => {
+        console.log('[SimpleBlotter] Layout applying toolbar state:', state);
+        setIsToolbarCollapsed(state.isCollapsed);
+        setIsToolbarPinned(state.isPinned);
+      },
+    });
+  }, [layoutManager.registerApplyCallbacks]);
+
+  // ============================================================================
   // Data Provider Adapter
   // ============================================================================
 
@@ -170,7 +207,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   useEffect(() => {
     // Load all DataProvider configs and filter for STOMP and REST only
     platform.configService.getAll({
-      componentType: 'DataProvider',
+      componentType: COMPONENT_TYPES.DATA_PROVIDER,
       userId,
     })
     .then((providers) => {
@@ -192,6 +229,69 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       onErrorRef.current?.(error instanceof Error ? error : new Error('Failed to load providers'));
     });
   }, [platform.configService, userId]);
+
+  // ============================================================================
+  // Initialize Blotter Layout (on mount)
+  // ============================================================================
+
+  useEffect(() => {
+    layoutManager.initializeBlotter().catch((error) => {
+      console.error('[SimpleBlotter] Failed to initialize blotter layout:', error);
+    });
+  }, []); // Run once on mount
+
+  // Track if we've applied the initial layout
+  const initialLayoutAppliedRef = useRef(false);
+
+  // Apply layout when layouts load - don't wait for grid to be ready
+  // Provider and toolbar state need to be applied immediately so the grid can initialize
+  useEffect(() => {
+    // Only apply once on initial load
+    if (initialLayoutAppliedRef.current) {
+      return;
+    }
+
+    // Wait for layouts to load and a layout to be selected (from initializeBlotter)
+    if (layoutManager.layouts.length > 0 && layoutManager.selectedLayoutId) {
+      const layout = layoutManager.layouts.find(
+        (l) => l.unified.configId === layoutManager.selectedLayoutId
+      );
+      if (layout) {
+        console.log('[SimpleBlotter] Applying initial layout', {
+          layoutId: layoutManager.selectedLayoutId,
+          providerId: layout.config.selectedProviderId,
+          toolbarState: layout.config.toolbarState,
+        });
+        layoutManager.applyLayoutToGrid(layout.config);
+        initialLayoutAppliedRef.current = true;
+      }
+    }
+  }, [layoutManager.layouts, layoutManager.selectedLayoutId, layoutManager.applyLayoutToGrid]);
+
+  // Re-apply grid state when grid becomes ready (if we already applied provider/toolbar)
+  useEffect(() => {
+    if (gridReady && layoutManager.selectedLayoutId && initialLayoutAppliedRef.current) {
+      const layout = layoutManager.layouts.find(
+        (l) => l.unified.configId === layoutManager.selectedLayoutId
+      );
+      if (layout) {
+        console.log('[SimpleBlotter] Re-applying grid state after grid ready', {
+          layoutId: layoutManager.selectedLayoutId,
+          columnCount: layout.config.columnState?.length || 0,
+        });
+        // Only apply grid state (column, filter, sort) - provider/toolbar already applied
+        if (gridApiRef.current && layout.config.columnState?.length > 0) {
+          gridApiRef.current.applyColumnState({
+            state: layout.config.columnState,
+            applyOrder: true,
+          });
+        }
+        if (gridApiRef.current && layout.config.filterState) {
+          gridApiRef.current.setFilterModel(layout.config.filterState);
+        }
+      }
+    }
+  }, [gridReady, layoutManager.layouts, layoutManager.selectedLayoutId]);
 
   // ============================================================================
   // Load Provider Columns (when provider selected)
@@ -374,7 +474,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       OpenFinCustomEvents.CONFIG_UPDATED,
       (data) => {
         console.log('[SimpleBlotter] Config update event received', data);
-        if (data.componentType === 'DataProvider' && data.configId === selectedProviderId) {
+        if (data.componentType === COMPONENT_TYPES.DATA_PROVIDER && data.configId === selectedProviderId) {
           // Use memoized column loading function
           loadColumnsForProvider(selectedProviderId);
         }
@@ -486,8 +586,40 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
           rowCount={rowCount}
           loadTimeMs={loadTimeMs}
           onProviderSelect={handleProviderSelect}
+          // Layout management props
+          layouts={layoutManager.layouts}
+          selectedLayoutId={layoutManager.selectedLayoutId}
+          defaultLayoutId={layoutManager.defaultLayoutId}
+          isLayoutSaving={layoutManager.isSaving}
+          onLayoutSelect={layoutManager.selectLayout}
+          onSaveLayout={layoutManager.saveCurrentLayout}
+          onSaveAsNew={() => layoutManager.setIsSaveDialogOpen(true)}
+          onManageLayouts={() => layoutManager.setIsManageDialogOpen(true)}
         />
       </CollapsibleToolbar>
+
+      {/* Layout Save Dialog */}
+      <LayoutSaveDialog
+        open={layoutManager.isSaveDialogOpen}
+        onClose={() => layoutManager.setIsSaveDialogOpen(false)}
+        onSave={layoutManager.saveAsNewLayout}
+        isSaving={layoutManager.isSaving}
+        defaultName={`Layout ${layoutManager.layouts.length + 1}`}
+      />
+
+      {/* Layout Manage Dialog */}
+      <LayoutManageDialog
+        open={layoutManager.isManageDialogOpen}
+        onClose={() => layoutManager.setIsManageDialogOpen(false)}
+        layouts={layoutManager.layouts}
+        defaultLayoutId={layoutManager.defaultLayoutId}
+        selectedLayoutId={layoutManager.selectedLayoutId ?? undefined}
+        onRename={layoutManager.renameLayout}
+        onDelete={layoutManager.deleteLayout}
+        onDuplicate={layoutManager.duplicateLayout}
+        onSetDefault={layoutManager.setDefaultLayout}
+        onSelect={layoutManager.selectLayout}
+      />
 
       {/* Grid */}
       <div className="flex-1">
@@ -517,10 +649,11 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
             suppressAnimationFrame={true}
             suppressColumnVirtualisation={false}
             suppressRowVirtualisation={false}
-            suppressCellFocus={true}
             suppressClipboardPaste={false}
             debounceVerticalScrollbar={true}
             suppressScrollOnNewData={true}
+            // Enable cell selection
+            cellSelection={true}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-muted-foreground">

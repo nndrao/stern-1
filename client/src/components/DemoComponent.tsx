@@ -21,7 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { logger } from '@/utils/logger';
-import { UnifiedConfig } from '@stern/shared-types';
+import { UnifiedConfig, COMPONENT_TYPES } from '@stern/shared-types';
 import { getAppId, getUserId } from '@/openfin/utils/platformContext';
 import { getViewInstanceId } from '@/openfin/utils/viewUtils';
 
@@ -67,7 +67,7 @@ export const DemoComponent: React.FC = () => {
         // Direct lookup using composite key - single query!
         const existingConfig = await platform.configService.findByCompositeKey(
           userId,
-          'CustomComponent',
+          COMPONENT_TYPES.CUSTOM,
           configKey,
           'demo'
         );
@@ -181,7 +181,7 @@ export const DemoComponent: React.FC = () => {
       // Upsert handles both create and update automatically!
       const savedConfig = await platform.configService.upsert(
         userId,
-        'CustomComponent',
+        COMPONENT_TYPES.CUSTOM,
         configKey,
         config,
         'demo',
@@ -199,7 +199,7 @@ export const DemoComponent: React.FC = () => {
       if (platform.isOpenFin) {
         await platform.broadcastEvent(OpenFinCustomEvents.CONFIG_UPDATED, {
           configId: savedConfig.configId,
-          componentType: 'CustomComponent',
+          componentType: COMPONENT_TYPES.CUSTOM,
           componentSubType: 'demo',
           timestamp: Date.now(),
         });

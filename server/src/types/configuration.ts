@@ -6,9 +6,12 @@ export interface UnifiedConfig {
   appId: string;              // Application identifier
   userId: string;             // User who owns this config
 
+  // === Parent-Child Relationship ===
+  parentId?: string | null;   // Optional parent config ID for hierarchical configs (e.g., layouts linked to blotter)
+
   // === Component Classification ===
-  componentType: string;      // 'datasource' | 'grid' | 'profile' | 'workspace' | 'theme' | 'layout' | 'Dock'
-  componentSubType?: string;  // 'stomp' | 'rest' | 'default' | 'custom' | 'shared' | 'direct' | 'DockApplicationsMenuItems'
+  componentType: string;      // 'datasource' | 'grid' | 'profile' | 'workspace' | 'theme' | 'layout' | 'dock' | 'simple-blotter' | 'simple-blotter-layout'
+  componentSubType?: string;  // 'stomp' | 'rest' | 'default' | 'custom' | 'shared' | 'direct' | 'dock-applications-menu-items'
 
   // === Display ===
   name: string;               // User-friendly name
@@ -54,6 +57,7 @@ export interface ConfigurationFilter {
   configIds?: string[];           // Multiple config IDs
   appIds?: string[];              // Multiple app IDs
   userIds?: string[];             // Multiple user IDs
+  parentIds?: string[];           // Multiple parent config IDs (for hierarchical queries)
 
   // Component Classification Filters
   componentTypes?: string[];      // Multiple component types
@@ -119,24 +123,35 @@ export interface CleanupResult {
 }
 
 // Component type constants
+// REFACTORED: Standardized all values to lowercase/kebab-case for consistency
 export const COMPONENT_TYPES = {
   DATASOURCE: 'datasource',
+  DATA_PROVIDER: 'data-provider',  // For data provider configurations
   GRID: 'grid',
+  DATA_GRID: 'data-grid',
   PROFILE: 'profile',
   WORKSPACE: 'workspace',
   THEME: 'theme',
   LAYOUT: 'layout',
-  DOCK: 'Dock'
+  DOCK: 'dock',  // For dock configurations
+  SIMPLE_BLOTTER: 'simple-blotter',  // SimpleBlotter parent configuration
+  SIMPLE_BLOTTER_LAYOUT: 'simple-blotter-layout'  // SimpleBlotter layout (child of simple-blotter)
 } as const;
 
 export const COMPONENT_SUBTYPES = {
+  // Data Provider subtypes - all lowercase for consistency
   STOMP: 'stomp',
   WEBSOCKET: 'websocket',
   SOCKETIO: 'socketio',
   REST: 'rest',
+  MOCK: 'mock',
+
+  // Dock subtypes
+  DOCK_APPLICATIONS_MENU_ITEMS: 'dock-applications-menu-items',  // Singleton for dock menu items
+
+  // Generic subtypes
   DEFAULT: 'default',
   CUSTOM: 'custom',
   SHARED: 'shared',
-  DIRECT: 'direct',
-  DOCK_APPLICATIONS_MENU_ITEMS: 'DockApplicationsMenuItems'
+  DIRECT: 'direct'
 } as const;
