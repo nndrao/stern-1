@@ -32,7 +32,7 @@ import { DockMenuItem } from '@/openfin/types/dockConfig';
 interface TreeViewProps {
   items: DockMenuItem[];
   selectedId?: string;
-  onSelect?: (item: DockMenuItem) => void;
+  onSelect?: (item: DockMenuItem | null) => void;
   onReorder?: (sourceId: string, targetId: string, position: 'before' | 'after' | 'inside') => void;
   onUpdate?: (id: string, updates: Partial<DockMenuItem>) => void;
   onAdd?: (parentId?: string) => void;
@@ -229,7 +229,14 @@ export const TreeView: React.FC<TreeViewProps> = ({
             isSelected={isSelected}
             isExpanded={isExpanded}
             onToggle={() => toggleExpanded(item.id)}
-            onSelect={() => onSelect?.(item)}
+            onSelect={() => {
+              // Toggle selection: clicking selected item deselects it
+              if (selectedId === item.id) {
+                onSelect?.(null);
+              } else {
+                onSelect?.(item);
+              }
+            }}
             onReorder={(sourceId, targetId, position) => onReorder?.(sourceId, targetId, position)}
             onUpdate={(updates) => onUpdate?.(item.id, updates)}
             onAdd={() => onAdd?.(item.id)}
@@ -242,16 +249,34 @@ export const TreeView: React.FC<TreeViewProps> = ({
     });
   };
 
+  // Handle click on empty area to deselect
+  const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
+    // Only deselect if clicking directly on the background, not on a child element
+    if (e.target === e.currentTarget) {
+      onSelect?.(null);
+    }
+  }, [onSelect]);
+
   return (
     <ScrollArea className="h-full">
-      <div className="p-2">
+      <div
+        className="p-2 min-h-full"
+        onClick={handleBackgroundClick}
+      >
         {!items || items.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
             <p>No menu items</p>
             <p className="text-sm mt-2">Click "Add Item" to create your first menu item</p>
           </div>
         ) : (
-          renderTree(items)
+          <>
+            {renderTree(items)}
+            {/* Clickable area below items to deselect */}
+            <div
+              className="min-h-[40px] mt-2"
+              onClick={() => onSelect?.(null)}
+            />
+          </>
         )}
       </div>
     </ScrollArea>
