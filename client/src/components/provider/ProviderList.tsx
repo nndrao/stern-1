@@ -7,7 +7,8 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Database, Wifi, Globe, Zap, TestTube, Star, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Database, Wifi, Globe, Zap, TestTube, Star, Search, Trash2 } from 'lucide-react';
 
 import { useDataProviders } from '@/hooks/api/useDataProviderQueries';
 import { ProviderType, DataProviderConfig } from '@stern/shared-types';
@@ -16,6 +17,7 @@ interface ProviderListProps {
   userId: string;
   currentProvider: DataProviderConfig | null;
   onSelect: (provider: DataProviderConfig) => void;
+  onDelete?: (provider: DataProviderConfig) => void;
 }
 
 // Provider type icons with consistent sizing
@@ -38,7 +40,7 @@ const PROVIDER_GRADIENTS: Record<ProviderType, string> = {
   appdata: 'from-yellow-500 to-amber-500'
 };
 
-export const ProviderList: React.FC<ProviderListProps> = ({ userId, currentProvider, onSelect }) => {
+export const ProviderList: React.FC<ProviderListProps> = ({ userId, currentProvider, onSelect, onDelete }) => {
   const { data: providers = [], isLoading } = useDataProviders(userId);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -133,6 +135,21 @@ export const ProviderList: React.FC<ProviderListProps> = ({ userId, currentProvi
                       {provider.providerType.toUpperCase()}
                     </div>
                   </div>
+
+                  {/* Delete Button - visible on hover */}
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(provider);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
 
                   {/* Selection Indicator */}
                   {isSelected && (

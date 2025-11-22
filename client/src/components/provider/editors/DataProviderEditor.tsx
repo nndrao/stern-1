@@ -12,6 +12,8 @@ import { useOpenfinTheme } from '@/openfin/hooks/useOpenfinTheme';
 import { ProviderList } from '../ProviderList';
 import { ProviderForm } from '../forms/ProviderForm';
 import { TypeSelectionDialog } from './TypeSelectionDialog';
+import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { useDeleteDataProvider } from '@/hooks/api/useDataProviderQueries';
 import { DataProviderConfig, getDefaultProviderConfig, ProviderType } from '@stern/shared-types';
 import { logger } from '@/utils/logger';
 
@@ -27,11 +29,37 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
 
   const [showTypeDialog, setShowTypeDialog] = useState(false);
   const [currentProvider, setCurrentProvider] = useState<DataProviderConfig | null>(null);
+  const [providerToDelete, setProviderToDelete] = useState<DataProviderConfig | null>(null);
+
+  const deleteMutation = useDeleteDataProvider();
 
   // Handle create new provider - show type selection dialog
   const handleCreate = useCallback(() => {
     setShowTypeDialog(true);
   }, []);
+
+  // Handle delete provider
+  const handleDelete = useCallback((provider: DataProviderConfig) => {
+    setProviderToDelete(provider);
+  }, []);
+
+  // Confirm delete
+  const handleConfirmDelete = useCallback(async () => {
+    if (!providerToDelete?.providerId) return;
+
+    try {
+      await deleteMutation.mutateAsync({ providerId: providerToDelete.providerId, userId });
+      // Clear current provider if it was the deleted one
+      if (currentProvider?.providerId === providerToDelete.providerId) {
+        setCurrentProvider(null);
+      }
+      logger.info('Provider deleted', { providerId: providerToDelete.providerId }, 'DataProviderEditor');
+    } catch (error) {
+      logger.error('Failed to delete provider', error, 'DataProviderEditor');
+    } finally {
+      setProviderToDelete(null);
+    }
+  }, [providerToDelete, deleteMutation, userId, currentProvider]);
 
   // Handle type selection from dialog
   const handleTypeSelect = useCallback((providerType: ProviderType) => {
@@ -70,6 +98,7 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
             userId={userId}
             currentProvider={currentProvider}
             onSelect={setCurrentProvider}
+            onDelete={handleDelete}
           />
         </div>
 
@@ -136,6 +165,16 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
         open={showTypeDialog}
         onClose={() => setShowTypeDialog(false)}
         onSelect={handleTypeSelect}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={!!providerToDelete}
+        onClose={() => setProviderToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Datasource"
+        description={`Are you sure you want to delete "${providerToDelete?.name || 'this datasource'}"? This action cannot be undone.`}
+        isLoading={deleteMutation.isPending}
       />
     </div>
   );
