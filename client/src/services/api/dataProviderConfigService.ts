@@ -172,17 +172,25 @@ export class DataProviderConfigService {
     try {
       logger.debug('Fetching data providers by user', { userId }, 'DataProviderConfigService');
 
+      // Fetch all configs for user without componentType filter
+      // Then filter client-side with case-insensitive matching for backward compatibility
+      // (old configs may have 'DataProvider', new ones have 'data-provider')
       const response = await apiClient.get<UnifiedConfig[]>(`${this.baseUrl}/by-user/${userId}`, {
         params: {
-          componentType: COMPONENT_TYPES.DATA_PROVIDER,
           includeDeleted: false
         }
       });
 
-      // Map to DataProviderConfig format
-      const providers = response.data.map(config => this.fromUnifiedConfig(config));
+      // Filter by componentType case-insensitively to handle legacy data
+      const dataProviderConfigs = response.data.filter(config => {
+        const type = config.componentType?.toLowerCase();
+        return type === 'data-provider' || type === 'dataprovider';
+      });
 
-      logger.debug('Data providers fetched', { count: providers.length }, 'DataProviderConfigService');
+      // Map to DataProviderConfig format
+      const providers = dataProviderConfigs.map(config => this.fromUnifiedConfig(config));
+
+      logger.debug('Data providers fetched', { count: providers.length, total: response.data.length }, 'DataProviderConfigService');
 
       return providers;
     } catch (error) {
