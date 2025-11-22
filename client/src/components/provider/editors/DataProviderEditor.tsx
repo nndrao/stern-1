@@ -35,8 +35,10 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
 
   // Handle type selection from dialog
   const handleTypeSelect = useCallback((providerType: ProviderType) => {
+    // Create new provider with empty/minimal values
+    // User should fill in all fields themselves
     const newProvider: DataProviderConfig = {
-      name: `New ${providerType.toUpperCase()} Datasource`,
+      name: '',
       description: '',
       providerType,
       config: getDefaultProviderConfig(providerType) as any,

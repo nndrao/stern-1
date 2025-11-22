@@ -330,6 +330,8 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
   },
   rest: {
     providerType: 'rest',
+    baseUrl: '',
+    endpoint: '',
     method: 'GET',
     pollInterval: 5000,
     pageSize: 100,
@@ -337,6 +339,7 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
   },
   websocket: {
     providerType: 'websocket',
+    url: '',
     messageFormat: 'json',
     heartbeatInterval: 30000,
     reconnectAttempts: 5,
@@ -344,6 +347,7 @@ export const DEFAULT_PROVIDER_CONFIGS: Record<ProviderType, Partial<ProviderConf
   },
   socketio: {
     providerType: 'socketio',
+    url: '',
     namespace: '/',
     reconnection: true,
     reconnectionDelay: 5000
