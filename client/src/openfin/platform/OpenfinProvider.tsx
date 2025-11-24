@@ -3,7 +3,6 @@ import { init } from '@openfin/workspace-platform';
 import {
   useOpenfinTheme,
   createWorkspaceStorageOverride,
-  createBrowserOverride,
   createCustomActions,
   VIEW_CONTEXT_MENU_ACTIONS
 } from '@stern/openfin-platform';
@@ -165,18 +164,16 @@ export default function Provider() {
 
         logger.info('[WorkspaceStorage] Configuring custom workspace storage with dual storage strategy', { apiBaseUrl, userId }, 'Provider');
 
-        // Create combined override with workspace storage and browser customizations
+        // Create workspace storage override (returns instance directly)
         const workspaceStorageOverride = createWorkspaceStorageOverride({
           apiBaseUrl,
           userId,
           enableFallback: true
         });
 
-        const browserOverride = createBrowserOverride({
-          enableDuplicateWithLayouts: true
-        });
-
         // Create custom actions handler for context menu items
+        // Note: The "Duplicate View with Layouts" menu item is added via customActions,
+        // not via browser override, so we don't need to chain browserOverride here.
         const duplicateViewActionHandler = async (action: string, payload: { windowIdentity: { uuid: string; name: string }; selectedViews: { uuid: string; name: string }[]; customData?: unknown }) => {
           logger.info('View context menu action triggered', { action, payload }, 'Provider');
 
@@ -198,13 +195,6 @@ export default function Provider() {
           ...createCustomActions(duplicateViewActionHandler)
         };
 
-        // Chain the overrides: first workspace storage, then browser
-        const combinedOverride = async (Base: any) => {
-          const StorageClass = await workspaceStorageOverride(Base);
-          // Create a wrapper that uses the storage class as the base
-          return browserOverride(() => StorageClass as any);
-        };
-
         await init({
           browser: {
             defaultWindowOptions: {
@@ -215,7 +205,7 @@ export default function Provider() {
               }
             }
           },
-          overrideCallback: combinedOverride,
+          overrideCallback: workspaceStorageOverride,
           theme: [{
             label: "Stern Theme",
             default: "dark",
