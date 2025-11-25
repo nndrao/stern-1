@@ -608,6 +608,129 @@ export class SimpleBlotterConfigService {
       throw error;
     }
   }
+
+  // ============================================================================
+  // Config Lookup by Menu Item (for "reuse existing config" behavior)
+  // ============================================================================
+
+  /**
+   * Find an existing blotter config by menuItemId and userId.
+   * Used to implement "reuse existing config" behavior where clicking the same
+   * dock menu item loads an existing configuration instead of creating a new one.
+   *
+   * The menuItemId is stored in the componentSubType field of the UnifiedConfig.
+   *
+   * @param menuItemId - The dock menu item ID
+   * @param userId - The user ID
+   * @returns The existing config if found, null otherwise
+   */
+  async findConfigByMenuItemAndUser(
+    menuItemId: string,
+    userId: string
+  ): Promise<{ config: SimpleBlotterConfig; unified: UnifiedConfig } | null> {
+    try {
+      logger.debug('Looking up config by menuItem and user', { menuItemId, userId }, 'SimpleBlotterConfigService');
+
+      // Query for blotter configs with matching componentSubType (menuItemId) and userId
+      const response = await apiClient.get<UnifiedConfig[]>(
+        `${this.baseUrl}/by-user/${userId}`,
+        {
+          params: {
+            componentType: COMPONENT_TYPES.SIMPLE_BLOTTER,
+            componentSubType: menuItemId
+          }
+        }
+      );
+
+      const configs = response.data;
+
+      if (configs.length === 0) {
+        logger.debug('No existing config found for menuItem', { menuItemId, userId }, 'SimpleBlotterConfigService');
+        return null;
+      }
+
+      // Return the first matching config (should only be one per menuItem + user combination)
+      const unified = configs[0];
+      logger.info('Found existing config for menuItem', {
+        menuItemId,
+        userId,
+        configId: unified.configId
+      }, 'SimpleBlotterConfigService');
+
+      return {
+        config: this.blotterFromUnifiedConfig(unified),
+        unified
+      };
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        logger.debug('No configs found for user', { menuItemId, userId }, 'SimpleBlotterConfigService');
+        return null;
+      }
+      logger.error('Failed to find config by menuItem', error, 'SimpleBlotterConfigService');
+      throw error;
+    }
+  }
+
+  /**
+   * Get or create blotter configuration by menu item.
+   * This is the primary method for dock menu item launches:
+   * - First checks if a config already exists for this menuItem + user
+   * - If exists, returns the existing config (reuse)
+   * - If not, creates a new config with the menuItemId stored in componentSubType
+   *
+   * @param menuItemId - The dock menu item ID (stored in componentSubType)
+   * @param userId - The user ID
+   * @param name - Display name for new configs
+   * @returns The config (existing or newly created) and whether it was new
+   */
+  async getOrCreateConfigByMenuItem(
+    menuItemId: string,
+    userId: string,
+    name: string
+  ): Promise<{ config: SimpleBlotterConfig; unified: UnifiedConfig; isNew: boolean; configId: string }> {
+    // First, try to find an existing config
+    const existing = await this.findConfigByMenuItemAndUser(menuItemId, userId);
+
+    if (existing) {
+      logger.info('Reusing existing config for menuItem', {
+        menuItemId,
+        configId: existing.unified.configId
+      }, 'SimpleBlotterConfigService');
+
+      return {
+        ...existing,
+        isNew: false,
+        configId: existing.unified.configId
+      };
+    }
+
+    // No existing config - create a new one with a new UUID as configId
+    const newConfigId = crypto.randomUUID();
+
+    logger.info('Creating new config for menuItem', {
+      menuItemId,
+      newConfigId,
+      name
+    }, 'SimpleBlotterConfigService');
+
+    // Create the blotter config
+    const created = await this.createBlotterConfig(newConfigId, userId, name);
+
+    // Update the componentSubType to store the menuItemId for future lookups
+    await this.updateComponentSubType(newConfigId, menuItemId, userId);
+
+    // Fetch the updated config with componentSubType
+    const updated = await this.getBlotterConfig(newConfigId);
+    if (!updated) {
+      throw new Error(`Failed to fetch newly created config: ${newConfigId}`);
+    }
+
+    return {
+      ...updated,
+      isNew: true,
+      configId: newConfigId
+    };
+  }
 }
 
 // Export singleton instance

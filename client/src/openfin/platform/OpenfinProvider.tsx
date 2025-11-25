@@ -4,7 +4,8 @@ import {
   useOpenfinTheme,
   createWorkspaceStorageOverride,
   createCustomActions,
-  VIEW_CONTEXT_MENU_ACTIONS
+  VIEW_CONTEXT_MENU_ACTIONS,
+  registerConfigLookupCallback
 } from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
 import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
@@ -17,6 +18,8 @@ import { dockConfigService } from '@/services/api/dockConfigService';
 import { viewManager } from '@/services/viewManager';
 import { initializeOpenFinPlatformLibrary } from './openfinPlatformAdapter';
 import { handleDuplicateViewAction } from '../actions/viewActions';
+import { layoutCache } from '@/services/cache/layoutCache';
+import { simpleBlotterConfigService } from '@/services/api/simpleBlotterConfigService';
 
 // Placeholder components for future features
 const SettingsPanel = () => (
@@ -165,10 +168,29 @@ export default function Provider() {
         logger.info('[WorkspaceStorage] Configuring custom workspace storage with dual storage strategy', { apiBaseUrl, userId }, 'Provider');
 
         // Create workspace storage override (returns instance directly)
+        // onBeforeWorkspaceSave callbacks are invoked before workspace is saved to persist pending layouts
         const workspaceStorageOverride = createWorkspaceStorageOverride({
           apiBaseUrl,
           userId,
-          enableFallback: true
+          enableFallback: true,
+          onBeforeWorkspaceSave: [
+            async (workspaceId: string) => {
+              logger.info('[WorkspaceStorage] Before-save callback: persisting pending layouts', { workspaceId }, 'Provider');
+              const result = await layoutCache.persistAll();
+              if (result.success) {
+                logger.info('[WorkspaceStorage] Layouts persisted successfully', {
+                  workspaceId,
+                  savedCount: result.savedCount,
+                  deletedCount: result.deletedCount
+                }, 'Provider');
+              } else {
+                logger.error('[WorkspaceStorage] Some layouts failed to persist', {
+                  workspaceId,
+                  errors: result.errors
+                }, 'Provider');
+              }
+            }
+          ]
         });
 
         // Create custom actions handler for context menu items
@@ -296,6 +318,41 @@ export default function Provider() {
             logger.error('Failed to initialize View Manager', viewManagerError, 'Provider');
             // Continue anyway - view manager is not critical for platform operation
           }
+
+          // Register config lookup callback for "reuse existing config" behavior
+          // When a dock menu item is clicked, this callback checks if a config already exists
+          // for that menu item + user combination, and reuses it instead of creating a new one
+          const configUserId = settings.platformContext?.userId || 'default-user';
+          registerConfigLookupCallback(async (menuItemId: string, caption: string) => {
+            try {
+              logger.info('Config lookup callback invoked', { menuItemId, caption, userId: configUserId }, 'Provider');
+
+              const result = await simpleBlotterConfigService.getOrCreateConfigByMenuItem(
+                menuItemId,
+                configUserId,
+                caption
+              );
+
+              logger.info('Config lookup result', {
+                menuItemId,
+                configId: result.configId,
+                isNew: result.isNew
+              }, 'Provider');
+
+              return {
+                configId: result.configId,
+                isExisting: !result.isNew
+              };
+            } catch (error) {
+              logger.error('Config lookup failed', { menuItemId, error }, 'Provider');
+              // Return a new UUID as fallback
+              return {
+                configId: crypto.randomUUID(),
+                isExisting: false
+              };
+            }
+          });
+          logger.info('Config lookup callback registered for reuse behavior', undefined, 'Provider');
 
           // Check if Dock is available
           if (dock.isDockAvailable()) {

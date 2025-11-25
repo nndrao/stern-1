@@ -19,10 +19,18 @@ import type {
 } from '@openfin/workspace-platform';
 import { ConfigurationApiClient } from '../api/configurationApi';
 
+/**
+ * Callback invoked before workspace is saved
+ * Use this to persist pending layouts or other deferred data
+ */
+export type WorkspaceSaveCallback = (workspaceId: string) => Promise<void>;
+
 export interface WorkspaceStorageConfig {
   apiBaseUrl?: string;
   userId: string;
   enableFallback?: boolean;  // Fallback to default storage on API errors
+  /** Callbacks to invoke before workspace save (for deferred persistence) */
+  onBeforeWorkspaceSave?: WorkspaceSaveCallback[];
 }
 
 /**
@@ -36,18 +44,43 @@ export function createWorkspaceStorageOverride(config: WorkspaceStorageConfig) {
       private apiClient: ConfigurationApiClient;
       private userId: string;
       private enableFallback: boolean;
+      private onBeforeWorkspaceSave: WorkspaceSaveCallback[];
 
       constructor() {
         super();
         this.apiClient = new ConfigurationApiClient(config.apiBaseUrl);
         this.userId = config.userId;
         this.enableFallback = config.enableFallback ?? true;
+        this.onBeforeWorkspaceSave = config.onBeforeWorkspaceSave ?? [];
 
         console.log('[WorkspaceStorage] Initialized with Configuration Service backend', {
           apiBaseUrl: config.apiBaseUrl,
           userId: config.userId,
-          fallbackEnabled: this.enableFallback
+          fallbackEnabled: this.enableFallback,
+          beforeSaveCallbacks: this.onBeforeWorkspaceSave.length
         });
+      }
+
+      /**
+       * Execute all registered before-save callbacks
+       * Used for deferred persistence of layouts
+       */
+      private async executeBeforeSaveCallbacks(workspaceId: string): Promise<void> {
+        if (this.onBeforeWorkspaceSave.length === 0) return;
+
+        console.log('[WorkspaceStorage] Executing before-save callbacks', {
+          workspaceId,
+          callbackCount: this.onBeforeWorkspaceSave.length
+        });
+
+        for (const callback of this.onBeforeWorkspaceSave) {
+          try {
+            await callback(workspaceId);
+          } catch (error) {
+            console.error('[WorkspaceStorage] Before-save callback failed:', error);
+            // Continue with other callbacks even if one fails
+          }
+        }
       }
 
       /**
@@ -142,6 +175,9 @@ export function createWorkspaceStorageOverride(config: WorkspaceStorageConfig) {
           title: req.workspace.title
         });
 
+        // Execute before-save callbacks (persist pending layouts)
+        await this.executeBeforeSaveCallbacks(req.workspace.workspaceId);
+
         // Save to IndexedDB FIRST (required for OpenFin to work)
         if (this.enableFallback) {
           await super.createSavedWorkspace(req);
@@ -165,6 +201,9 @@ export function createWorkspaceStorageOverride(config: WorkspaceStorageConfig) {
           workspaceId: req.workspace.workspaceId,
           title: req.workspace.title
         });
+
+        // Execute before-save callbacks (persist pending layouts)
+        await this.executeBeforeSaveCallbacks(req.workspace.workspaceId);
 
         // Save to IndexedDB FIRST (required for OpenFin to work)
         if (this.enableFallback) {
