@@ -134,6 +134,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   const [debugActiveLayoutId, setDebugActiveLayoutId] = useState<string | null>(null);
   const [debugLayoutName, setDebugLayoutName] = useState<string | null>(null);
 
+  // Real-time update counter
+  const [updateCount, setUpdateCount] = useState(0);
+
   // ============================================================================
   // Refs - For stable access without re-renders
   // ============================================================================
@@ -436,6 +439,8 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       if (snapshotLoadedRef.current && gridApiRef.current) {
         // No logging on hot path for performance
         gridApiRef.current.applyTransactionAsync({ update: rows });
+        // Increment update counter
+        setUpdateCount(prev => prev + rows.length);
       }
     });
 
@@ -451,6 +456,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     loadStartTimeRef.current = Date.now();
     setLoadTimeMs(null);
     setRowCount(0);
+    setUpdateCount(0); // Reset update counter on new connection
     snapshotLoadedRef.current = false;
     snapshotRowsRef.current = [];
 
@@ -640,6 +646,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
           debugConfigId={viewInstanceId}
           debugActiveLayoutId={debugActiveLayoutId}
           debugLayoutName={debugLayoutName}
+          updateCount={updateCount}
         />
       </CollapsibleToolbar>
 

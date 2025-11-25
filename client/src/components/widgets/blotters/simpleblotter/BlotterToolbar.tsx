@@ -60,6 +60,8 @@ export interface BlotterToolbarProps {
   debugActiveLayoutId?: string | null;
   /** Debug: layout name from view customData */
   debugLayoutName?: string | null;
+  /** Real-time update counter */
+  updateCount?: number;
 }
 
 export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
@@ -83,6 +85,7 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
   debugConfigId,
   debugActiveLayoutId,
   debugLayoutName,
+  updateCount,
 }) => {
   const showLayoutSelector = layouts !== undefined && onLayoutSelect;
   const showDebugInfo = debugConfigId !== undefined;
@@ -145,6 +148,13 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Real-time Update Counter */}
+      {updateCount !== undefined && updateCount > 0 && (
+        <div className="text-xs text-muted-foreground">
+          <span className="text-green-600 font-medium">●</span> {updateCount.toLocaleString()} updates
+        </div>
+      )}
 
       {/* Connection Status */}
       {isLoading && (
