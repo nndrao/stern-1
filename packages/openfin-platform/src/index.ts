@@ -22,6 +22,7 @@ export * from './services/cache';
 
 // Storage
 export { createWorkspaceStorageOverride } from './storage/WorkspaceStorageProvider';
+export type { WorkspaceSaveCallback, WorkspaceStorageConfig } from './storage/WorkspaceStorageProvider';
 export { ConfigurationApiClient } from './api/configurationApi';
 
 // Browser Override

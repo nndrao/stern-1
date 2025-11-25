@@ -3,6 +3,9 @@
 /**
  * Menu Launcher
  * Handles launching components from dock menu items
+ *
+ * Supports "reuse existing config" behavior where clicking the same dock menu item
+ * loads an existing configuration instead of creating a new one each time.
  */
 
 import { getCurrentSync } from '@openfin/workspace-platform';
@@ -11,7 +14,60 @@ import { buildUrl } from '../utils/urlHelper';
 import { platformContext } from '../core/PlatformContext';
 
 /**
+ * Result of a config lookup operation
+ */
+export interface ConfigLookupResult {
+  /** The configId to use (existing or newly generated) */
+  configId: string;
+  /** Whether the config already existed in the database */
+  isExisting: boolean;
+}
+
+/**
+ * Callback function type for looking up or creating configurations
+ * This allows the dock to integrate with the client's config service
+ * without the openfin-platform package depending on client code.
+ *
+ * @param menuItemId - The dock menu item ID
+ * @param caption - The menu item caption (for display name)
+ * @returns The configId to use and whether it's an existing config
+ */
+export type ConfigLookupCallback = (
+  menuItemId: string,
+  caption: string
+) => Promise<ConfigLookupResult>;
+
+/**
+ * Module-level config lookup callback
+ * Set by the client during initialization to enable config reuse behavior
+ */
+let configLookupCallback: ConfigLookupCallback | null = null;
+
+/**
+ * Register a config lookup callback
+ * This should be called during platform initialization to enable
+ * the "reuse existing config" behavior.
+ *
+ * @param callback - The callback function to use for config lookups
+ */
+export function registerConfigLookupCallback(callback: ConfigLookupCallback): void {
+  configLookupCallback = callback;
+  platformContext.logger.info('Config lookup callback registered', undefined, 'menuLauncher');
+}
+
+/**
+ * Clear the config lookup callback (for cleanup/testing)
+ */
+export function clearConfigLookupCallback(): void {
+  configLookupCallback = null;
+}
+
+/**
  * Launch a menu item as a window or view
+ *
+ * If a config lookup callback is registered, it will be used to determine
+ * the configId to use. This enables "reuse existing config" behavior where
+ * clicking the same dock menu item loads an existing configuration.
  */
 export async function launchMenuItem(item: DockMenuItem): Promise<void> {
   if (!item.url) {
@@ -19,11 +75,42 @@ export async function launchMenuItem(item: DockMenuItem): Promise<void> {
     return;
   }
 
-  // Build the full URL with the item ID as a query parameter
-  const url = `${buildUrl(item.url)}?id=${encodeURIComponent(item.id)}`;
-
   try {
     const platform = getCurrentSync();
+
+    // Determine the configId to use
+    // If a config lookup callback is registered, use it to find/create the config
+    // Otherwise, fall back to using the menu item ID (legacy behavior)
+    let configId = item.id;
+    let isExistingConfig = false;
+
+    if (configLookupCallback) {
+      try {
+        platformContext.logger.debug('Looking up config for menu item', {
+          menuItemId: item.id,
+          caption: item.caption
+        }, 'menuLauncher');
+
+        const result = await configLookupCallback(item.id, item.caption);
+        configId = result.configId;
+        isExistingConfig = result.isExisting;
+
+        platformContext.logger.info('Config lookup result', {
+          menuItemId: item.id,
+          configId,
+          isExisting: isExistingConfig
+        }, 'menuLauncher');
+      } catch (error) {
+        platformContext.logger.warn('Config lookup failed, using menu item ID as fallback', {
+          menuItemId: item.id,
+          error
+        }, 'menuLauncher');
+        configId = item.id;
+      }
+    }
+
+    // Build the full URL with the configId as a query parameter
+    const url = `${buildUrl(item.url)}?id=${encodeURIComponent(configId)}`;
 
     if (item.openMode === 'window') {
       // Launch as a new window
@@ -53,7 +140,7 @@ export async function launchMenuItem(item: DockMenuItem): Promise<void> {
 
       await platform.createWindow(windowOptions);
 
-      platformContext.logger.info(`Launched ${item.caption} as window`, { url }, 'menuLauncher');
+      platformContext.logger.info(`Launched ${item.caption} as window`, { url, configId, isExistingConfig }, 'menuLauncher');
     } else {
       // Launch as a view in the current window
       const viewOptions = {
@@ -68,13 +155,15 @@ export async function launchMenuItem(item: DockMenuItem): Promise<void> {
         customData: {
           ...item.viewOptions?.customData,
           menuItemId: item.id,
-          caption: item.caption
+          caption: item.caption,
+          configId, // Include configId in customData for the view to use
+          isExistingConfig
         }
       };
 
       await platform.createView(viewOptions as any);
 
-      platformContext.logger.info(`Launched ${item.caption} as view`, { url }, 'menuLauncher');
+      platformContext.logger.info(`Launched ${item.caption} as view`, { url, configId, isExistingConfig }, 'menuLauncher');
     }
   } catch (error) {
     platformContext.logger.error('Failed to launch menu item', error, 'menuLauncher');
