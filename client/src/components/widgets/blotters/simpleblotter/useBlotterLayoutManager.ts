@@ -26,6 +26,7 @@ import {
   useDuplicateLayout,
   useSetDefaultLayout,
 } from '@/hooks/api/useSimpleBlotterQueries';
+import { getActiveLayoutId, setActiveLayoutId, updateViewCustomData } from '@/openfin/utils/viewUtils';
 import { logger } from '@/utils/logger';
 
 export interface UseBlotterLayoutManagerOptions {
@@ -425,6 +426,15 @@ export function useBlotterLayoutManager({
 
   /**
    * Initialize blotter config (called on mount)
+   * Priority for layout selection:
+   * 1. View customData.activeLayoutId (per-view, set when user selects layout) - PRIMARY
+   * 2. defaultLayoutId from blotter config (fallback for truly new views only)
+   *
+   * NOTE: We intentionally do NOT fall back to lastSelectedLayoutId because:
+   * - lastSelectedLayoutId is stored on the shared blotter config
+   * - Multiple views of the same component share the same config
+   * - Using lastSelectedLayoutId would cause all views to load the same layout
+   * - activeLayoutId in view customData is the correct per-view mechanism
    */
   const initializeBlotter = useCallback(async () => {
     try {
@@ -434,15 +444,63 @@ export function useBlotterLayoutManager({
         name: blotterName,
       });
 
-      // Use lastSelectedLayoutId if available, otherwise fall back to defaultLayoutId
-      const layoutToSelect = result.config.lastSelectedLayoutId || result.config.defaultLayoutId;
+      // First, try to get activeLayoutId from view customData (per-view layout)
+      // This is the primary mechanism for workspace restore with per-view layouts
+      let layoutToSelect: string | null = null;
+      let layoutSource: 'viewCustomData' | 'default' | 'none' = 'none';
+
+      try {
+        const viewActiveLayoutId = await getActiveLayoutId();
+        if (viewActiveLayoutId) {
+          logger.info('Found activeLayoutId in view customData (workspace restore)', {
+            activeLayoutId: viewActiveLayoutId,
+            blotterConfigId,
+          }, 'useBlotterLayoutManager');
+          layoutToSelect = viewActiveLayoutId;
+          layoutSource = 'viewCustomData';
+        } else {
+          logger.debug('No activeLayoutId in view customData', {
+            blotterConfigId,
+          }, 'useBlotterLayoutManager');
+        }
+      } catch (error) {
+        logger.debug('Could not read view customData (may not be in OpenFin)', { error }, 'useBlotterLayoutManager');
+      }
+
+      // Only fall back to defaultLayoutId for truly new views (no per-view layout set)
+      // Do NOT use lastSelectedLayoutId - it's shared between all views of the same config
+      if (!layoutToSelect && result.config.defaultLayoutId) {
+        layoutToSelect = result.config.defaultLayoutId;
+        layoutSource = 'default';
+        logger.debug('Using defaultLayoutId for new view', {
+          defaultLayoutId: result.config.defaultLayoutId,
+          blotterConfigId,
+        }, 'useBlotterLayoutManager');
+      }
+
       if (layoutToSelect) {
-        logger.debug('Selecting initial layout', {
+        logger.info('Selecting initial layout', {
           layoutId: layoutToSelect,
-          isLastSelected: !!result.config.lastSelectedLayoutId,
-          isDefault: !result.config.lastSelectedLayoutId && !!result.config.defaultLayoutId,
+          source: layoutSource,
+          blotterConfigId,
         }, 'useBlotterLayoutManager');
         setSelectedLayoutId(layoutToSelect);
+
+        // IMPORTANT: If we selected a layout from default (not from customData),
+        // we need to save it to customData so future saves work correctly
+        if (layoutSource === 'default') {
+          try {
+            await setActiveLayoutId(layoutToSelect);
+            logger.debug('Saved defaultLayoutId to view customData for new view', {
+              layoutId: layoutToSelect,
+              blotterConfigId,
+            }, 'useBlotterLayoutManager');
+          } catch (error) {
+            logger.debug('Could not save default layout to view customData (may not be in OpenFin)', { error }, 'useBlotterLayoutManager');
+          }
+        }
+      } else {
+        logger.debug('No layout to select on init', { blotterConfigId }, 'useBlotterLayoutManager');
       }
 
       return result;
@@ -454,7 +512,9 @@ export function useBlotterLayoutManager({
 
   /**
    * Select a layout and apply it to the grid
-   * Also saves the selection as lastSelectedLayoutId in the blotter config
+   * Also saves the selection:
+   * - To view customData.activeLayoutId (per-view, persisted with workspace)
+   * - To blotter config lastSelectedLayoutId (fallback for non-OpenFin or new views)
    * @param layoutId - The layout ID to select
    * @param isInitialLoad - Whether this is the initial load (don't reset grid state)
    */
@@ -468,7 +528,17 @@ export function useBlotterLayoutManager({
       applyLayoutToGrid(layout.config, !isInitialLoad);
     }
 
-    // Save this as the last selected layout (fire and forget)
+    // Save activeLayoutId to view customData (per-view, persisted with workspace)
+    // This is the primary mechanism for per-view layout selection
+    try {
+      await setActiveLayoutId(layoutId);
+      logger.debug('Saved activeLayoutId to view customData', { layoutId }, 'useBlotterLayoutManager');
+    } catch (error) {
+      logger.debug('Could not save to view customData (may not be in OpenFin)', { error }, 'useBlotterLayoutManager');
+    }
+
+    // Also save as the last selected layout in blotter config (fallback for non-OpenFin)
+    // Fire and forget - this is secondary to view customData
     updateBlotterConfig.mutate({
       configId: blotterConfigId,
       updates: { lastSelectedLayoutId: layoutId },
@@ -519,6 +589,15 @@ export function useBlotterLayoutManager({
 
     // Select the new layout
     setSelectedLayoutId(result.unified.configId);
+
+    // Save activeLayoutId to view customData (per-view, persisted with workspace)
+    try {
+      await setActiveLayoutId(result.unified.configId);
+      logger.debug('Saved new layout to view customData', { layoutId: result.unified.configId }, 'useBlotterLayoutManager');
+    } catch (error) {
+      logger.debug('Could not save to view customData (may not be in OpenFin)', { error }, 'useBlotterLayoutManager');
+    }
+
     setIsSaveDialogOpen(false);
 
     return result;
@@ -558,11 +637,35 @@ export function useBlotterLayoutManager({
       blotterConfigId,
     });
 
-    // If we deleted the selected layout, clear selection
+    // If we deleted the selected layout, select the next available layout
     if (selectedLayoutId === layoutId) {
-      setSelectedLayoutId(null);
+      // Find the next layout to select
+      const remainingLayouts = layouts.filter(l => l.unified.configId !== layoutId);
+
+      if (remainingLayouts.length > 0) {
+        // Select the first remaining layout (or could be the default if it exists)
+        const nextLayoutId = defaultLayoutId && remainingLayouts.some(l => l.unified.configId === defaultLayoutId)
+          ? defaultLayoutId
+          : remainingLayouts[0].unified.configId;
+
+        logger.debug('Selecting next layout after deletion', { nextLayoutId }, 'useBlotterLayoutManager');
+
+        // Use selectLayout to ensure customData is properly updated
+        await selectLayout(nextLayoutId);
+      } else {
+        // No layouts left, clear selection
+        setSelectedLayoutId(null);
+
+        // Clear activeLayoutId from view customData
+        try {
+          await updateViewCustomData({ activeLayoutId: undefined });
+          logger.debug('Cleared activeLayoutId from view customData - no layouts remaining', {}, 'useBlotterLayoutManager');
+        } catch (error) {
+          logger.debug('Could not clear view customData (may not be in OpenFin)', { error }, 'useBlotterLayoutManager');
+        }
+      }
     }
-  }, [deleteLayout, blotterConfigId, selectedLayoutId]);
+  }, [deleteLayout, blotterConfigId, selectedLayoutId, layouts, defaultLayoutId, selectLayout]);
 
   /**
    * Duplicate a layout

@@ -21,7 +21,7 @@ import { AllEnterpriseModule } from 'ag-grid-enterprise';
 import { sternAgGridTheme } from '@/utils/grid/agGridTheme';
 import { useAgGridTheme } from '@/hooks/ui/useAgGridTheme';
 import { useSternPlatform } from '@/providers/SternPlatformProvider';
-import { getViewInstanceId } from '@/openfin/utils/viewUtils';
+import { getViewInstanceId, getActiveLayoutId } from '@/openfin/utils/viewUtils';
 import { useDataProviderAdapter } from '@/hooks/data-provider';
 import { OpenFinCustomEvents } from '@/openfin/types/openfinEvents';
 import { resolveValueFormatter } from '@/formatters';
@@ -130,6 +130,10 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(true); // Start collapsed
   const [isToolbarPinned, setIsToolbarPinned] = useState(false); // Start unpinned
 
+  // Debug info state (for troubleshooting customData persistence)
+  const [debugActiveLayoutId, setDebugActiveLayoutId] = useState<string | null>(null);
+  const [debugLayoutName, setDebugLayoutName] = useState<string | null>(null);
+
   // ============================================================================
   // Refs - For stable access without re-renders
   // ============================================================================
@@ -207,9 +211,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
 
   useEffect(() => {
     // Load all DataProvider configs and filter for STOMP and REST only
+    // Note: Not filtering by userId to include System-level providers
     platform.configService.getAll({
       componentType: COMPONENT_TYPES.DATA_PROVIDER,
-      userId,
     })
     .then((providers) => {
       // Filter for only STOMP and REST providers
@@ -229,7 +233,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       logger.error('Failed to load providers', error, 'SimpleBlotter');
       onErrorRef.current?.(error instanceof Error ? error : new Error('Failed to load providers'));
     });
-  }, [platform.configService, userId]);
+  }, [platform.configService]);
 
   // ============================================================================
   // Initialize Blotter Layout (on mount)
@@ -292,6 +296,34 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       }
     }
   }, [gridReady, layoutManager.selectedLayout, layoutManager.selectedLayoutId]);
+
+  // ============================================================================
+  // Debug Info: Fetch activeLayoutId from customData
+  // ============================================================================
+
+  useEffect(() => {
+    // Fetch debug info from view customData
+    const fetchDebugInfo = async () => {
+      try {
+        const activeLayoutId = await getActiveLayoutId();
+        setDebugActiveLayoutId(activeLayoutId || null);
+
+        // Find layout name if we have layouts
+        if (activeLayoutId && layoutManager.layouts) {
+          const layout = layoutManager.layouts.find(l => l.layoutId === activeLayoutId);
+          setDebugLayoutName(layout?.name || null);
+        } else {
+          setDebugLayoutName(null);
+        }
+      } catch (error) {
+        logger.debug('Could not fetch debug info from customData', { error }, 'SimpleBlotter');
+        setDebugActiveLayoutId(null);
+        setDebugLayoutName(null);
+      }
+    };
+
+    fetchDebugInfo();
+  }, [layoutManager.selectedLayoutId, layoutManager.layouts]);
 
   // ============================================================================
   // Load Provider Columns (when provider selected)
@@ -604,6 +636,10 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
           onSaveLayout={layoutManager.saveCurrentLayout}
           onSaveAsNew={() => layoutManager.setIsSaveDialogOpen(true)}
           onManageLayouts={() => layoutManager.setIsManageDialogOpen(true)}
+          // Debug props (for troubleshooting customData persistence)
+          debugConfigId={viewInstanceId}
+          debugActiveLayoutId={debugActiveLayoutId}
+          debugLayoutName={debugLayoutName}
         />
       </CollapsibleToolbar>
 

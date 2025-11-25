@@ -52,6 +52,14 @@ export interface BlotterToolbarProps {
   onSaveAsNew?: () => void;
   /** Callback to open layout management dialog */
   onManageLayouts?: () => void;
+
+  // Debug info (optional - for troubleshooting)
+  /** Debug: configId for this blotter instance */
+  debugConfigId?: string;
+  /** Debug: activeLayoutId from view customData */
+  debugActiveLayoutId?: string | null;
+  /** Debug: layout name from view customData */
+  debugLayoutName?: string | null;
 }
 
 export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
@@ -71,8 +79,13 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
   onSaveLayout,
   onSaveAsNew,
   onManageLayouts,
+  // Debug props
+  debugConfigId,
+  debugActiveLayoutId,
+  debugLayoutName,
 }) => {
   const showLayoutSelector = layouts !== undefined && onLayoutSelect;
+  const showDebugInfo = debugConfigId !== undefined;
 
   return (
     <div className="flex items-center gap-4 p-2">
@@ -109,6 +122,24 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
             onSaveAsNew={onSaveAsNew || (() => {})}
             onManageLayouts={onManageLayouts || (() => {})}
           />
+        </>
+      )}
+
+      {/* Debug Info */}
+      {showDebugInfo && (
+        <>
+          <Separator orientation="vertical" className="h-6" />
+          <div className="text-xs text-muted-foreground font-mono">
+            <span className="text-orange-600">DEBUG:</span>{' '}
+            <span title={`Full Config ID: ${debugConfigId}`}>Config: {debugConfigId}</span>
+            {debugActiveLayoutId && (
+              <span title={`Full Layout ID: ${debugActiveLayoutId}`}>
+                {' | '}Layout: {debugActiveLayoutId}
+                {debugLayoutName && ` (${debugLayoutName})`}
+              </span>
+            )}
+            {!debugActiveLayoutId && <span> | Layout: NONE</span>}
+          </div>
         </>
       )}
 
