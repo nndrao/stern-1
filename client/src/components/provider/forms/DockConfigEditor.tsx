@@ -105,15 +105,18 @@ function addChildToItem(item: DockMenuItem, parentId: string, child: DockMenuIte
   return item;
 }
 
+// System userId for admin configurations - shared across all users
+const SYSTEM_USER_ID = 'System';
+
 export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
-  userId = 'default-user',
+  userId = SYSTEM_USER_ID, // Default to System for admin configs
   appId = 'stern-platform'
 }) => {
   const { toast } = useToast();
   const openFinDock = useOpenFinDock();
 
-  // React Query hooks
-  const { data: loadedConfig, isLoading, error: loadError } = useDockConfig(userId);
+  // React Query hooks - always use System userId for dock configs
+  const { data: loadedConfig, isLoading, error: loadError } = useDockConfig(SYSTEM_USER_ID);
   const saveMutation = useSaveDockConfig();
 
   // UI state
@@ -194,7 +197,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     try {
       logger.info('Saving configuration...', undefined, 'DockConfigEditor');
 
-      await saveMutation.mutateAsync({ userId, config: currentConfig });
+      await saveMutation.mutateAsync({ userId: SYSTEM_USER_ID, config: currentConfig });
 
       logger.info('Save completed successfully', undefined, 'DockConfigEditor');
       setIsDirty(false);
@@ -240,7 +243,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
         variant: 'destructive'
       });
     }
-  }, [currentConfig, saveMutation, userId, toast]);
+  }, [currentConfig, saveMutation, toast]);
 
   const handleAddMenuItem = useCallback(() => {
     if (!currentConfig) return;

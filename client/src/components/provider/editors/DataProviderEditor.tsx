@@ -17,12 +17,15 @@ import { useDeleteDataProvider } from '@/hooks/api/useDataProviderQueries';
 import { DataProviderConfig, getDefaultProviderConfig, ProviderType } from '@stern/shared-types';
 import { logger } from '@/utils/logger';
 
+// System userId for admin configurations - shared across all users
+const SYSTEM_USER_ID = 'System';
+
 interface DataProviderEditorProps {
   userId?: string;
 }
 
 export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
-  userId = 'default-user'
+  userId = SYSTEM_USER_ID // Default to System for admin configs
 }) => {
   // Sync OpenFin platform theme with React theme provider
   useOpenfinTheme();

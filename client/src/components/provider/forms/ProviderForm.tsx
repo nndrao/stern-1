@@ -38,21 +38,27 @@ import {
 import { StompConfigurationForm } from '../stomp/StompConfigurationForm';
 import { KeyValueEditor } from '../editors/KeyValueEditor';
 
+// System userId for admin configurations - shared across all users
+const SYSTEM_USER_ID = 'System';
+
 interface ProviderFormProps {
-  userId: string;
+  userId?: string; // Made optional, defaults to System
   provider: DataProviderConfig;
   onProviderChange: (provider: DataProviderConfig) => void;
   onClose: () => void;
   onSave?: () => void; // Callback after successful save to mark as clean
 }
 
-export const ProviderForm: React.FC<ProviderFormProps> = ({ userId, provider, onProviderChange, onClose, onSave }) => {
+export const ProviderForm: React.FC<ProviderFormProps> = ({ userId = SYSTEM_USER_ID, provider, onProviderChange, onClose, onSave }) => {
   const { toast } = useToast();
   const [isDirty, setIsDirty] = useState(false);
 
   // React Query mutations
   const createMutation = useCreateDataProvider();
   const updateMutation = useUpdateDataProvider();
+
+  // Always use System userId for data provider configs (admin configs)
+  const effectiveUserId = SYSTEM_USER_ID;
 
   const handleSave = useCallback(async () => {
     // Validation
@@ -68,14 +74,14 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({ userId, provider, on
     try {
       if (provider.providerId) {
         // Update existing
-        await updateMutation.mutateAsync({ providerId: provider.providerId, updates: provider, userId });
+        await updateMutation.mutateAsync({ providerId: provider.providerId, updates: provider, userId: effectiveUserId });
         toast({
           title: 'Provider Updated',
           description: `${provider.name} has been updated successfully`
         });
       } else {
         // Create new
-        const created = await createMutation.mutateAsync({ provider, userId });
+        const created = await createMutation.mutateAsync({ provider, userId: effectiveUserId });
         // Update local provider with new providerId
         onProviderChange({ ...provider, providerId: created.providerId });
         toast({
@@ -94,7 +100,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({ userId, provider, on
         variant: 'destructive'
       });
     }
-  }, [provider, userId, createMutation, updateMutation, onProviderChange, onSave, toast]);
+  }, [provider, effectiveUserId, createMutation, updateMutation, onProviderChange, onSave, toast]);
 
   const handleFieldChange = useCallback((field: string, value: any) => {
     onProviderChange({ ...provider, [field]: value });
