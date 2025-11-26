@@ -21,7 +21,7 @@ import { AllEnterpriseModule } from 'ag-grid-enterprise';
 import { sternAgGridTheme } from '@/utils/grid/agGridTheme';
 import { useAgGridTheme } from '@/hooks/ui/useAgGridTheme';
 import { useSternPlatform } from '@/providers/SternPlatformProvider';
-import { getViewInstanceId, getActiveLayoutId } from '@/openfin/utils/viewUtils';
+import { getViewInstanceId, getActiveLayoutId, getViewCustomData } from '@/openfin/utils/viewUtils';
 import { useDataProviderAdapter } from '@/hooks/data-provider';
 import { OpenFinCustomEvents } from '@/openfin/types/openfinEvents';
 import { resolveValueFormatter } from '@/formatters';
@@ -237,6 +237,31 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       onErrorRef.current?.(error instanceof Error ? error : new Error('Failed to load providers'));
     });
   }, [platform.configService]);
+
+  // ============================================================================
+  // Restore View Caption from CustomData (on mount)
+  // ============================================================================
+
+  useEffect(() => {
+    // Only run in OpenFin environment
+    if (!platform.isOpenFin) return;
+
+    // Restore the view caption from customData if it was previously saved
+    // This ensures renamed views keep their custom names across workspace restores
+    getViewCustomData()
+      .then((customData) => {
+        if (customData?.caption) {
+          logger.info('Restoring view caption from customData', {
+            caption: customData.caption,
+          }, 'SimpleBlotter');
+          // Set document.title to restore the tab caption
+          document.title = customData.caption;
+        }
+      })
+      .catch((error) => {
+        logger.warn('Failed to restore view caption from customData', error, 'SimpleBlotter');
+      });
+  }, [platform.isOpenFin]);
 
   // ============================================================================
   // Initialize Blotter Layout (on mount)
