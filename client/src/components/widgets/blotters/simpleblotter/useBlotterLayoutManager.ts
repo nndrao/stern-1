@@ -38,15 +38,19 @@ export interface UseBlotterLayoutManagerOptions {
   blotterName?: string;
   /** AG Grid API reference */
   gridApi?: GridApi | null;
+  /** Currently selected data provider ID (grid-level attribute saved with layout) */
+  selectedProviderId?: string;
   /** Current toolbar state */
   toolbarState?: BlotterToolbarState;
 }
 
 /**
  * Callback interface for layout application
- * NOTE: Data provider is component-level only and cannot be changed per-layout
+ * These callbacks are called when a layout is applied to restore grid-level attributes
  */
 export interface LayoutApplyCallbacks {
+  /** Called when data provider should change */
+  onProviderChange?: (providerId: string) => void;
   /** Called when toolbar state should change */
   onToolbarStateChange?: (state: BlotterToolbarState) => void;
 }
@@ -65,6 +69,7 @@ export function useBlotterLayoutManager({
   userId,
   blotterName = 'Blotter',
   gridApi,
+  selectedProviderId,
   toolbarState,
 }: UseBlotterLayoutManagerOptions) {
   // ============================================================================
@@ -172,12 +177,12 @@ export function useBlotterLayoutManager({
 
   /**
    * Capture current grid state for saving
-   * Includes grid state and toolbar state (but NOT data provider - that's component-level)
+   * Includes all grid-level attributes: columns, filters, sort, sidebar, provider, toolbar
    */
   const captureGridState = useCallback((): Partial<SimpleBlotterLayoutConfig> => {
-    // Capture toolbar state even if grid is not ready
-    // NOTE: We do NOT capture selectedProviderId - data provider is component-level only
+    // Capture grid-level attributes (provider and toolbar) even if grid is not ready
     const baseState: Partial<SimpleBlotterLayoutConfig> = {
+      selectedProviderId,
       toolbarState: toolbarState ?? { isCollapsed: true, isPinned: false },
     };
 
@@ -258,7 +263,7 @@ export function useBlotterLayoutManager({
       logger.error('Failed to capture grid state', error, 'useBlotterLayoutManager');
       return baseState;
     }
-  }, [gridApi, toolbarState]);
+  }, [gridApi, selectedProviderId, toolbarState]);
 
   /**
    * Reset grid state completely before applying a new layout
@@ -300,22 +305,31 @@ export function useBlotterLayoutManager({
 
   /**
    * Apply layout config to grid and component state
-   * Returns the provider ID and toolbar state that should be applied
+   * Restores all grid-level attributes including provider selection
    */
   const applyLayoutToGrid = useCallback((layoutConfig: SimpleBlotterLayoutConfig, resetFirst: boolean = false): {
+    providerId?: string;
     toolbarState?: BlotterToolbarState;
   } => {
-    const result: { toolbarState?: BlotterToolbarState } = {};
+    const result: { providerId?: string; toolbarState?: BlotterToolbarState } = {};
     const callbacks = applyCallbacksRef.current;
 
     logger.debug('Applying layout to grid', {
       hasCallbacks: !!callbacks.onToolbarStateChange,
+      hasProviderCallback: !!callbacks.onProviderChange,
+      providerId: layoutConfig.selectedProviderId,
       toolbarState: layoutConfig.toolbarState,
       resetFirst,
     }, 'useBlotterLayoutManager');
 
-    // NOTE: We do NOT apply selectedProviderId from layout
-    // Data provider is component-level only and cannot be changed per-layout
+    // Apply data provider via callback (grid-level attribute)
+    if (layoutConfig.selectedProviderId) {
+      result.providerId = layoutConfig.selectedProviderId;
+      if (callbacks.onProviderChange) {
+        logger.debug('Calling onProviderChange callback', { providerId: layoutConfig.selectedProviderId }, 'useBlotterLayoutManager');
+        callbacks.onProviderChange(layoutConfig.selectedProviderId);
+      }
+    }
 
     // Apply toolbar state via callback
     if (layoutConfig.toolbarState) {
@@ -399,6 +413,7 @@ export function useBlotterLayoutManager({
    */
   const registerApplyCallbacks = useCallback((callbacks: LayoutApplyCallbacks) => {
     logger.debug('Registering apply callbacks', {
+      hasProviderChange: !!callbacks.onProviderChange,
       hasToolbarChange: !!callbacks.onToolbarStateChange,
     }, 'useBlotterLayoutManager');
     applyCallbacksRef.current = callbacks;

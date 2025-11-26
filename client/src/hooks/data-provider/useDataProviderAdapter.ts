@@ -29,6 +29,7 @@ export function useDataProviderAdapter(
   // SharedWorker port
   const workerPortRef = useRef<MessagePort | null>(null);
   const workerRef = useRef<SharedWorker | null>(null);
+  const portIdRef = useRef<string>(`port-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
   // Event handler refs
   const onSnapshotRef = useRef<((rows: any[]) => void) | undefined>();
@@ -90,6 +91,7 @@ export function useDataProviderAdapter(
             worker.port.postMessage({
               type: 'getSnapshot',
               providerId,
+              portId: portIdRef.current,
               requestId: `post-subscribe-snapshot-${Date.now()}`
             });
             break;
@@ -174,11 +176,12 @@ export function useDataProviderAdapter(
       worker.port.postMessage({
         type: 'subscribe',
         providerId,
+        portId: portIdRef.current,
         config: providerConfig,
         requestId: `connect-${Date.now()}`
       });
 
-      console.log(`[useDataProviderAdapter] Subscribe message sent for ${providerId}`);
+      console.log(`[useDataProviderAdapter] Subscribe message sent for ${providerId} (portId: ${portIdRef.current})`);
 
     } catch (err) {
       const error = err as Error;
@@ -192,12 +195,13 @@ export function useDataProviderAdapter(
   // Disconnect from provider
   const disconnect = useCallback(() => {
     if (workerPortRef.current) {
-      console.log(`[useDataProviderAdapter] Disconnecting from ${providerId}`);
+      console.log(`[useDataProviderAdapter] Disconnecting from ${providerId} (portId: ${portIdRef.current})`);
 
       // Send unsubscribe message (worker expects 'unsubscribe', not 'disconnect')
       workerPortRef.current.postMessage({
         type: 'unsubscribe',
         providerId,
+        portId: portIdRef.current,
         requestId: `disconnect-${Date.now()}`
       });
 
@@ -225,11 +229,12 @@ export function useDataProviderAdapter(
   // Cleanup on unmount or provider change
   useEffect(() => {
     return () => {
-      console.log(`[useDataProviderAdapter] Cleanup: disconnecting from ${providerId}`);
+      console.log(`[useDataProviderAdapter] Cleanup: disconnecting from ${providerId} (portId: ${portIdRef.current})`);
       if (workerPortRef.current) {
         workerPortRef.current.postMessage({
           type: 'unsubscribe',
           providerId,
+          portId: portIdRef.current,
           requestId: `cleanup-${Date.now()}`
         });
         workerPortRef.current.close();
@@ -267,6 +272,7 @@ export function useDataProviderAdapter(
     workerPortRef.current.postMessage({
       type: 'getSnapshot',
       providerId,
+      portId: portIdRef.current,
       requestId: `snapshot-${Date.now()}`
     });
   }, [providerId]);

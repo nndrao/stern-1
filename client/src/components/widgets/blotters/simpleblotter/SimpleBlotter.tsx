@@ -179,18 +179,22 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       isCollapsed: isToolbarCollapsed,
       isPinned: isToolbarPinned,
     },
+    selectedProviderId: selectedProviderId ?? undefined,
   });
 
   // Register callbacks for layout application IMMEDIATELY (before paint)
   // useLayoutEffect runs synchronously after DOM mutations but before paint,
   // ensuring callbacks are registered before any layout is applied
-  // NOTE: Data provider is component-level only and NOT controlled by layouts
   useLayoutEffect(() => {
     layoutManager.registerApplyCallbacks({
       onToolbarStateChange: (state) => {
         logger.debug('Layout applying toolbar state', { state }, 'SimpleBlotter');
         setIsToolbarCollapsed(state.isCollapsed);
         setIsToolbarPinned(state.isPinned);
+      },
+      onProviderChange: (providerId) => {
+        logger.debug('Layout applying provider selection', { providerId }, 'SimpleBlotter');
+        setSelectedProviderId(providerId);
       },
     });
   }, [layoutManager.registerApplyCallbacks]);

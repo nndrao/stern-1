@@ -12,7 +12,7 @@ import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
 import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
 import { DataProviderEditor } from '@/components/provider/editors/DataProviderEditor';
 import { Toaster } from '@/components/ui/toaster';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/ui/use-toast';
 import * as dock from './openfinDock';
 import { initializeBaseUrlFromManifest, buildUrl } from '../utils/openfinUtils';
 import { logger } from '@/utils/logger';
