@@ -8,7 +8,6 @@
 import { logger } from '@/utils/logger';
 import { DIALOG_DIMENSIONS, DEFAULT_POPUP_OPTIONS, POPUP_BEHAVIOR, DIALOG_ROUTES } from '../constants/dialogConfig';
 import { RenameViewPopupResult } from '../types/popupResults';
-import { updateViewCustomData } from '../utils/viewUtils';
 
 /**
  * View identity interface
@@ -94,7 +93,15 @@ export async function handleRenameViewAction(
     await view.executeJavaScript(`document.title = "${escapedName}";`);
 
     // Also persist to customData so the caption survives workspace restore
-    await updateViewCustomData({ caption: newName });
+    // IMPORTANT: Update the customData on the target view, not the current view
+    const options = await view.getOptions();
+    const existingCustomData = (options as any).customData || {};
+    await view.updateOptions({
+      customData: {
+        ...existingCustomData,
+        caption: newName
+      }
+    } as any);
 
     logger.info('View renamed successfully', {
       oldName: viewIdentity.name,
