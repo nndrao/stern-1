@@ -232,3 +232,76 @@ export async function getActiveLayoutId(): Promise<string | undefined> {
 export async function setActiveLayoutId(layoutId: string): Promise<void> {
   await updateViewCustomData({ activeLayoutId: layoutId });
 }
+
+// ============================================================================
+// View caption/name utilities
+// ============================================================================
+
+/**
+ * Update the current view's tab caption
+ *
+ * This changes the text displayed in the workspace tab for this view.
+ * According to OpenFin documentation, tab captions are controlled by document.title
+ * within the view's content, NOT by view.name or view options.
+ *
+ * This function also updates the view's customData to persist the caption
+ * across workspace saves/restores.
+ *
+ * @param caption - The new caption text to display
+ *
+ * @see https://openfin.zendesk.com/hc/en-us/articles/4469760806804-View-Tab-Naming
+ */
+export async function updateViewCaption(caption: string): Promise<void> {
+  if (typeof window === 'undefined' || !window.fin) {
+    logger.warn('updateViewCaption called outside OpenFin context', undefined, 'viewUtils');
+    return;
+  }
+
+  try {
+    const view = window.fin.View.getCurrentSync();
+    const identity = view.identity;
+
+    // CORRECT APPROACH: Use executeJavaScript to set document.title
+    // This is the only way to change the tab caption in OpenFin views
+    const escapedCaption = caption.replace(/"/g, '\\"').replace(/\\/g, '\\\\');
+    await view.executeJavaScript(`document.title = "${escapedCaption}";`);
+
+    // Also persist to customData so the caption survives workspace restore
+    await updateViewCustomData({ caption });
+
+    logger.info('Updated view caption via executeJavaScript', {
+      viewIdentity: identity,
+      oldName: identity.name,
+      newCaption: caption
+    }, 'viewUtils');
+  } catch (error) {
+    logger.error('Failed to update view caption', error, 'viewUtils');
+    throw error;
+  }
+}
+
+/**
+ * Get the current view's caption
+ *
+ * @returns The current view caption/name
+ */
+export async function getViewCaption(): Promise<string | undefined> {
+  if (typeof window === 'undefined' || !window.fin) {
+    logger.warn('getViewCaption called outside OpenFin context', undefined, 'viewUtils');
+    return undefined;
+  }
+
+  try {
+    const view = window.fin.View.getCurrentSync();
+    const info = await view.getInfo();
+
+    logger.debug('Retrieved view caption', {
+      caption: info.title
+    }, 'viewUtils');
+
+    return info.title;
+  } catch (error) {
+    logger.error('Failed to get view caption', error, 'viewUtils');
+    return undefined;
+  }
+}

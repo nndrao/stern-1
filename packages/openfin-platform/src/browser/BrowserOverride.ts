@@ -26,7 +26,8 @@ export interface ViewIdentity {
  * Custom action identifiers for view context menu
  */
 export const VIEW_CONTEXT_MENU_ACTIONS = {
-  DUPLICATE_VIEW_WITH_LAYOUTS: 'duplicate-view-with-layouts'
+  DUPLICATE_VIEW_WITH_LAYOUTS: 'duplicate-view-with-layouts',
+  RENAME_VIEW: 'rename-view'
 } as const;
 
 export type ViewContextMenuAction = typeof VIEW_CONTEXT_MENU_ACTIONS[keyof typeof VIEW_CONTEXT_MENU_ACTIONS];
@@ -51,6 +52,8 @@ export interface BrowserOverrideConfig {
   onAction?: ViewContextMenuActionHandler;
   /** Enable duplicate view with layouts menu item */
   enableDuplicateWithLayouts?: boolean;
+  /** Enable rename view menu item */
+  enableRenameView?: boolean;
   /** ViewTabMenuOptionType enum for type safety - must be passed from client code */
   ViewTabMenuOptionType?: typeof ViewTabMenuOptionType;
 }
@@ -62,7 +65,7 @@ export interface BrowserOverrideConfig {
  * @returns Override callback for workspace platform init
  */
 export function createBrowserOverride(config: BrowserOverrideConfig = {}) {
-  const { enableDuplicateWithLayouts = true } = config;
+  const { enableDuplicateWithLayouts = true, enableRenameView = true } = config;
 
   return async (
     WorkspacePlatformProviderClass: { new (): WorkspacePlatformProvider }
@@ -91,6 +94,28 @@ export function createBrowserOverride(config: BrowserOverrideConfig = {}) {
               type: 'Custom' as unknown as ViewTabMenuOptionType,
               action: {
                 id: VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS,
+                customData: {
+                  selectedViews: payload.selectedViews
+                }
+              }
+            }
+          } as ViewTabContextMenuTemplate);
+        }
+
+        if (enableRenameView) {
+          // Add separator if we haven't already
+          if (!enableDuplicateWithLayouts) {
+            customItems.push({ type: 'separator' } as ViewTabContextMenuTemplate);
+          }
+
+          // Add "Rename View" option using Custom type
+          customItems.push({
+            type: 'normal',
+            label: 'Rename View',
+            data: {
+              type: 'Custom' as unknown as ViewTabMenuOptionType,
+              action: {
+                id: VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW,
                 customData: {
                   selectedViews: payload.selectedViews
                 }
@@ -171,6 +196,28 @@ export function createCustomActions(onAction?: ViewContextMenuActionHandler) {
       } else {
         console.warn('[BrowserOverride] No action handler registered for duplicate-view-with-layouts');
       }
+    },
+    [VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW]: async (payload: {
+      callerType: string;
+      customData: unknown;
+      windowIdentity: ViewIdentity;
+      selectedViews: ViewIdentity[];
+    }) => {
+      console.log('[BrowserOverride] Custom action triggered', {
+        action: VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW,
+        selectedViews: payload.selectedViews,
+        customData: payload.customData
+      });
+
+      if (onAction) {
+        await onAction(VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW, {
+          windowIdentity: payload.windowIdentity,
+          selectedViews: payload.selectedViews,
+          customData: payload.customData
+        });
+      } else {
+        console.warn('[BrowserOverride] No action handler registered for rename-view');
+      }
     }
   };
 }
@@ -180,24 +227,30 @@ export function createCustomActions(onAction?: ViewContextMenuActionHandler) {
  *
  * Use this when you need both workspace storage and browser customizations.
  *
- * @param workspaceStorageOverride - The workspace storage override function
+ * @param workspaceStorageOverride - The workspace storage override function (returns instance)
  * @param browserConfig - Configuration for browser override
- * @returns Combined override callback
+ * @returns Combined override callback (returns instance)
  */
 export function combineOverrides(
   workspaceStorageOverride: (
     WorkspacePlatformProvider: { new (): WorkspacePlatformProvider }
-  ) => Promise<{ new (): WorkspacePlatformProvider }>,
+  ) => Promise<WorkspacePlatformProvider>,
   browserConfig: BrowserOverrideConfig
 ) {
   return async (
     WorkspacePlatformProviderClass: { new (): WorkspacePlatformProvider }
-  ): Promise<{ new (): WorkspacePlatformProvider }> => {
+  ): Promise<WorkspacePlatformProvider> => {
     // First apply workspace storage override
-    const StorageProviderClass = await workspaceStorageOverride(WorkspacePlatformProviderClass);
+    const storageProviderInstance = await workspaceStorageOverride(WorkspacePlatformProviderClass);
+
+    // Get the constructor of the storage provider instance
+    const StorageProviderClass = storageProviderInstance.constructor as { new (): WorkspacePlatformProvider };
 
     // Then apply browser override on top
     const browserOverride = createBrowserOverride(browserConfig);
-    return browserOverride(StorageProviderClass);
+    const BrowserProviderClass = await browserOverride(StorageProviderClass);
+
+    // Return instance of the combined provider
+    return new BrowserProviderClass();
   };
 }

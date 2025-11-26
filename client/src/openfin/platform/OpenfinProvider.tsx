@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { init } from '@openfin/workspace-platform';
+import { init, getCurrentSync } from '@openfin/workspace-platform';
 import {
   useOpenfinTheme,
   createWorkspaceStorageOverride,
   createCustomActions,
   VIEW_CONTEXT_MENU_ACTIONS,
-  registerConfigLookupCallback
+  registerConfigLookupCallback,
+  combineOverrides
 } from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
 import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
 import { DataProviderEditor } from '@/components/provider/editors/DataProviderEditor';
 import { Toaster } from '@/components/ui/toaster';
+import { useToast } from '@/hooks/use-toast';
 import * as dock from './openfinDock';
 import { initializeBaseUrlFromManifest, buildUrl } from '../utils/openfinUtils';
 import { logger } from '@/utils/logger';
@@ -18,6 +20,7 @@ import { dockConfigService } from '@/services/api/dockConfigService';
 import { viewManager } from '@/services/viewManager';
 import { initializeOpenFinPlatformLibrary } from './openfinPlatformAdapter';
 import { handleDuplicateViewAction } from '../actions/viewActions';
+import { handleRenameViewAction } from '../actions/renameViewAction';
 import { layoutCache } from '@/services/cache/layoutCache';
 import { simpleBlotterConfigService } from '@/services/api/simpleBlotterConfigService';
 
@@ -44,6 +47,7 @@ export default function Provider() {
   const isInitialized = useRef(false);
   const [isPlatformReady, setIsPlatformReady] = useState(false);
   const [activeTab, setActiveTab] = useState('dock');
+  const { toast } = useToast();
 
   useEffect(() => {
     let analyticsErrorHandler: ((event: PromiseRejectionEvent) => void) | null = null;
@@ -194,10 +198,8 @@ export default function Provider() {
         });
 
         // Create custom actions handler for context menu items
-        // Note: The "Duplicate View with Layouts" menu item is added via customActions,
-        // not via browser override, so we don't need to chain browserOverride here.
-        const duplicateViewActionHandler = async (action: string, payload: { windowIdentity: { uuid: string; name: string }; selectedViews: { uuid: string; name: string }[]; customData?: unknown }) => {
-          logger.info('View context menu action triggered', { action, payload }, 'Provider');
+        const customViewActionsHandler = async (action: string, payload: { windowIdentity: { uuid: string; name: string }; selectedViews: { uuid: string; name: string }[]; customData?: unknown }) => {
+          logger.info('View context menu action triggered', { action }, 'Provider');
 
           if (action === VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS) {
             // Handle each selected view
@@ -209,13 +211,54 @@ export default function Provider() {
                 logger.info('View duplicated successfully', { newViewId: result.newViewId }, 'Provider');
               }
             }
+          } else if (action === VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW) {
+            // Handle rename view action using extracted action handler
+            if (payload.selectedViews.length === 0) {
+              logger.warn('No view selected for rename', {}, 'Provider');
+              return;
+            }
+
+            // Get the first selected view
+            const viewIdentity = payload.selectedViews[0];
+            const result = await handleRenameViewAction(viewIdentity);
+
+            if (!result.success) {
+              logger.error('Failed to rename view', { error: result.error, viewIdentity }, 'Provider');
+
+              // Show error toast if there was an actual error (not just cancelled)
+              if (result.error) {
+                toast({
+                  title: "Failed to rename view",
+                  description: result.error.message || "An unknown error occurred",
+                  variant: "destructive",
+                });
+              }
+            } else if (result.newName) {
+              logger.info('View renamed successfully', {
+                oldName: viewIdentity.name,
+                newName: result.newName
+              }, 'Provider');
+
+              // Show success toast
+              toast({
+                title: "View renamed",
+                description: `Successfully renamed to "${result.newName}"`,
+              });
+            }
           }
         };
 
         const customActions = {
           ...dock.dockGetCustomActions(),
-          ...createCustomActions(duplicateViewActionHandler)
+          ...createCustomActions(customViewActionsHandler)
         };
+
+        // Combine workspace storage override with browser override for custom context menu
+        const combinedOverride = combineOverrides(workspaceStorageOverride, {
+          onAction: customViewActionsHandler,
+          enableDuplicateWithLayouts: true,
+          enableRenameView: true
+        });
 
         await init({
           browser: {
@@ -227,7 +270,7 @@ export default function Provider() {
               }
             }
           },
-          overrideCallback: workspaceStorageOverride,
+          overrideCallback: combinedOverride,
           theme: [{
             label: "Stern Theme",
             default: "dark",

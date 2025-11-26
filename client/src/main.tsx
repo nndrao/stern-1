@@ -26,6 +26,7 @@ const queryClient = new QueryClient({
 const PlatformProvider = lazy(() => import('./openfin/platform/OpenfinProvider'));
 const DemoComponent = lazy(() => import('./components/DemoComponent'));
 const SimpleBlotter = lazy(() => import('./components/widgets/blotters/simpleblotter/SimpleBlotter'));
+const RenameViewDialog = lazy(() => import('./routes/RenameViewDialog'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -81,6 +82,14 @@ createRoot(document.getElementById('root')!).render(
                     element={
                       <Suspense fallback={<LoadingFallback />}>
                         <SimpleBlotter />
+                      </Suspense>
+                    }
+                  />
+                  <Route
+                    path="/dialogs/rename-view"
+                    element={
+                      <Suspense fallback={<LoadingFallback />}>
+                        <RenameViewDialog />
                       </Suspense>
                     }
                   />
