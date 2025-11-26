@@ -244,18 +244,36 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
 
   useEffect(() => {
     // Only run in OpenFin environment
-    if (!platform.isOpenFin) return;
+    if (!platform.isOpenFin) {
+      logger.debug('Skipping caption restoration - not in OpenFin', undefined, 'SimpleBlotter');
+      return;
+    }
+
+    logger.debug('Attempting to restore view caption from customData', undefined, 'SimpleBlotter');
 
     // Restore the view caption from customData if it was previously saved
     // This ensures renamed views keep their custom names across workspace restores
     getViewCustomData()
       .then((customData) => {
+        logger.debug('Retrieved customData for caption restoration', {
+          customData,
+          hasCaption: !!customData?.caption
+        }, 'SimpleBlotter');
+
         if (customData?.caption) {
           logger.info('Restoring view caption from customData', {
             caption: customData.caption,
+            currentTitle: document.title
           }, 'SimpleBlotter');
           // Set document.title to restore the tab caption
           document.title = customData.caption;
+          logger.debug('View caption restored', {
+            newTitle: document.title
+          }, 'SimpleBlotter');
+        } else {
+          logger.debug('No caption found in customData, keeping default title', {
+            currentTitle: document.title
+          }, 'SimpleBlotter');
         }
       })
       .catch((error) => {

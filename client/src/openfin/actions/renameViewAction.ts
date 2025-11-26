@@ -96,6 +96,13 @@ export async function handleRenameViewAction(
     // IMPORTANT: Update the customData on the target view, not the current view
     const options = await view.getOptions();
     const existingCustomData = (options as any).customData || {};
+
+    logger.debug('Updating view customData with caption', {
+      viewIdentity,
+      existingCustomData,
+      newCaption: newName
+    }, 'renameViewAction');
+
     await view.updateOptions({
       customData: {
         ...existingCustomData,
@@ -103,10 +110,16 @@ export async function handleRenameViewAction(
       }
     } as any);
 
+    // Verify the update by reading back the options
+    const updatedOptions = await view.getOptions();
+    const updatedCustomData = (updatedOptions as any).customData;
+
     logger.info('View renamed successfully', {
       oldName: viewIdentity.name,
       newName,
       method: 'executeJavaScript + customData',
+      updatedCustomData,
+      captionSaved: updatedCustomData?.caption === newName
     }, 'renameViewAction');
 
     return {
