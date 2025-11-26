@@ -38,18 +38,15 @@ export interface UseBlotterLayoutManagerOptions {
   blotterName?: string;
   /** AG Grid API reference */
   gridApi?: GridApi | null;
-  /** Current selected provider ID */
-  selectedProviderId?: string | null;
   /** Current toolbar state */
   toolbarState?: BlotterToolbarState;
 }
 
 /**
  * Callback interface for layout application
+ * NOTE: Data provider is component-level only and cannot be changed per-layout
  */
 export interface LayoutApplyCallbacks {
-  /** Called when provider should change */
-  onProviderChange?: (providerId: string | null) => void;
   /** Called when toolbar state should change */
   onToolbarStateChange?: (state: BlotterToolbarState) => void;
 }
@@ -68,7 +65,6 @@ export function useBlotterLayoutManager({
   userId,
   blotterName = 'Blotter',
   gridApi,
-  selectedProviderId,
   toolbarState,
 }: UseBlotterLayoutManagerOptions) {
   // ============================================================================
@@ -176,12 +172,12 @@ export function useBlotterLayoutManager({
 
   /**
    * Capture current grid state for saving
-   * Includes grid state, selected provider, and toolbar state
+   * Includes grid state and toolbar state (but NOT data provider - that's component-level)
    */
   const captureGridState = useCallback((): Partial<SimpleBlotterLayoutConfig> => {
-    // Capture provider and toolbar state even if grid is not ready
+    // Capture toolbar state even if grid is not ready
+    // NOTE: We do NOT capture selectedProviderId - data provider is component-level only
     const baseState: Partial<SimpleBlotterLayoutConfig> = {
-      selectedProviderId: selectedProviderId ?? null,
       toolbarState: toolbarState ?? { isCollapsed: true, isPinned: false },
     };
 
@@ -245,7 +241,6 @@ export function useBlotterLayoutManager({
         openToolPanel: sideBarState?.openToolPanel,
         rowGroupColumns: rowGroupColumns.length,
         pivotColumns: pivotColumns.length,
-        selectedProviderId,
         toolbarState,
       }, 'useBlotterLayoutManager');
 
@@ -263,7 +258,7 @@ export function useBlotterLayoutManager({
       logger.error('Failed to capture grid state', error, 'useBlotterLayoutManager');
       return baseState;
     }
-  }, [gridApi, selectedProviderId, toolbarState]);
+  }, [gridApi, toolbarState]);
 
   /**
    * Reset grid state completely before applying a new layout
@@ -308,27 +303,19 @@ export function useBlotterLayoutManager({
    * Returns the provider ID and toolbar state that should be applied
    */
   const applyLayoutToGrid = useCallback((layoutConfig: SimpleBlotterLayoutConfig, resetFirst: boolean = false): {
-    providerId?: string | null;
     toolbarState?: BlotterToolbarState;
   } => {
-    const result: { providerId?: string | null; toolbarState?: BlotterToolbarState } = {};
+    const result: { toolbarState?: BlotterToolbarState } = {};
     const callbacks = applyCallbacksRef.current;
 
     logger.debug('Applying layout to grid', {
-      hasCallbacks: !!callbacks.onProviderChange || !!callbacks.onToolbarStateChange,
-      selectedProviderId: layoutConfig.selectedProviderId,
+      hasCallbacks: !!callbacks.onToolbarStateChange,
       toolbarState: layoutConfig.toolbarState,
       resetFirst,
     }, 'useBlotterLayoutManager');
 
-    // Apply provider selection via callback
-    if (layoutConfig.selectedProviderId !== undefined) {
-      result.providerId = layoutConfig.selectedProviderId;
-      if (callbacks.onProviderChange) {
-        logger.debug('Calling onProviderChange callback', { providerId: layoutConfig.selectedProviderId }, 'useBlotterLayoutManager');
-        callbacks.onProviderChange(layoutConfig.selectedProviderId);
-      }
-    }
+    // NOTE: We do NOT apply selectedProviderId from layout
+    // Data provider is component-level only and cannot be changed per-layout
 
     // Apply toolbar state via callback
     if (layoutConfig.toolbarState) {
@@ -392,15 +379,13 @@ export function useBlotterLayoutManager({
           layoutColumns: layoutConfig.columnState?.length || 0,
           sideBarVisible: layoutConfig.sideBarState?.visible,
           openToolPanel: layoutConfig.sideBarState?.openToolPanel,
-          providerId: layoutConfig.selectedProviderId,
           toolbarState: layoutConfig.toolbarState,
         }, 'useBlotterLayoutManager');
       } catch (error) {
         logger.error('Failed to apply layout to grid', error, 'useBlotterLayoutManager');
       }
     } else {
-      logger.debug('Layout applied (grid not ready, provider/toolbar only)', {
-        providerId: layoutConfig.selectedProviderId,
+      logger.debug('Layout applied (grid not ready, toolbar only)', {
         toolbarState: layoutConfig.toolbarState,
       }, 'useBlotterLayoutManager');
     }
@@ -414,7 +399,6 @@ export function useBlotterLayoutManager({
    */
   const registerApplyCallbacks = useCallback((callbacks: LayoutApplyCallbacks) => {
     logger.debug('Registering apply callbacks', {
-      hasProviderChange: !!callbacks.onProviderChange,
       hasToolbarChange: !!callbacks.onToolbarStateChange,
     }, 'useBlotterLayoutManager');
     applyCallbacksRef.current = callbacks;

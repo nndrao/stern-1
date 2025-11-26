@@ -175,7 +175,6 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     userId,
     blotterName: 'SimpleBlotter',
     gridApi: gridApiRef.current,
-    selectedProviderId,
     toolbarState: {
       isCollapsed: isToolbarCollapsed,
       isPinned: isToolbarPinned,
@@ -185,12 +184,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // Register callbacks for layout application IMMEDIATELY (before paint)
   // useLayoutEffect runs synchronously after DOM mutations but before paint,
   // ensuring callbacks are registered before any layout is applied
+  // NOTE: Data provider is component-level only and NOT controlled by layouts
   useLayoutEffect(() => {
     layoutManager.registerApplyCallbacks({
-      onProviderChange: (providerId) => {
-        logger.debug('Layout applying provider', { providerId }, 'SimpleBlotter');
-        setSelectedProviderId(providerId);
-      },
       onToolbarStateChange: (state) => {
         logger.debug('Layout applying toolbar state', { state }, 'SimpleBlotter');
         setIsToolbarCollapsed(state.isCollapsed);
@@ -286,8 +282,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       logger.debug('Re-applying grid state after grid ready', {
         layoutId: layoutManager.selectedLayoutId,
         columnCount: config.columnState?.length || 0,
+        sideBarVisible: config.sideBarState?.visible,
       }, 'SimpleBlotter');
-      // Only apply grid state (column, filter, sort) - provider/toolbar already applied
+      // Only apply grid state (column, filter, sort, sidebar) - provider/toolbar already applied
       if (gridApiRef.current && config.columnState?.length > 0) {
         gridApiRef.current.applyColumnState({
           state: config.columnState,
@@ -296,6 +293,27 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       }
       if (gridApiRef.current && config.filterState) {
         gridApiRef.current.setFilterModel(config.filterState);
+      }
+      // Apply side bar state if specified
+      if (gridApiRef.current && config.sideBarState) {
+        try {
+          // Set side bar visibility
+          gridApiRef.current.setSideBarVisible(config.sideBarState.visible);
+
+          // Open the tool panel if one was open
+          if (config.sideBarState.visible && config.sideBarState.openToolPanel) {
+            gridApiRef.current.openToolPanel(config.sideBarState.openToolPanel);
+          } else if (!config.sideBarState.openToolPanel) {
+            // Close any open tool panel
+            gridApiRef.current.closeToolPanel();
+          }
+          logger.debug('Applied sidebar state after grid ready', {
+            visible: config.sideBarState.visible,
+            openToolPanel: config.sideBarState.openToolPanel,
+          }, 'SimpleBlotter');
+        } catch (error) {
+          logger.warn('Failed to apply sidebar state after grid ready', error, 'SimpleBlotter');
+        }
       }
     }
   }, [gridReady, layoutManager.selectedLayout, layoutManager.selectedLayoutId]);
