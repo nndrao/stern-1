@@ -1,17 +1,19 @@
 /**
  * Window Title Manager
  *
- * Manages dynamic window titles in OpenFin platform to show the active view's title
- * instead of "internal-generated-window". Updates window title when views are focused.
+ * Manages dynamic window titles in OpenFin platform to show the active page's title
+ * instead of "internal-generated-window". Updates window title when pages change.
+ *
+ * Based on: https://openfin.zendesk.com/hc/en-us/articles/14396418368532
  */
 
 /**
  * Initialize window title management for all platform windows
  *
- * This sets up event listeners that update window titles when views are focused.
+ * This sets up event listeners that update window titles to match the active page title.
  * Call this after platform initialization.
  *
- * @param defaultTitle - Default title to use when no view is active
+ * @param defaultTitle - Default title to use when no page is active
  */
 export async function initializeWindowTitleManager(defaultTitle: string = 'Stern Platform'): Promise<void> {
   if (!window.fin) {
@@ -22,87 +24,103 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
   console.log('[WindowTitleManager] Initializing window title management');
 
   try {
-    // Get the current platform
-    const platform = fin.Platform.getCurrentSync();
+    // Import workspace platform
+    const workspacePlatform = await import('@openfin/workspace-platform');
+    const platform = workspacePlatform.getCurrentSync();
 
-    // Listen for view-focused events on all windows
-    await platform.Application.addListener('view-focused', async (event: any) => {
+    // Helper function to get the active page title for a window
+    const getActivePageTitle = async (windowName: string): Promise<string> => {
       try {
-        const { viewIdentity, previousViewIdentity } = event;
+        const allPages = await platform.Storage.getPages();
 
-        console.log('[WindowTitleManager] View focused', {
-          newView: viewIdentity?.name,
-          previousView: previousViewIdentity?.name
+        // Find pages that belong to this window
+        for (const page of allPages) {
+          if (page.pageId && page.title) {
+            // Check if this page's layout references our window
+            const layout = page.layout as any;
+            if (layout?.content) {
+              // Search through the layout to find our window
+              const hasWindow = JSON.stringify(layout).includes(windowName);
+              if (hasWindow && (page as any).isActive) {
+                return page.title;
+              }
+            }
+          }
+        }
+
+        // Try first page with title as fallback
+        const firstPageWithTitle = allPages.find(p => p.title);
+        if (firstPageWithTitle) {
+          return firstPageWithTitle.title!;
+        }
+      } catch (error) {
+        console.error('[WindowTitleManager] Failed to get active page title:', error);
+      }
+
+      return defaultTitle;
+    };
+
+    // Helper function to update window title
+    const updateWindowTitle = async (windowName: string) => {
+      try {
+        const window = fin.Window.wrapSync({
+          uuid: fin.me.identity.uuid,
+          name: windowName
         });
 
-        // Get the view that was focused
-        const view = fin.View.wrapSync(viewIdentity);
-        const viewInfo: any = await view.getInfo();
-
-        // Get the window containing the view
-        const window = await view.getCurrentWindow();
-
-        // Determine the title to use
-        let windowTitle = defaultTitle;
-
-        // Try to get title from view's custom data
-        if (viewInfo.customData?.title) {
-          windowTitle = viewInfo.customData.title;
-        }
-        // Fall back to view name
-        else if (viewInfo.title) {
-          windowTitle = viewInfo.title;
-        }
-        // Use view name as last resort
-        else if (viewIdentity.name) {
-          windowTitle = viewIdentity.name.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-        }
-
-        // Update the window title
-        await (window as any).updateOptions({ title: windowTitle });
+        const title = await getActivePageTitle(windowName);
+        await (window as any).updateOptions({ title });
 
         console.log('[WindowTitleManager] Updated window title', {
-          window: window.identity.name,
-          title: windowTitle
+          window: windowName,
+          title
         });
       } catch (error) {
-        console.error('[WindowTitleManager] Failed to update window title on view-focused:', error);
+        console.error('[WindowTitleManager] Failed to update window title:', error);
+      }
+    };
+
+    // Listen for window created events
+    await fin.System.addListener('window-created', async (event: any) => {
+      try {
+        // Skip provider windows
+        if (event.name && !event.name.includes('provider')) {
+          console.log('[WindowTitleManager] Window created', event.name);
+
+          // Small delay to let window initialize
+          setTimeout(() => updateWindowTitle(event.name), 500);
+        }
+      } catch (error) {
+        console.error('[WindowTitleManager] Failed to handle window-created:', error);
       }
     });
 
-    // Also set initial titles for existing windows
-    const allWindows = await platform.Application.getChildWindows();
+    // Listen for window focused events
+    await fin.System.addListener('window-focused', async (event: any) => {
+      try {
+        if (event.name && !event.name.includes('provider')) {
+          console.log('[WindowTitleManager] Window focused', event.name);
+          await updateWindowTitle(event.name);
+        }
+      } catch (error) {
+        console.error('[WindowTitleManager] Failed to handle window-focused:', error);
+      }
+    });
+
+    // Set initial titles for all existing windows
+    const allWindows = await fin.System.getAllWindows();
 
     for (const windowInfo of allWindows) {
       try {
-        const window = fin.Window.wrapSync(windowInfo.identity);
-        const views = await window.getCurrentViews();
+        const mainWindow = windowInfo.mainWindow;
+        const windowName = mainWindow.name;
 
-        if (views.length > 0) {
-          // Get the first view's info
-          const firstView = views[0];
-          const viewInfo: any = await firstView.getInfo();
-
-          // Determine title
-          let windowTitle = defaultTitle;
-          if (viewInfo.customData?.title) {
-            windowTitle = viewInfo.customData.title;
-          } else if (viewInfo.title) {
-            windowTitle = viewInfo.title;
-          } else if (viewInfo.name) {
-            windowTitle = viewInfo.name.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-          }
-
-          // Update window title
-          await (window as any).updateOptions({ title: windowTitle });
-
-          console.log('[WindowTitleManager] Set initial window title', {
-            window: windowInfo.identity.name,
-            title: windowTitle
-          });
+        // Skip provider window
+        if (windowName && !windowName.includes('provider')) {
+          await updateWindowTitle(windowName);
         }
       } catch (error) {
-        console.error('[WindowTitleManager] Failed to set initial window title:', error);
+        console.error('[WindowTitleManager] Failed to set initial title:', error);
       }
     }
 
