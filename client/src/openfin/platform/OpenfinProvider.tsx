@@ -16,7 +16,7 @@ import { DataProviderEditor } from '@/components/provider/editors/DataProviderEd
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/ui/use-toast';
 import * as dock from './openfinDock';
-import { buildUrl, initializeBaseUrlFromManifest } from '@stern/openfin-platform';
+import { buildUrl, initializeBaseUrlFromManifest, initializeWindowTitleManager } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 import { dockConfigService } from '@/services/api/dockConfigService';
 import { viewManager } from '@/services/viewManager';
@@ -519,6 +519,16 @@ export default function Provider() {
           } else {
             logger.warn('Dock API not available - skipping dock registration', undefined, 'Provider');
             logger.info('Make sure @openfin/workspace package is properly installed', undefined, 'Provider');
+          }
+
+          // Initialize window title manager to show view titles instead of "internal-generated-window"
+          try {
+            logger.info('Initializing window title manager...', undefined, 'Provider');
+            await initializeWindowTitleManager('Stern Platform');
+            logger.info('Window title manager initialized', undefined, 'Provider');
+          } catch (titleError) {
+            logger.warn('Failed to initialize window title manager', titleError, 'Provider');
+            // Non-critical - continue with initialization
           }
 
           // Hide provider window after initialization
