@@ -3,8 +3,31 @@
  * Defines the structure for runtime dock configuration
  */
 
-// Generic config type - can be extended by library users
-export type UnifiedConfig = Record<string, any>;
+/**
+ * Base UnifiedConfig interface
+ * All configuration types extend this to ensure compatibility with API storage
+ */
+export interface UnifiedConfig {
+  configId: string;
+  name: string;
+  userId: string;
+  appId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  version?: string;
+  componentType: string;
+  componentSubType?: string;
+  description?: string;
+  tags?: string[];
+  category?: string;
+  isShared?: boolean;
+  isDefault?: boolean;
+  isLocked?: boolean;
+  createdBy?: string;
+  lastUpdatedBy?: string;
+  [key: string]: any;  // Allow additional properties
+}
+
 export type ConfigVersion = string;
 
 // Component type constants - can be extended by library users

@@ -31,9 +31,8 @@ import {
   type CustomActionsMap
 } from '@openfin/workspace-platform';
 import { buildUrl } from '../utils/openfinUtils';
-import { DockConfiguration, DockMenuItem } from '../types/dockConfig';
+import { DockConfiguration, DockMenuItem, OpenFinCustomEvents } from '@stern/openfin-platform';
 import { launchMenuItem } from './openfinMenuLauncher';
-import { OpenFinCustomEvents } from '../types/openfinEvents';
 import { logger } from '@/utils/logger';
 
 // ============================================================================

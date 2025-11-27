@@ -39,7 +39,7 @@ import {
   OpenFinEventMap,
   OpenFinEventHandler,
   UnsubscribeFunction
-} from '../types/openfinEvents';
+} from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 
 /**

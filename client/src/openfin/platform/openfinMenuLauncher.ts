@@ -4,7 +4,7 @@
  */
 
 import { getCurrentSync } from '@openfin/workspace-platform';
-import { DockMenuItem } from '../types/dockConfig';
+import { DockMenuItem } from '@stern/openfin-platform';
 import { buildUrl } from '../utils/openfinUtils';
 import { logger } from '@/utils/logger';
 

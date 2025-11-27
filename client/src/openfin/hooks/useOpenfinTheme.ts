@@ -11,7 +11,7 @@
 import { useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { useOpenFinEvents } from './useOpenFinEvents';
-import { OpenFinCustomEvents } from '../types/openfinEvents';
+import { OpenFinCustomEvents } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 
 /**
