@@ -33,7 +33,7 @@ import { appDataService } from '@/services/appDataService';
 import { configService } from '@/services/api/configurationService';
 import { dataProviderConfigService } from '@/services/api/dataProviderConfigService';
 import { getApiUrl } from '@/openfin/utils/platformContext';
-import { OpenFinCustomEvents, OpenFinEventMap } from '@/openfin/types/openfinEvents';
+import { OpenFinCustomEvents, OpenFinEventMap } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 import { UnifiedConfig } from '@stern/shared-types';
 

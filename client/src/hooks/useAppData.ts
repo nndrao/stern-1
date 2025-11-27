@@ -23,7 +23,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { OpenFinCustomEvents } from '@/openfin/types/openfinEvents';
+import { OpenFinCustomEvents } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 import { appDataService } from '@/services/appDataService';
 

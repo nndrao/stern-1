@@ -23,7 +23,7 @@ import { useAgGridTheme } from '@/hooks/ui/useAgGridTheme';
 import { useSternPlatform } from '@/providers/SternPlatformProvider';
 import { getViewInstanceId, getActiveLayoutId, getViewCustomData } from '@/openfin/utils/viewUtils';
 import { useDataProviderAdapter } from '@/hooks/data-provider';
-import { OpenFinCustomEvents } from '@/openfin/types/openfinEvents';
+import { OpenFinCustomEvents } from '@stern/openfin-platform';
 import { resolveValueFormatter } from '@/formatters';
 import { CollapsibleToolbar } from '@/components/ui/CollapsibleToolbar';
 import { BlotterToolbar } from './BlotterToolbar';

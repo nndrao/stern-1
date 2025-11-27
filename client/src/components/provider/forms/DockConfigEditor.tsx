@@ -29,10 +29,8 @@ import { TreeView } from '../TreeView';
 import { PropertiesPanel } from '../PropertiesPanel';
 // Lazy load IconPicker to prevent loading hundreds of icons on initial page load
 const IconPicker = React.lazy(() => import('../editors/IconPicker').then(m => ({ default: m.IconPicker })));
-import { DockConfiguration, DockMenuItem, createMenuItem, validateDockConfiguration, createDockConfiguration } from '@/openfin/types/dockConfig';
+import { DockConfiguration, DockMenuItem, createMenuItem, validateDockConfiguration, createDockConfiguration, useOpenFinDock, useOpenfinTheme } from '@stern/openfin-platform';
 import { useDockConfig, useSaveDockConfig } from '@/hooks/api/useDockConfigQueries';
-import { useOpenFinDock } from '@/openfin/hooks/useOpenfinWorkspace';
-import { useOpenfinTheme } from '@/openfin/hooks/useOpenfinTheme';
 import '@/test/helpers/testApi'; // Import test utility for debugging
 import { logger } from '@/utils/logger';
 import { COMPONENT_SUBTYPES } from '@stern/shared-types';

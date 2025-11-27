@@ -7,22 +7,10 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { platformContext } from '../core/PlatformContext';
+import type { ViewInstance, CreateViewOptions } from '../core/interfaces';
 
-// Re-export types that were imported from viewManager
-export interface ViewInstance {
-  id: string;
-  type: string;
-  title?: string;
-  createdAt: Date;
-  lastAccessedAt: Date;
-}
-
-export interface CreateViewOptions {
-  type: string;
-  basePath?: string;
-  title?: string;
-  config?: any;
-}
+// Re-export types from core/interfaces for convenience
+export type { ViewInstance, CreateViewOptions };
 
 export interface UseViewManagerReturn {
   /** Create a new view with persistent ID */

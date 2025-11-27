@@ -27,7 +27,7 @@ import {
   Maximize2
 } from 'lucide-react';
 
-import { DockMenuItem } from '@/openfin/types/dockConfig';
+import { DockMenuItem } from '@stern/openfin-platform';
 
 interface TreeViewProps {
   items: DockMenuItem[];
