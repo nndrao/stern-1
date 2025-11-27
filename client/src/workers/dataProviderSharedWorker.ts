@@ -280,28 +280,51 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
  */
 (self as any).onconnect = (event: MessageEvent) => {
   const port = event.ports[0];
-  const portId = generatePortId();
+  let connectionPortId: string | undefined;
 
-  console.log(`[SharedWorker] New connection: ${portId} (Worker version: ${WORKER_VERSION})`);
-
-  ports.set(portId, port);
+  console.log(`[SharedWorker] New connection (Worker version: ${WORKER_VERSION})`);
 
   port.addEventListener('message', async (messageEvent: MessageEvent<WorkerRequest>) => {
-    // Add portId to request
-    const request = { ...messageEvent.data, portId };
+    // Use portId from request if provided (client-generated), otherwise generate one
+    // This allows the client to provide its own portId for consistent tracking
+    const request = messageEvent.data;
+
+    if (!request.portId) {
+      // No portId in request, generate one
+      if (!connectionPortId) {
+        connectionPortId = generatePortId();
+        console.log(`[SharedWorker] Generated portId for connection: ${connectionPortId}`);
+      }
+      request.portId = connectionPortId;
+    } else {
+      // Use client-provided portId
+      if (!connectionPortId) {
+        connectionPortId = request.portId;
+        console.log(`[SharedWorker] Using client-provided portId: ${connectionPortId}`);
+      }
+    }
+
+    // Track port by its ID
+    if (!ports.has(connectionPortId)) {
+      console.log(`[SharedWorker] Registering port: ${connectionPortId}`);
+      ports.set(connectionPortId, port);
+    }
+
     await handleMessage(port, request);
   });
 
   port.addEventListener('messageerror', (error) => {
-    console.error(`[SharedWorker] Message error on port ${portId}:`, error);
+    console.error(`[SharedWorker] Message error on port ${connectionPortId}:`, error);
   });
 
   // Handle port close
   port.addEventListener('close', () => {
-    console.log(`[SharedWorker] Port closed: ${portId}`);
-    ports.delete(portId);
-    // Remove port from all subscriptions
-    broadcastManager.removePortFromAll(portId);
+    if (connectionPortId) {
+      console.log(`[SharedWorker] Port closed: ${connectionPortId}`);
+      ports.delete(connectionPortId);
+      // Remove port from all subscriptions
+      broadcastManager.removePortFromAll(connectionPortId);
+    }
   });
 
   port.start();
