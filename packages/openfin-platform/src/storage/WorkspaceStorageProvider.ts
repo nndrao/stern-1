@@ -207,7 +207,20 @@ export function createWorkspaceStorageOverride(config: WorkspaceStorageConfig) {
 
         // Save to IndexedDB FIRST (required for OpenFin to work)
         if (this.enableFallback) {
-          await super.updateSavedWorkspace(req);
+          // Check if workspace exists in IndexedDB first
+          const existingWorkspace = await super.getSavedWorkspace(req.workspace.workspaceId);
+
+          if (existingWorkspace) {
+            // Update existing workspace
+            console.log('[WorkspaceStorage] Updating existing workspace in IndexedDB');
+            await super.updateSavedWorkspace(req);
+          } else {
+            // Workspace doesn't exist yet, create it instead
+            console.log('[WorkspaceStorage] Workspace not found in IndexedDB, creating new workspace');
+            await super.createSavedWorkspace({
+              workspace: req.workspace
+            });
+          }
         }
 
         // Then save to API (for persistence across devices)
@@ -333,7 +346,20 @@ export function createWorkspaceStorageOverride(config: WorkspaceStorageConfig) {
 
         // Save to IndexedDB FIRST (required for OpenFin to work)
         if (this.enableFallback) {
-          await super.updateSavedPage(req);
+          // Check if page exists in IndexedDB first
+          const existingPage = await super.getSavedPage(req.page.pageId);
+
+          if (existingPage) {
+            // Update existing page
+            console.log('[WorkspaceStorage] Updating existing page in IndexedDB');
+            await super.updateSavedPage(req);
+          } else {
+            // Page doesn't exist yet, create it instead
+            console.log('[WorkspaceStorage] Page not found in IndexedDB, creating new page');
+            await super.createSavedPage({
+              page: req.page
+            });
+          }
         }
 
         // Then save to API (for persistence across devices)
