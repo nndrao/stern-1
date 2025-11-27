@@ -245,38 +245,45 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   useEffect(() => {
     // Only run in OpenFin environment
     if (!platform.isOpenFin) {
+      console.log('[CAPTION RESTORE] Skipping - not in OpenFin');
       logger.debug('Skipping caption restoration - not in OpenFin', undefined, 'SimpleBlotter');
       return;
     }
 
+    console.log('[CAPTION RESTORE] Starting caption restoration from customData');
     logger.debug('Attempting to restore view caption from customData', undefined, 'SimpleBlotter');
 
     // Restore the view caption from customData if it was previously saved
     // This ensures renamed views keep their custom names across workspace restores
     getViewCustomData()
       .then((customData) => {
+        console.log('[CAPTION RESTORE] Retrieved customData:', customData);
         logger.debug('Retrieved customData for caption restoration', {
           customData,
           hasCaption: !!customData?.caption
         }, 'SimpleBlotter');
 
         if (customData?.caption) {
+          console.log('[CAPTION RESTORE] Found caption, restoring:', customData.caption);
           logger.info('Restoring view caption from customData', {
             caption: customData.caption,
             currentTitle: document.title
           }, 'SimpleBlotter');
           // Set document.title to restore the tab caption
           document.title = customData.caption;
+          console.log('[CAPTION RESTORE] Caption restored, new title:', document.title);
           logger.debug('View caption restored', {
             newTitle: document.title
           }, 'SimpleBlotter');
         } else {
+          console.log('[CAPTION RESTORE] No caption in customData, keeping default:', document.title);
           logger.debug('No caption found in customData, keeping default title', {
             currentTitle: document.title
           }, 'SimpleBlotter');
         }
       })
       .catch((error) => {
+        console.error('[CAPTION RESTORE] Failed to restore caption:', error);
         logger.warn('Failed to restore view caption from customData', error, 'SimpleBlotter');
       });
   }, [platform.isOpenFin]);

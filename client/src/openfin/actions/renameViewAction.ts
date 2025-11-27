@@ -114,13 +114,18 @@ export async function handleRenameViewAction(
     const updatedOptions = await view.getOptions();
     const updatedCustomData = (updatedOptions as any).customData;
 
-    logger.info('View renamed successfully', {
+    // CRITICAL DEBUG: Log to both logger and console to ensure visibility
+    const debugInfo = {
       oldName: viewIdentity.name,
       newName,
       method: 'executeJavaScript + customData',
       updatedCustomData,
-      captionSaved: updatedCustomData?.caption === newName
-    }, 'renameViewAction');
+      captionSaved: updatedCustomData?.caption === newName,
+      viewIdentity: viewIdentity
+    };
+
+    logger.info('View renamed successfully', debugInfo, 'renameViewAction');
+    console.log('[RENAME DEBUG] View renamed successfully:', debugInfo);
 
     return {
       success: true,
