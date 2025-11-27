@@ -16,7 +16,7 @@ import { DataProviderEditor } from '@/components/provider/editors/DataProviderEd
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/ui/use-toast';
 import * as dock from './openfinDock';
-import { initializeBaseUrlFromManifest, buildUrl } from '../utils/openfinUtils';
+import { buildUrl, initializeBaseUrlFromManifest } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 import { dockConfigService } from '@/services/api/dockConfigService';
 import { viewManager } from '@/services/viewManager';

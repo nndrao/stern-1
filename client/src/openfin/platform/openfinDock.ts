@@ -30,8 +30,7 @@ import {
   type CustomActionPayload,
   type CustomActionsMap
 } from '@openfin/workspace-platform';
-import { buildUrl } from '../utils/openfinUtils';
-import { DockConfiguration, DockMenuItem, OpenFinCustomEvents } from '@stern/openfin-platform';
+import { buildUrl, DockConfiguration, DockMenuItem, OpenFinCustomEvents } from '@stern/openfin-platform';
 import { launchMenuItem } from './openfinMenuLauncher';
 import { logger } from '@/utils/logger';
 
