@@ -33,26 +33,49 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
       try {
         const allPages = await platform.Storage.getPages();
 
-        // Find pages that belong to this window
+        // Find the page that:
+        // 1. Has this window in its layout
+        // 2. Has isActive = true (this is the currently selected page/tab in the browser window)
         for (const page of allPages) {
-          if (page.pageId && page.title) {
-            // Check if this page's layout references our window
-            const layout = page.layout as any;
-            if (layout?.content) {
-              // Search through the layout to find our window
-              const hasWindow = JSON.stringify(layout).includes(windowName);
-              if (hasWindow && (page as any).isActive) {
-                return page.title;
-              }
+          const pageData = page as any;
+
+          // Check if this page's layout contains our window
+          if (page.layout) {
+            const layoutStr = JSON.stringify(page.layout);
+            const hasThisWindow = layoutStr.includes(windowName);
+
+            if (hasThisWindow && pageData.isActive === true) {
+              // This is the active page for this window
+              const title = page.title || page.pageId || defaultTitle;
+              console.log('[WindowTitleManager] Found active page for window', {
+                window: windowName,
+                pageTitle: title,
+                pageId: page.pageId,
+                isActive: pageData.isActive
+              });
+              return title;
             }
           }
         }
 
-        // Try first page with title as fallback
-        const firstPageWithTitle = allPages.find(p => p.title);
-        if (firstPageWithTitle) {
-          return firstPageWithTitle.title!;
+        // Fallback: find any page that has this window and return its title
+        for (const page of allPages) {
+          if (page.layout && page.title) {
+            const layoutStr = JSON.stringify(page.layout);
+            if (layoutStr.includes(windowName)) {
+              console.log('[WindowTitleManager] Using fallback page title', {
+                window: windowName,
+                pageTitle: page.title
+              });
+              return page.title;
+            }
+          }
         }
+
+        console.log('[WindowTitleManager] No page found for window, using default', {
+          window: windowName,
+          defaultTitle
+        });
       } catch (error) {
         console.error('[WindowTitleManager] Failed to get active page title:', error);
       }
@@ -106,6 +129,32 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
         console.error('[WindowTitleManager] Failed to handle window-focused:', error);
       }
     });
+
+    // Listen for page changes using workspace platform events
+    // This catches when user switches between page tabs
+    try {
+      const BrowserModule = (workspacePlatform as any).Browser;
+      if (BrowserModule && typeof BrowserModule.addListener === 'function') {
+        await BrowserModule.addListener('page-changed', async (event: any) => {
+          try {
+            console.log('[WindowTitleManager] Page changed', {
+              window: event.windowIdentity?.name,
+              pageId: event.pageId
+            });
+
+            if (event.windowIdentity?.name) {
+              await updateWindowTitle(event.windowIdentity.name);
+            }
+          } catch (error) {
+            console.error('[WindowTitleManager] Failed to handle page-changed:', error);
+          }
+        });
+
+        console.log('[WindowTitleManager] Registered page-changed listener');
+      }
+    } catch (pageEventError) {
+      console.debug('[WindowTitleManager] Page events not available, using window focus as fallback');
+    }
 
     // Set initial titles for all existing windows
     const allWindows = await fin.System.getAllWindows();
