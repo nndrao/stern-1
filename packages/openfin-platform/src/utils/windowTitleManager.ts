@@ -89,11 +89,23 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
       }
     };
 
+    // Helper to check if window should be managed
+    const shouldManageWindow = (windowName: string): boolean => {
+      const skipPatterns = [
+        'provider',
+        'process-manager',
+        'Process Manager',
+        'openfin-dock',
+        'openfin-browser-menu',
+        'openfin-browser-indicator'
+      ];
+      return !skipPatterns.some(pattern => windowName.includes(pattern));
+    };
+
     // Listen for window created events
     await fin.System.addListener('window-created', async (event: any) => {
       try {
-        // Skip provider and system windows
-        if (event.name && !event.name.includes('provider') && !event.name.includes('process-manager')) {
+        if (event.name && shouldManageWindow(event.name)) {
           console.log('[WindowTitleManager] Window created', event.name);
 
           // Delay to let pages initialize
@@ -109,10 +121,7 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
     // Listen for window focused events
     await fin.System.addListener('window-focused', async (event: any) => {
       try {
-        if (event.name &&
-            !event.name.includes('provider') &&
-            !event.name.includes('Process Manager') &&
-            !event.name.includes('process-manager')) {
+        if (event.name && shouldManageWindow(event.name)) {
           console.log('[WindowTitleManager] Window focused', event.name);
           await updateWindowTitle({ uuid: event.uuid, name: event.name });
         }
@@ -140,9 +149,7 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
             const allWindows = await fin.System.getAllWindows();
             for (const windowInfo of allWindows) {
               const mainWindow = windowInfo.mainWindow;
-              if (mainWindow.name &&
-                  !mainWindow.name.includes('provider') &&
-                  !mainWindow.name.includes('Process Manager')) {
+              if (mainWindow.name && shouldManageWindow(mainWindow.name)) {
                 await updateWindowTitle({
                   uuid: fin.me.identity.uuid,
                   name: mainWindow.name
@@ -167,10 +174,8 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
       try {
         const mainWindow = windowInfo.mainWindow;
 
-        // Skip provider and system windows
-        if (mainWindow.name &&
-            !mainWindow.name.includes('provider') &&
-            !mainWindow.name.includes('process-manager')) {
+        // Only manage user browser windows
+        if (mainWindow.name && shouldManageWindow(mainWindow.name)) {
           // Delay to ensure pages are loaded
           setTimeout(() => {
             updateWindowTitle({
