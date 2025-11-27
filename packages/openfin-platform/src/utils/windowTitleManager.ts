@@ -28,54 +28,39 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
     const workspacePlatform = await import('@openfin/workspace-platform');
     const platform = workspacePlatform.getCurrentSync();
 
-    // Helper function to get the active page title for a window
-    const getActivePageTitle = async (windowName: string): Promise<string> => {
+    // Helper function to get the active page title
+    const getActivePageTitle = async (): Promise<string> => {
       try {
-        const allPages = await platform.Storage.getPages();
+        // Get all pages from storage
+        const pages = await platform.Storage.getPages();
 
-        // Find the page that:
-        // 1. Has this window in its layout
-        // 2. Has isActive = true (this is the currently selected page/tab in the browser window)
-        for (const page of allPages) {
-          const pageData = page as any;
-
-          // Check if this page's layout contains our window
-          if (page.layout) {
-            const layoutStr = JSON.stringify(page.layout);
-            const hasThisWindow = layoutStr.includes(windowName);
-
-            if (hasThisWindow && pageData.isActive === true) {
-              // This is the active page for this window
-              const title = page.title || page.pageId || defaultTitle;
-              console.log('[WindowTitleManager] Found active page for window', {
-                window: windowName,
-                pageTitle: title,
-                pageId: page.pageId,
-                isActive: pageData.isActive
-              });
-              return title;
-            }
-          }
-        }
-
-        // Fallback: find any page that has this window and return its title
-        for (const page of allPages) {
-          if (page.layout && page.title) {
-            const layoutStr = JSON.stringify(page.layout);
-            if (layoutStr.includes(windowName)) {
-              console.log('[WindowTitleManager] Using fallback page title', {
-                window: windowName,
-                pageTitle: page.title
-              });
-              return page.title;
-            }
-          }
-        }
-
-        console.log('[WindowTitleManager] No page found for window, using default', {
-          window: windowName,
-          defaultTitle
+        console.log('[WindowTitleManager] Retrieved pages', {
+          pageCount: pages.length
         });
+
+        // Find the active page (the currently selected tab)
+        const activePage = pages.find((p: any) => p.isActive === true);
+
+        if (activePage?.title) {
+          console.log('[WindowTitleManager] Found active page', {
+            pageTitle: activePage.title,
+            pageId: activePage.pageId,
+            isActive: (activePage as any).isActive
+          });
+          return activePage.title;
+        }
+
+        // Fallback: use first page with a title
+        const firstPageWithTitle = pages.find(p => p.title);
+        if (firstPageWithTitle?.title) {
+          console.log('[WindowTitleManager] Using first page with title (no active page)', {
+            pageTitle: firstPageWithTitle.title,
+            pageId: firstPageWithTitle.pageId
+          });
+          return firstPageWithTitle.title;
+        }
+
+        console.log('[WindowTitleManager] No pages with titles found, using default');
       } catch (error) {
         console.error('[WindowTitleManager] Failed to get active page title:', error);
       }
@@ -84,34 +69,37 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
     };
 
     // Helper function to update window title
-    const updateWindowTitle = async (windowName: string) => {
+    const updateWindowTitle = async (windowIdentity: { uuid: string; name: string }) => {
       try {
-        const window = fin.Window.wrapSync({
-          uuid: fin.me.identity.uuid,
-          name: windowName
-        });
+        const window = fin.Window.wrapSync(windowIdentity);
+        const title = await getActivePageTitle();
 
-        const title = await getActivePageTitle(windowName);
+        // Update the window title
         await (window as any).updateOptions({ title });
 
         console.log('[WindowTitleManager] Updated window title', {
-          window: windowName,
+          window: windowIdentity.name,
           title
         });
-      } catch (error) {
-        console.error('[WindowTitleManager] Failed to update window title:', error);
+      } catch (error: any) {
+        // Ignore errors for windows that no longer exist
+        if (!error?.message?.includes('Could not locate')) {
+          console.error('[WindowTitleManager] Failed to update window title:', error);
+        }
       }
     };
 
     // Listen for window created events
     await fin.System.addListener('window-created', async (event: any) => {
       try {
-        // Skip provider windows
-        if (event.name && !event.name.includes('provider')) {
+        // Skip provider and system windows
+        if (event.name && !event.name.includes('provider') && !event.name.includes('process-manager')) {
           console.log('[WindowTitleManager] Window created', event.name);
 
-          // Small delay to let window initialize
-          setTimeout(() => updateWindowTitle(event.name), 500);
+          // Delay to let pages initialize
+          setTimeout(() => {
+            updateWindowTitle({ uuid: event.uuid, name: event.name });
+          }, 1500);
         }
       } catch (error) {
         console.error('[WindowTitleManager] Failed to handle window-created:', error);
@@ -121,40 +109,14 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
     // Listen for window focused events
     await fin.System.addListener('window-focused', async (event: any) => {
       try {
-        if (event.name && !event.name.includes('provider')) {
+        if (event.name && !event.name.includes('provider') && !event.name.includes('process-manager')) {
           console.log('[WindowTitleManager] Window focused', event.name);
-          await updateWindowTitle(event.name);
+          await updateWindowTitle({ uuid: event.uuid, name: event.name });
         }
       } catch (error) {
         console.error('[WindowTitleManager] Failed to handle window-focused:', error);
       }
     });
-
-    // Listen for page changes using workspace platform events
-    // This catches when user switches between page tabs
-    try {
-      const BrowserModule = (workspacePlatform as any).Browser;
-      if (BrowserModule && typeof BrowserModule.addListener === 'function') {
-        await BrowserModule.addListener('page-changed', async (event: any) => {
-          try {
-            console.log('[WindowTitleManager] Page changed', {
-              window: event.windowIdentity?.name,
-              pageId: event.pageId
-            });
-
-            if (event.windowIdentity?.name) {
-              await updateWindowTitle(event.windowIdentity.name);
-            }
-          } catch (error) {
-            console.error('[WindowTitleManager] Failed to handle page-changed:', error);
-          }
-        });
-
-        console.log('[WindowTitleManager] Registered page-changed listener');
-      }
-    } catch (pageEventError) {
-      console.debug('[WindowTitleManager] Page events not available, using window focus as fallback');
-    }
 
     // Set initial titles for all existing windows
     const allWindows = await fin.System.getAllWindows();
@@ -162,14 +124,21 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
     for (const windowInfo of allWindows) {
       try {
         const mainWindow = windowInfo.mainWindow;
-        const windowName = mainWindow.name;
 
-        // Skip provider window
-        if (windowName && !windowName.includes('provider')) {
-          await updateWindowTitle(windowName);
+        // Skip provider and system windows
+        if (mainWindow.name &&
+            !mainWindow.name.includes('provider') &&
+            !mainWindow.name.includes('process-manager')) {
+          // Delay to ensure pages are loaded
+          setTimeout(() => {
+            updateWindowTitle({
+              uuid: fin.me.identity.uuid,
+              name: mainWindow.name
+            });
+          }, 500);
         }
       } catch (error) {
-        console.error('[WindowTitleManager] Failed to set initial title:', error);
+        console.debug('[WindowTitleManager] Skipping window:', error);
       }
     }
 
