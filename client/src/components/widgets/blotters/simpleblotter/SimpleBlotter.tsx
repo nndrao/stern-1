@@ -242,7 +242,10 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // Restore View Caption from CustomData (on mount)
   // ============================================================================
 
+  // Restore caption - run once when component mounts AND isOpenFin is true
   useEffect(() => {
+    console.log('[CAPTION RESTORE] Effect triggered', { isOpenFin: platform.isOpenFin });
+
     // Only run in OpenFin environment
     if (!platform.isOpenFin) {
       console.log('[CAPTION RESTORE] Skipping - not in OpenFin');
@@ -286,7 +289,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         console.error('[CAPTION RESTORE] Failed to restore caption:', error);
         logger.warn('Failed to restore view caption from customData', error, 'SimpleBlotter');
       });
-  }, [platform.isOpenFin]);
+  }, [platform.isOpenFin]); // Re-run if isOpenFin changes from false to true
 
   // ============================================================================
   // Initialize Blotter Layout (on mount)
