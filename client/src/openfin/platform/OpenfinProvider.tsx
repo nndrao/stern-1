@@ -404,7 +404,7 @@ export default function Provider() {
             // Try to load saved dock configuration from API
             try {
               logger.info('Loading DockApplicationsMenuItems configuration from API...', undefined, 'Provider');
-              const userId = 'default-user'; // TODO: Get from auth service
+              const userId = 'System'; // System userId for admin configs (matches DockConfigEditor)
               const menuItemsConfig = await dockConfigService.loadApplicationsMenuItems(userId);
 
               if (menuItemsConfig && menuItemsConfig.config?.menuItems && menuItemsConfig.config.menuItems.length > 0) {
