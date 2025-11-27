@@ -6,7 +6,9 @@ import {
   createCustomActions,
   VIEW_CONTEXT_MENU_ACTIONS,
   registerConfigLookupCallback,
-  combineOverrides
+  combineOverrides,
+  ViewContextMenuActionHandler,
+  DockConfiguration
 } from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
 import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
@@ -198,7 +200,7 @@ export default function Provider() {
         });
 
         // Create custom actions handler for context menu items
-        const customViewActionsHandler = async (action: string, payload: { windowIdentity: { uuid: string; name: string }; selectedViews: { uuid: string; name: string }[]; customData?: unknown }) => {
+        const customViewActionsHandler: ViewContextMenuActionHandler = async (action, payload) => {
           logger.info('View context menu action triggered', { action }, 'Provider');
 
           if (action === VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS) {
@@ -415,10 +417,10 @@ export default function Provider() {
                 logger.info('📋 Using menu items configured via Dock Configuration screen', undefined, 'Provider');
 
                 // Convert DockApplicationsMenuItemsConfig to DockConfiguration for backwards compatibility
-                const dockConfig = {
+                const dockConfig: DockConfiguration = {
                   ...menuItemsConfig,
-                  componentType: 'dock' as const,
-                  componentSubType: 'default' as const
+                  componentType: 'dock',
+                  componentSubType: 'default'
                 };
 
                 // Register dock with saved configuration (suppress analytics errors)

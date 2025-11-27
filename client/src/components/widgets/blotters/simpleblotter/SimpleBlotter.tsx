@@ -388,8 +388,8 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
 
         // Find layout name if we have layouts
         if (activeLayoutId && layoutManager.layouts) {
-          const layout = layoutManager.layouts.find(l => l.layoutId === activeLayoutId);
-          setDebugLayoutName(layout?.name || null);
+          const layout = layoutManager.layouts.find(l => l.unified.configId === activeLayoutId);
+          setDebugLayoutName(layout?.unified.name || null);
         } else {
           setDebugLayoutName(null);
         }

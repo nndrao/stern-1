@@ -1,3 +1,5 @@
+/// <reference types="@openfin/core" />
+
 /**
  * View Actions
  *
@@ -66,10 +68,15 @@ export async function duplicateSimpleBlotterView(
         const newViewUrl = buildViewUrl('/customcomponents', newViewId);
         logger.debug('Creating new view with URL', { newViewUrl }, 'viewActions');
 
+        // Try to create in the same window/page as the source view
+        const currentView = fin.View.getCurrentSync();
+        const currentWindow = await currentView.getCurrentWindow();
+
         // Create the view
         const viewOptions = {
           url: newViewUrl,
           name: `simple-blotter-${newViewId}`,
+          target: currentWindow.identity,
           customData: {
             viewInstanceId: newViewId,
             componentType: COMPONENT_TYPES.SIMPLE_BLOTTER,
@@ -78,11 +85,7 @@ export async function duplicateSimpleBlotterView(
           }
         };
 
-        // Try to create in the same window/page as the source view
-        const currentView = fin.View.getCurrentSync();
-        const currentWindow = await currentView.getCurrentWindow();
-
-        await platform.createView(viewOptions, currentWindow.identity);
+        await platform.createView(viewOptions);
 
         logger.info('New view created successfully', { newViewId, newViewUrl }, 'viewActions');
 
@@ -124,7 +127,7 @@ export async function duplicateSimpleBlotterView(
  * @param view - OpenFin View object
  * @returns The view instance ID or null if not found
  */
-export async function getViewInstanceIdFromView(view: OpenFin.View): Promise<string | null> {
+export async function getViewInstanceIdFromView(view: any): Promise<string | null> {
   try {
     const info = await view.getInfo();
 
@@ -157,7 +160,7 @@ export async function getViewInstanceIdFromView(view: OpenFin.View): Promise<str
  * @param view - OpenFin View object
  * @returns True if the view is a SimpleBlotter
  */
-export async function isSimpleBlotterView(view: OpenFin.View): Promise<boolean> {
+export async function isSimpleBlotterView(view: any): Promise<boolean> {
   try {
     const info = await view.getInfo();
     const customData = (info as any).customData;

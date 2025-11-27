@@ -175,12 +175,7 @@ export function createBrowserOverride(config: BrowserOverrideConfig = {}) {
  */
 export function createCustomActions(onAction?: ViewContextMenuActionHandler) {
   return {
-    [VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS]: async (payload: {
-      callerType: string;
-      customData: unknown;
-      windowIdentity: ViewIdentity;
-      selectedViews: ViewIdentity[];
-    }) => {
+    [VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS]: async (payload: any) => {
       console.log('[BrowserOverride] Custom action triggered', {
         action: VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS,
         selectedViews: payload.selectedViews,
@@ -197,12 +192,7 @@ export function createCustomActions(onAction?: ViewContextMenuActionHandler) {
         console.warn('[BrowserOverride] No action handler registered for duplicate-view-with-layouts');
       }
     },
-    [VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW]: async (payload: {
-      callerType: string;
-      customData: unknown;
-      windowIdentity: ViewIdentity;
-      selectedViews: ViewIdentity[];
-    }) => {
+    [VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW]: async (payload: any) => {
       console.log('[BrowserOverride] Custom action triggered', {
         action: VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW,
         selectedViews: payload.selectedViews,
