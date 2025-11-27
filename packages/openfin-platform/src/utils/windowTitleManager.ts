@@ -109,7 +109,10 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
     // Listen for window focused events
     await fin.System.addListener('window-focused', async (event: any) => {
       try {
-        if (event.name && !event.name.includes('provider') && !event.name.includes('process-manager')) {
+        if (event.name &&
+            !event.name.includes('provider') &&
+            !event.name.includes('Process Manager') &&
+            !event.name.includes('process-manager')) {
           console.log('[WindowTitleManager] Window focused', event.name);
           await updateWindowTitle({ uuid: event.uuid, name: event.name });
         }
@@ -117,6 +120,45 @@ export async function initializeWindowTitleManager(defaultTitle: string = 'Stern
         console.error('[WindowTitleManager] Failed to handle window-focused:', error);
       }
     });
+
+    // Listen for workspace page changes (when user switches tabs)
+    try {
+      // Listen to workspace storage changes to detect page switches
+      const originalSavePage = platform.Storage.savePage;
+      platform.Storage.savePage = async function(page: any) {
+        const result = await originalSavePage.call(platform.Storage, page);
+
+        // If a page was marked as active, update all window titles
+        if ((page as any).isActive === true) {
+          console.log('[WindowTitleManager] Page activated, updating windows', {
+            pageTitle: page.title,
+            pageId: page.pageId
+          });
+
+          // Update all browser windows after a short delay
+          setTimeout(async () => {
+            const allWindows = await fin.System.getAllWindows();
+            for (const windowInfo of allWindows) {
+              const mainWindow = windowInfo.mainWindow;
+              if (mainWindow.name &&
+                  !mainWindow.name.includes('provider') &&
+                  !mainWindow.name.includes('Process Manager')) {
+                await updateWindowTitle({
+                  uuid: fin.me.identity.uuid,
+                  name: mainWindow.name
+                });
+              }
+            }
+          }, 100);
+        }
+
+        return result;
+      };
+
+      console.log('[WindowTitleManager] Installed page change interceptor');
+    } catch (interceptError) {
+      console.warn('[WindowTitleManager] Could not install page change interceptor:', interceptError);
+    }
 
     // Set initial titles for all existing windows
     const allWindows = await fin.System.getAllWindows();
