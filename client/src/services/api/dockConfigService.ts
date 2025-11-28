@@ -4,7 +4,7 @@
  */
 
 import { apiClient, apiCall } from '@/utils/api/apiClient';
-import { DockConfiguration, DockConfigFilter, DockMenuItem, DockApplicationsMenuItemsConfig } from '@/openfin/types/dockConfig';
+import { DockConfiguration, DockConfigFilter, DockMenuItem, DockApplicationsMenuItemsConfig } from '@stern/openfin-platform';
 import { COMPONENT_TYPES, COMPONENT_SUBTYPES } from '@stern/shared-types';
 import { logger } from '@/utils/logger';
 

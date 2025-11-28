@@ -11,8 +11,11 @@ import type {
   WorkspacePlatformProvider,
   ViewTabContextMenuTemplate,
   OpenViewTabContextMenuPayload,
-  ViewTabMenuOptionType
+  ViewTabMenuOptionType,
+  SetActivePageForWindowPayload,
+  Page
 } from '@openfin/workspace-platform';
+import { getCurrentSync } from '@openfin/workspace-platform';
 
 /**
  * View identity type (matches OpenFin.Identity structure)
@@ -56,22 +59,104 @@ export interface BrowserOverrideConfig {
   enableRenameView?: boolean;
   /** ViewTabMenuOptionType enum for type safety - must be passed from client code */
   ViewTabMenuOptionType?: typeof ViewTabMenuOptionType;
+  /** Enable automatic window title updates when pages change */
+  enableWindowTitleUpdates?: boolean;
+  /** Default title for windows with no active page */
+  defaultWindowTitle?: string;
 }
 
 /**
  * Creates a browser override callback that adds custom view tab context menu items
+ * and optionally updates window titles when pages change
  *
  * @param config - Configuration for the browser override
  * @returns Override callback for workspace platform init
  */
 export function createBrowserOverride(config: BrowserOverrideConfig = {}) {
-  const { enableDuplicateWithLayouts = true, enableRenameView = true } = config;
+  const {
+    enableDuplicateWithLayouts = true,
+    enableRenameView = true,
+    enableWindowTitleUpdates = false,
+    defaultWindowTitle = 'Stern Platform'
+  } = config;
 
   return async (
     WorkspacePlatformProviderClass: { new (): WorkspacePlatformProvider }
   ): Promise<{ new (): WorkspacePlatformProvider }> => {
 
     class CustomBrowserProvider extends WorkspacePlatformProviderClass {
+      /**
+       * Helper to update window title based on active page
+       */
+      private async _updateWindowTitleForActivePage(windowIdentity: ViewIdentity): Promise<void> {
+        try {
+          const platform = getCurrentSync();
+          const browserWindow = platform.Browser.wrapSync(windowIdentity);
+
+          // Get all pages and find the active one (using any to access runtime isActive property)
+          const pages = await browserWindow.getPages();
+          const activePage = pages.find((p: any) => p.isActive === true);
+          const title = activePage?.title || defaultWindowTitle;
+
+          // Update browser window title
+          await browserWindow.updateBrowserWindowTitle({ type: 'custom', value: title });
+
+          // Also set document.title for Windows taskbar
+          const ofWindow = fin.Window.wrapSync(windowIdentity);
+          const escapedTitle = title.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+          await (ofWindow as any).executeJavaScript(`document.title = '${escapedTitle}';`);
+        } catch (error) {
+          console.error('[BrowserOverride] Failed to update window title:', error);
+        }
+      }
+
+      /**
+       * Override setActivePage to update window titles when pages change
+       */
+      async setActivePage(payload: SetActivePageForWindowPayload): Promise<void> {
+        // Call super first to ensure the page is activated
+        await super.setActivePage(payload);
+
+        // Update window title if enabled
+        if (enableWindowTitleUpdates) {
+          await this._updateWindowTitleForActivePage(payload.identity);
+        }
+      }
+
+      /**
+       * Override savePage to update window title when page is saved (title may have changed)
+       */
+      async savePage(payload: { page: Page }): Promise<void> {
+        // Call parent savePage if it exists
+        const parentSavePage = Object.getPrototypeOf(Object.getPrototypeOf(this)).savePage;
+        if (parentSavePage && typeof parentSavePage === 'function') {
+          await parentSavePage.call(this, payload);
+        }
+
+        // Update window title if enabled - find which window has this page active
+        if (enableWindowTitleUpdates) {
+          try {
+            const platform = getCurrentSync();
+            const windows = await platform.Browser.getAllWindows();
+
+            for (const window of windows) {
+              const pages = await window.getPages();
+              const activePage = pages.find((p: any) => p.isActive === true);
+
+              // If this window's active page is the one being saved, update title
+              if (activePage?.pageId === payload.page.pageId) {
+                await this._updateWindowTitleForActivePage({
+                  uuid: window.identity.uuid,
+                  name: window.identity.name
+                });
+              }
+            }
+          } catch (error) {
+            console.error('[BrowserOverride] Failed to update window title in savePage:', error);
+          }
+        }
+      }
+
       /**
        * Override openViewTabContextMenu to add custom menu items
        */
@@ -175,12 +260,7 @@ export function createBrowserOverride(config: BrowserOverrideConfig = {}) {
  */
 export function createCustomActions(onAction?: ViewContextMenuActionHandler) {
   return {
-    [VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS]: async (payload: {
-      callerType: string;
-      customData: unknown;
-      windowIdentity: ViewIdentity;
-      selectedViews: ViewIdentity[];
-    }) => {
+    [VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS]: async (payload: any) => {
       console.log('[BrowserOverride] Custom action triggered', {
         action: VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS,
         selectedViews: payload.selectedViews,
@@ -197,12 +277,7 @@ export function createCustomActions(onAction?: ViewContextMenuActionHandler) {
         console.warn('[BrowserOverride] No action handler registered for duplicate-view-with-layouts');
       }
     },
-    [VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW]: async (payload: {
-      callerType: string;
-      customData: unknown;
-      windowIdentity: ViewIdentity;
-      selectedViews: ViewIdentity[];
-    }) => {
+    [VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW]: async (payload: any) => {
       console.log('[BrowserOverride] Custom action triggered', {
         action: VIEW_CONTEXT_MENU_ACTIONS.RENAME_VIEW,
         selectedViews: payload.selectedViews,
@@ -254,3 +329,4 @@ export function combineOverrides(
     return new BrowserProviderClass();
   };
 }
+

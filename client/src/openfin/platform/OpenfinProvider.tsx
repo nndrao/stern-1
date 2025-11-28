@@ -6,7 +6,9 @@ import {
   createCustomActions,
   VIEW_CONTEXT_MENU_ACTIONS,
   registerConfigLookupCallback,
-  combineOverrides
+  combineOverrides,
+  ViewContextMenuActionHandler,
+  DockConfiguration
 } from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
 import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
@@ -14,7 +16,7 @@ import { DataProviderEditor } from '@/components/provider/editors/DataProviderEd
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/ui/use-toast';
 import * as dock from './openfinDock';
-import { initializeBaseUrlFromManifest, buildUrl } from '../utils/openfinUtils';
+import { buildUrl, initializeBaseUrlFromManifest } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 import { dockConfigService } from '@/services/api/dockConfigService';
 import { viewManager } from '@/services/viewManager';
@@ -198,7 +200,7 @@ export default function Provider() {
         });
 
         // Create custom actions handler for context menu items
-        const customViewActionsHandler = async (action: string, payload: { windowIdentity: { uuid: string; name: string }; selectedViews: { uuid: string; name: string }[]; customData?: unknown }) => {
+        const customViewActionsHandler: ViewContextMenuActionHandler = async (action, payload) => {
           logger.info('View context menu action triggered', { action }, 'Provider');
 
           if (action === VIEW_CONTEXT_MENU_ACTIONS.DUPLICATE_VIEW_WITH_LAYOUTS) {
@@ -253,12 +255,17 @@ export default function Provider() {
           ...createCustomActions(customViewActionsHandler)
         };
 
-        // Combine workspace storage override with browser override for custom context menu
-        const combinedOverride = combineOverrides(workspaceStorageOverride, {
-          onAction: customViewActionsHandler,
-          enableDuplicateWithLayouts: true,
-          enableRenameView: true
-        });
+        // Combine workspace storage + browser overrides
+        const combinedOverride = combineOverrides(
+          workspaceStorageOverride,
+          {
+            onAction: customViewActionsHandler,
+            enableDuplicateWithLayouts: true,
+            enableRenameView: true,
+            enableWindowTitleUpdates: true,
+            defaultWindowTitle: 'Stern Platform'
+          }
+        );
 
         await init({
           browser: {
@@ -402,7 +409,7 @@ export default function Provider() {
             // Try to load saved dock configuration from API
             try {
               logger.info('Loading DockApplicationsMenuItems configuration from API...', undefined, 'Provider');
-              const userId = 'default-user'; // TODO: Get from auth service
+              const userId = 'System'; // System userId for admin configs (matches DockConfigEditor)
               const menuItemsConfig = await dockConfigService.loadApplicationsMenuItems(userId);
 
               if (menuItemsConfig && menuItemsConfig.config?.menuItems && menuItemsConfig.config.menuItems.length > 0) {
@@ -415,10 +422,10 @@ export default function Provider() {
                 logger.info('📋 Using menu items configured via Dock Configuration screen', undefined, 'Provider');
 
                 // Convert DockApplicationsMenuItemsConfig to DockConfiguration for backwards compatibility
-                const dockConfig = {
+                const dockConfig: DockConfiguration = {
                   ...menuItemsConfig,
-                  componentType: 'dock' as const,
-                  componentSubType: 'default' as const
+                  componentType: 'dock',
+                  componentSubType: 'default'
                 };
 
                 // Register dock with saved configuration (suppress analytics errors)

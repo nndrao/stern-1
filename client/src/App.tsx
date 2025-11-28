@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { isOpenFin, createWindow } from "@/openfin/utils/openfinUtils";
-import { useOpenfinTheme } from "@/openfin/hooks/useOpenfinTheme";
+import { isOpenFin, createWindow, useOpenfinTheme } from "@stern/openfin-platform";
 import { logger } from "@/utils/logger";
 
 function App() {

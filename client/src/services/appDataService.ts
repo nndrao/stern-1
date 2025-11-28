@@ -17,7 +17,7 @@
  */
 
 import { TemplateResolver } from './templateResolver';
-import { OpenFinCustomEvents } from '@/openfin/types/openfinEvents';
+import { OpenFinCustomEvents } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 import { dataProviderConfigService } from './api/dataProviderConfigService';
 import {

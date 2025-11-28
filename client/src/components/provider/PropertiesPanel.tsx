@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildUrl } from '@/openfin/utils';
 import { RefreshCw, Image } from 'lucide-react';
 
-import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@/openfin/types/dockConfig';
+import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
 interface PropertiesPanelProps {
   item: DockMenuItem;

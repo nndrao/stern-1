@@ -50,7 +50,7 @@ export default function RenameViewDialogPage() {
 
       // Dispatch result using OpenFin popup API
       if (window.fin) {
-        await fin.me.dispatchPopupResult({
+        await (fin.me as any).dispatchPopupResult({
           newName: newName.trim()
         });
       } else {
@@ -69,7 +69,7 @@ export default function RenameViewDialogPage() {
 
       // Dispatch null result (cancelled)
       if (window.fin) {
-        await fin.me.dispatchPopupResult(null);
+        await (fin.me as any).dispatchPopupResult(null);
       } else {
         // Fallback for non-OpenFin environments
         window.close();

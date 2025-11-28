@@ -8,7 +8,7 @@ import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, Database, ChevronRight, Settings } from 'lucide-react';
 
-import { useOpenfinTheme } from '@/openfin/hooks/useOpenfinTheme';
+import { useOpenfinTheme } from '@stern/openfin-platform';
 import { ProviderList } from '../ProviderList';
 import { ProviderForm } from '../forms/ProviderForm';
 import { TypeSelectionDialog } from './TypeSelectionDialog';

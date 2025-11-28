@@ -23,7 +23,7 @@ import { useAgGridTheme } from '@/hooks/ui/useAgGridTheme';
 import { useSternPlatform } from '@/providers/SternPlatformProvider';
 import { getViewInstanceId, getActiveLayoutId, getViewCustomData } from '@/openfin/utils/viewUtils';
 import { useDataProviderAdapter } from '@/hooks/data-provider';
-import { OpenFinCustomEvents } from '@/openfin/types/openfinEvents';
+import { OpenFinCustomEvents } from '@stern/openfin-platform';
 import { resolveValueFormatter } from '@/formatters';
 import { CollapsibleToolbar } from '@/components/ui/CollapsibleToolbar';
 import { BlotterToolbar } from './BlotterToolbar';
@@ -388,8 +388,8 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
 
         // Find layout name if we have layouts
         if (activeLayoutId && layoutManager.layouts) {
-          const layout = layoutManager.layouts.find(l => l.layoutId === activeLayoutId);
-          setDebugLayoutName(layout?.name || null);
+          const layout = layoutManager.layouts.find(l => l.unified.configId === activeLayoutId);
+          setDebugLayoutName(layout?.unified.name || null);
         } else {
           setDebugLayoutName(null);
         }

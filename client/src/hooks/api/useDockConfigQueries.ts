@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DockConfiguration } from '@/openfin/types/dockConfig';
+import { DockConfiguration } from '@stern/openfin-platform';
 import { dockConfigService } from '@/services/api/dockConfigService';
 import { logger } from '@/utils/logger';
 import { useToast } from '@/hooks/ui/use-toast';

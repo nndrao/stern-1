@@ -1,6 +1,6 @@
 /**
  * OpenFin Utilities
- * Centralized utilities for OpenFin applications
+ * Re-exports utilities from the @stern/openfin-platform package
  */
 
-export * from './urlHelper';
+export { buildUrl } from '@stern/openfin-platform';
