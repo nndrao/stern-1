@@ -484,23 +484,31 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         alreadyLoaded: snapshotLoadedRef.current
       }, 'SimpleBlotter');
 
+      // Accumulate snapshot batches - DO NOT load into grid yet
+      // Wait for snapshot-complete event to load all data at once
+      // This prevents duplicate rows when data comes in batches
       snapshotRowsRef.current.push(...rows);
 
-      // Load immediately on first batch instead of waiting for complete event
-      if (gridApiRef.current && !snapshotLoadedRef.current) {
-        logger.debug('Loading first batch into grid', { rowCount: snapshotRowsRef.current.length }, 'SimpleBlotter');
-        gridApiRef.current.setGridOption('rowData', snapshotRowsRef.current);
-        snapshotLoadedRef.current = true;
-        setIsLoading(false);
-        setRowCount(snapshotRowsRef.current.length);
-      } else if (gridApiRef.current && snapshotLoadedRef.current) {
-        gridApiRef.current.applyTransactionAsync({ add: rows });
-        setRowCount(snapshotRowsRef.current.length);
-      }
+      logger.debug('Snapshot batch accumulated', {
+        totalRows: snapshotRowsRef.current.length
+      }, 'SimpleBlotter');
     });
 
     currentAdapter.setOnSnapshotComplete(() => {
       const loadTime = loadStartTimeRef.current ? Date.now() - loadStartTimeRef.current : 0;
+
+      // Load all accumulated snapshot data into grid at once
+      if (gridApiRef.current && !snapshotLoadedRef.current && snapshotRowsRef.current.length > 0) {
+        logger.info('Loading complete snapshot into grid', {
+          totalRows: snapshotRowsRef.current.length,
+          loadTimeMs: loadTime
+        }, 'SimpleBlotter');
+
+        gridApiRef.current.setGridOption('rowData', snapshotRowsRef.current);
+        snapshotLoadedRef.current = true;
+        setRowCount(snapshotRowsRef.current.length);
+      }
+
       logger.info('Snapshot complete', {
         totalRows: snapshotRowsRef.current.length,
         loadTimeMs: loadTime,

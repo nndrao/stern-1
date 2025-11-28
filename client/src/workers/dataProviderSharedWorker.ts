@@ -245,6 +245,17 @@ async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Pro
   });
 
   console.log(`[SharedWorker] Cached snapshot sent to ${portId}: ${snapshot.length} rows`);
+
+  // Send snapshot-complete event immediately after cached data
+  // This tells the client that all cached data has been sent
+  sendToPort(port, {
+    type: 'snapshot-complete',
+    providerId,
+    requestId: `${requestId}-complete`,
+    timestamp: Date.now()
+  });
+
+  console.log(`[SharedWorker] Snapshot-complete sent to ${portId}`);
 }
 
 /**
