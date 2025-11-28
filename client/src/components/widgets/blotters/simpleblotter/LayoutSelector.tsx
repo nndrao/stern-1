@@ -25,10 +25,10 @@ import {
   Save,
   Settings,
   Plus,
-  ChevronDown,
   Layout,
   Star,
-  Loader2
+  Loader2,
+  MoreVertical
 } from 'lucide-react';
 import { UnifiedConfig, SimpleBlotterLayoutConfig } from '@stern/shared-types';
 
@@ -106,32 +106,20 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({
         )}
       </div>
 
-      {/* Save Button with Dropdown */}
+      {/* More Options Menu (⋮) */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1"
-            disabled={isSaving || isLoading}
+            className="h-8 w-8 p-0"
+            disabled={isLoading}
           >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            <span className="sr-only sm:not-sr-only">Save</span>
-            <ChevronDown className="h-3 w-3" />
+            <MoreVertical className="h-4 w-4" />
+            <span className="sr-only">More options</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={onSaveLayout}
-            disabled={!selectedLayoutId}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save Layout
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={onSaveAsNew}>
             <Plus className="h-4 w-4 mr-2" />
             Save as New Layout...
@@ -143,6 +131,22 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Save Button (standalone) */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 gap-1"
+        onClick={onSaveLayout}
+        disabled={isSaving || isLoading || !selectedLayoutId}
+      >
+        {isSaving ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Save className="h-4 w-4" />
+        )}
+        <span className="sr-only sm:not-sr-only">Save</span>
+      </Button>
     </div>
   );
 };

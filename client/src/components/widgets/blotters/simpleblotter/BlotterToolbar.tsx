@@ -8,7 +8,7 @@
  * - Statistics
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -17,6 +17,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Settings, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
 import { LayoutSelector, LayoutInfo } from './LayoutSelector';
 
 export interface BlotterToolbarProps {
@@ -89,32 +98,13 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
 }) => {
   const showLayoutSelector = layouts !== undefined && onLayoutSelect;
   const showDebugInfo = debugConfigId !== undefined;
+  const [date, setDate] = useState<Date | undefined>(new Date());
 
   return (
     <div className="flex items-center gap-4 p-2">
-      {/* Provider Selector */}
-      <Select
-        value={selectedProviderId || ''}
-        onValueChange={onProviderSelect}
-        disabled={isLoading}
-      >
-        <SelectTrigger className="w-[250px] h-8">
-          <SelectValue placeholder="Select Provider..." />
-        </SelectTrigger>
-        <SelectContent>
-          {availableProviders.map((provider) => (
-            <SelectItem key={provider.id} value={provider.id}>
-              {provider.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
       {/* Layout Selector (only shown if layout props provided) */}
       {showLayoutSelector && (
-        <>
-          <Separator orientation="vertical" className="h-6" />
-          <LayoutSelector
+        <LayoutSelector
             layouts={layouts || []}
             selectedLayoutId={selectedLayoutId || null}
             defaultLayoutId={defaultLayoutId}
@@ -125,36 +115,10 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
             onSaveAsNew={onSaveAsNew || (() => {})}
             onManageLayouts={onManageLayouts || (() => {})}
           />
-        </>
-      )}
-
-      {/* Debug Info */}
-      {showDebugInfo && (
-        <>
-          <Separator orientation="vertical" className="h-6" />
-          <div className="text-xs text-muted-foreground font-mono">
-            <span className="text-orange-600">DEBUG:</span>{' '}
-            <span title={`Full Config ID: ${debugConfigId}`}>Config: {debugConfigId}</span>
-            {debugActiveLayoutId && (
-              <span title={`Full Layout ID: ${debugActiveLayoutId}`}>
-                {' | '}Layout: {debugActiveLayoutId}
-                {debugLayoutName && ` (${debugLayoutName})`}
-              </span>
-            )}
-            {!debugActiveLayoutId && <span> | Layout: NONE</span>}
-          </div>
-        </>
       )}
 
       {/* Spacer */}
       <div className="flex-1" />
-
-      {/* Real-time Update Counter */}
-      {updateCount !== undefined && updateCount > 0 && (
-        <div className="text-xs text-muted-foreground">
-          <span className="text-green-600 font-medium">●</span> {updateCount.toLocaleString()} updates
-        </div>
-      )}
 
       {/* Connection Status */}
       {isLoading && (
@@ -169,19 +133,112 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
         </span>
       )}
 
-      {/* Row Count */}
-      {rowCount > 0 && (
-        <span className="text-sm text-muted-foreground">
-          {rowCount.toLocaleString()} rows
-        </span>
-      )}
+      {/* Date Picker */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-2 px-3"
+          >
+            <CalendarIcon className="h-4 w-4" />
+            <span className="text-sm">
+              {date ? format(date, 'MMM dd, yyyy') : 'Pick a date'}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={setDate}
+            initialFocus
+          />
+        </PopoverContent>
+      </Popover>
 
-      {/* Load Time */}
-      {!isLoading && loadTimeMs !== null && rowCount > 0 && (
-        <span className="text-sm text-muted-foreground/70">
-          ({(loadTimeMs / 1000).toFixed(2)}s)
-        </span>
-      )}
+      {/* Settings Popup Button */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+          >
+            <Settings className="h-4 w-4 text-muted-foreground" />
+            <span className="sr-only">Blotter settings</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80" align="end">
+          <div className="space-y-3">
+            <h4 className="font-medium text-sm border-b pb-2">Blotter Settings</h4>
+
+            <div className="space-y-3">
+              {/* Data Provider Selector */}
+              <div className="flex flex-col gap-2">
+                <span className="text-muted-foreground text-xs font-medium">Data Provider:</span>
+                <Select
+                  value={selectedProviderId || ''}
+                  onValueChange={onProviderSelect}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger className="w-full h-8">
+                    <SelectValue placeholder="Select Provider..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProviders.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Grid Config ID */}
+              {debugConfigId && (
+                <div className="flex flex-col gap-1 pt-2 border-t">
+                  <span className="text-muted-foreground text-xs">Grid Config ID:</span>
+                  <span className="font-mono text-xs bg-muted p-1 rounded break-all">
+                    {debugConfigId}
+                  </span>
+                </div>
+              )}
+
+              {/* Selected Layout ID */}
+              <div className="flex flex-col gap-1">
+                <span className="text-muted-foreground text-xs">Selected Layout ID:</span>
+                <span className="font-mono text-xs bg-muted p-1 rounded break-all">
+                  {selectedLayoutId || debugActiveLayoutId || 'None'}
+                </span>
+              </div>
+
+              {/* Statistics */}
+              <div className="flex flex-col gap-1 pt-2 border-t">
+                <span className="text-muted-foreground text-xs">Statistics:</span>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Total Rows:</span>
+                    <span className="ml-2 font-medium">{rowCount.toLocaleString()}</span>
+                  </div>
+                  {updateCount !== undefined && (
+                    <div>
+                      <span className="text-muted-foreground">Updates:</span>
+                      <span className="ml-2 font-medium text-green-600">{updateCount.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {loadTimeMs !== null && (
+                    <div>
+                      <span className="text-muted-foreground">Load Time:</span>
+                      <span className="ml-2 font-medium">{(loadTimeMs / 1000).toFixed(2)}s</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 };
