@@ -101,7 +101,7 @@ export const BlotterToolbar: React.FC<BlotterToolbarProps> = ({
   const [date, setDate] = useState<Date | undefined>(new Date());
 
   return (
-    <div className="flex items-center gap-4 p-2">
+    <div className="flex items-center gap-4 p-2 bg-background">
       {/* Layout Selector (only shown if layout props provided) */}
       {showLayoutSelector && (
         <LayoutSelector

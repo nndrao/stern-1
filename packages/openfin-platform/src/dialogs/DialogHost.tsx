@@ -103,15 +103,8 @@ export function DialogHost<TProps = any>({
   // Show loading state while waiting for props
   if (!isReady || !props) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        color: '#666',
-      }}>
-        Loading dialog...
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-muted-foreground">Loading dialog...</div>
       </div>
     );
   }

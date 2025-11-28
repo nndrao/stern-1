@@ -180,6 +180,7 @@ export const CollapsibleToolbar: React.FC<CollapsibleToolbarProps> = ({
         className={`
           transition-all duration-300 ease-in-out
           overflow-hidden
+          bg-background
         `}
         style={{
           maxHeight: showContent ? '500px' : '0px',

@@ -20,6 +20,7 @@ import { ModuleRegistry } from 'ag-grid-community';
 import { AllEnterpriseModule } from 'ag-grid-enterprise';
 import { sternAgGridTheme } from '@/utils/grid/agGridTheme';
 import { useAgGridTheme } from '@/hooks/ui/useAgGridTheme';
+import { useOpenfinTheme } from '@stern/openfin-platform';
 import { useSternPlatform } from '@/providers/SternPlatformProvider';
 import { getViewInstanceId, getActiveLayoutId, getViewCustomData } from '@/openfin/utils/viewUtils';
 import { useDataProviderAdapter } from '@/hooks/data-provider';
@@ -108,6 +109,9 @@ const createColumnDefs = (columnsData: any[]): ColDef[] => {
 // ============================================================================
 
 export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError, blotterType = BLOTTER_TYPES.DEFAULT }) => {
+  // Listen to OpenFin dock theme changes and sync with DOM
+  useOpenfinTheme();
+
   // Sync AG Grid theme with application theme
   useAgGridTheme();
 

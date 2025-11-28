@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { DialogHost } from '@stern/openfin-platform';
+import { DialogHost, useOpenfinTheme } from '@stern/openfin-platform';
 import { LayoutManageDialogContent, LayoutInfo } from '@/components/widgets/blotters/simpleblotter/LayoutManageDialogContent';
 import { DIALOG_TYPES } from '@/config/dialogConfig';
 
@@ -43,6 +43,9 @@ export type ManageLayoutsAction =
  * Hosted in OpenFin window, communicates with parent via IAB
  */
 export const ManageLayoutsDialog: React.FC = () => {
+  // Listen to OpenFin dock theme changes
+  useOpenfinTheme();
+
   // Set the window title using document.title
   useEffect(() => {
     document.title = 'Layout Management';
