@@ -9,11 +9,15 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { GetRowIdParams } from 'ag-grid-community';
 import { UseDataProviderAdapterResult, AdapterOptions } from './adapters/types';
 import { getRowIdFromConfig, useProviderConfig } from './utils';
+import { normalizeBlotterType } from '@/types/blotter';
 
 export function useDataProviderAdapter(
   providerId: string | null,
   options: AdapterOptions = {}
 ): UseDataProviderAdapterResult {
+  // Extract and normalize blotter type (defaults to 'default')
+  const blotterType = normalizeBlotterType(options.blotterType);
+
   // State
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,17 +62,19 @@ export function useDataProviderAdapter(
     setError(null);
 
     try {
-      console.log(`[useDataProviderAdapter] Connecting to SharedWorker for ${providerId}`);
+      console.log(`[useDataProviderAdapter] Connecting to SharedWorker for ${providerId} (type: ${blotterType})`);
 
-      // Create SharedWorker connection
-      // Note: SharedWorker is shared across all blotter instances (singleton pattern)
-      // Multiple blotters connect to the SAME worker, which hosts singleton engines per provider
+      // Create SharedWorker connection with type-specific name
+      // Note: SharedWorkers with different names create separate worker instances
+      // Multiple blotters of the SAME type share ONE worker instance
+      // Different blotter types get SEPARATE worker instances for isolation
+      const workerName = `data-provider-worker-${blotterType}`;
       const worker = new SharedWorker(
         new URL('../../workers/dataProviderSharedWorker.ts', import.meta.url),
-        { type: 'module', name: 'data-provider-worker' }
+        /* @vite-ignore */ { type: 'module', name: workerName }
       );
 
-      console.log(`[useDataProviderAdapter] Connected to SharedWorker (shared across all blotters)`);
+      console.log(`[useDataProviderAdapter] Connected to SharedWorker '${workerName}' (shared across all ${blotterType} blotters)`);
 
       workerRef.current = worker;
       workerPortRef.current = worker.port;

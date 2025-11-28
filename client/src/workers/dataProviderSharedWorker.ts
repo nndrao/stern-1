@@ -12,8 +12,13 @@ import { EngineRegistry } from './engine/EngineRegistry';
 import { BroadcastManager } from './engine/BroadcastManager';
 import { WorkerRequest, WorkerResponse } from './engine/types';
 
-const WORKER_VERSION = 'v2.1-batch-cache';
-console.log(`[SharedWorker] Data provider SharedWorker initializing... VERSION: ${WORKER_VERSION}`);
+const WORKER_VERSION = 'v2.2-multi-worker';
+
+// Extract blotter type from worker name (e.g., 'data-provider-worker-positions' -> 'positions')
+const workerName = (self as any).name || 'unknown';
+const blotterType = workerName.replace('data-provider-worker-', '') || 'default';
+
+console.log(`[SharedWorker:${blotterType}] Data provider SharedWorker initializing... VERSION: ${WORKER_VERSION}`);
 
 // Global instances
 const broadcastManager = new BroadcastManager();
@@ -114,7 +119,7 @@ async function handleSubscribe(port: MessagePort, request: WorkerRequest): Promi
     return;
   }
 
-  console.log(`[SharedWorker] Subscribe request from ${portId} for provider ${providerId}`);
+  console.log(`[SharedWorker:${blotterType}] Subscribe request from ${portId} for provider ${providerId}`);
 
   try {
     // Get or create engine
@@ -136,10 +141,10 @@ async function handleSubscribe(port: MessagePort, request: WorkerRequest): Promi
     // Instead, the client will explicitly call getSnapshot after receiving 'subscribed' confirmation
     // This gives better control and avoids race conditions
     const stats = engine.getStatistics();
-    console.log(`[SharedWorker] Subscriber added. Engine mode: ${stats.mode}, Rows: ${stats.snapshotRowsReceived}`);
+    console.log(`[SharedWorker:${blotterType}] Subscriber added. Engine mode: ${stats.mode}, Rows: ${stats.snapshotRowsReceived}`);
 
   } catch (error) {
-    console.error('[SharedWorker] Subscribe error:', error);
+    console.error(`[SharedWorker:${blotterType}] Subscribe error:`, error);
     sendToPort(port, {
       type: 'error',
       providerId,
@@ -167,14 +172,14 @@ function handleUnsubscribe(port: MessagePort, request: WorkerRequest): void {
     return;
   }
 
-  console.log(`[SharedWorker] Unsubscribe request from ${portId} for provider ${providerId}`);
+  console.log(`[SharedWorker:${blotterType}] Unsubscribe request from ${portId} for provider ${providerId}`);
 
   // Remove subscriber
   broadcastManager.removeSubscriber(providerId, portId);
 
   // Stop engine if no more subscribers
   if (broadcastManager.getSubscriberCount(providerId) === 0) {
-    console.log(`[SharedWorker] No more subscribers for ${providerId}, stopping engine`);
+    console.log(`[SharedWorker:${blotterType}] No more subscribers for ${providerId}, stopping engine`);
     engineRegistry.stop(providerId).catch(err =>
       console.error('[SharedWorker] Error stopping engine:', err)
     );
@@ -196,12 +201,12 @@ function handleUnsubscribe(port: MessagePort, request: WorkerRequest): void {
 async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Promise<void> {
   const { providerId, requestId, portId } = request;
 
-  console.log(`[SharedWorker] getSnapshot request from ${portId} for provider ${providerId}`);
+  console.log(`[SharedWorker:${blotterType}] getSnapshot request from ${portId} for provider ${providerId}`);
 
   const engine = engineRegistry.get(providerId);
 
   if (!engine) {
-    console.log(`[SharedWorker] Engine not found for ${providerId}`);
+    console.log(`[SharedWorker:${blotterType}] Engine not found for ${providerId}`);
     sendToPort(port, {
       type: 'error',
       providerId,
@@ -217,7 +222,7 @@ async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Pro
   const keyColumn = engine.getKeyColumn();
   const stats = engine.getStatistics();
 
-  console.log(`[SharedWorker] getSnapshot: cacheSize=${cacheSize}, snapshotLength=${snapshot.length}, mode=${stats.mode}, rowsReceived=${stats.snapshotRowsReceived}, keyColumn=${keyColumn}`);
+  console.log(`[SharedWorker:${blotterType}] getSnapshot: cacheSize=${cacheSize}, snapshotLength=${snapshot.length}, mode=${stats.mode}, rowsReceived=${stats.snapshotRowsReceived}, keyColumn=${keyColumn}`);
 
   // Add cache diagnostics to statistics for client-side logging
   const statsWithDiagnostics = {
@@ -244,7 +249,7 @@ async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Pro
     timestamp: Date.now()
   });
 
-  console.log(`[SharedWorker] Cached snapshot sent to ${portId}: ${snapshot.length} rows`);
+  console.log(`[SharedWorker:${blotterType}] Cached snapshot sent to ${portId}: ${snapshot.length} rows`);
 
   // Send snapshot-complete event immediately after cached data
   // This tells the client that all cached data has been sent
@@ -255,7 +260,7 @@ async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Pro
     timestamp: Date.now()
   });
 
-  console.log(`[SharedWorker] Snapshot-complete sent to ${portId}`);
+  console.log(`[SharedWorker:${blotterType}] Snapshot-complete sent to ${portId}`);
 }
 
 /**
@@ -293,7 +298,7 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
   const port = event.ports[0];
   let connectionPortId: string | undefined;
 
-  console.log(`[SharedWorker] New connection (Worker version: ${WORKER_VERSION})`);
+  console.log(`[SharedWorker:${blotterType}] New connection (Worker version: ${WORKER_VERSION})`);
 
   port.addEventListener('message', async (messageEvent: MessageEvent<WorkerRequest>) => {
     // Use portId from request if provided (client-generated), otherwise generate one
@@ -304,20 +309,20 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
       // No portId in request, generate one
       if (!connectionPortId) {
         connectionPortId = generatePortId();
-        console.log(`[SharedWorker] Generated portId for connection: ${connectionPortId}`);
+        console.log(`[SharedWorker:${blotterType}] Generated portId for connection: ${connectionPortId}`);
       }
       request.portId = connectionPortId;
     } else {
       // Use client-provided portId
       if (!connectionPortId) {
         connectionPortId = request.portId;
-        console.log(`[SharedWorker] Using client-provided portId: ${connectionPortId}`);
+        console.log(`[SharedWorker:${blotterType}] Using client-provided portId: ${connectionPortId}`);
       }
     }
 
     // Track port by its ID
     if (!ports.has(connectionPortId)) {
-      console.log(`[SharedWorker] Registering port: ${connectionPortId}`);
+      console.log(`[SharedWorker:${blotterType}] Registering port: ${connectionPortId}`);
       ports.set(connectionPortId, port);
     }
 
@@ -325,13 +330,13 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
   });
 
   port.addEventListener('messageerror', (error) => {
-    console.error(`[SharedWorker] Message error on port ${connectionPortId}:`, error);
+    console.error(`[SharedWorker:${blotterType}] Message error on port ${connectionPortId}:`, error);
   });
 
   // Handle port close
   port.addEventListener('close', () => {
     if (connectionPortId) {
-      console.log(`[SharedWorker] Port closed: ${connectionPortId}`);
+      console.log(`[SharedWorker:${blotterType}] Port closed: ${connectionPortId}`);
       ports.delete(connectionPortId);
       // Remove port from all subscriptions
       broadcastManager.removePortFromAll(connectionPortId);
@@ -342,6 +347,6 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
 };
 
 // Log worker startup
-console.log('[SharedWorker] Data Provider SharedWorker started');
-console.log('[SharedWorker] Active engines:', engineRegistry.getEngineCount());
-console.log('[SharedWorker] Active providers:', engineRegistry.getActiveProviders());
+console.log(`[SharedWorker:${blotterType}] Data Provider SharedWorker started`);
+console.log(`[SharedWorker:${blotterType}] Active engines:`, engineRegistry.getEngineCount());
+console.log(`[SharedWorker:${blotterType}] Active providers:`, engineRegistry.getActiveProviders());

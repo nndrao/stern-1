@@ -32,6 +32,7 @@ import { LayoutManageDialog } from './LayoutManageDialog';
 import { useBlotterLayoutManager } from './useBlotterLayoutManager';
 import { COMPONENT_TYPES } from '@stern/shared-types';
 import { logger } from '@/utils/logger';
+import { BlotterType, BLOTTER_TYPES } from '@/types/blotter';
 
 // Register AG Grid Enterprise modules
 ModuleRegistry.registerModules([AllEnterpriseModule]);
@@ -43,6 +44,7 @@ ModuleRegistry.registerModules([AllEnterpriseModule]);
 export interface SimpleBlotterProps {
   onReady?: () => void;
   onError?: (error: Error) => void;
+  blotterType?: BlotterType | string;  // Blotter type for worker isolation (default: 'default')
 }
 
 // ============================================================================
@@ -103,7 +105,7 @@ const createColumnDefs = (columnsData: any[]): ColDef[] => {
 // Component
 // ============================================================================
 
-export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError }) => {
+export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError, blotterType = BLOTTER_TYPES.DEFAULT }) => {
   // Sync AG Grid theme with application theme
   useAgGridTheme();
 
@@ -206,6 +208,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   const adapter = useDataProviderAdapter(selectedProviderId, {
     autoConnect: false,
     preferOpenFin: true,
+    blotterType, // Pass blotter type for worker isolation
   });
 
   // ============================================================================

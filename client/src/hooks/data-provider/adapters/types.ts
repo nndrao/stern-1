@@ -4,11 +4,13 @@
  */
 
 import { GetRowIdParams } from 'ag-grid-community';
+import { BlotterType } from '@/types/blotter';
 
 // Hook options
 export interface AdapterOptions {
   autoConnect?: boolean;      // Default: true
   preferOpenFin?: boolean;     // Default: true (used by SharedWorker internally)
+  blotterType?: BlotterType | string;  // Blotter type for worker isolation (default: 'default')
 }
 
 // Hook result - public API
