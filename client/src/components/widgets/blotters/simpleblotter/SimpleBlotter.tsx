@@ -487,12 +487,29 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         alreadyLoaded: snapshotLoadedRef.current
       }, 'SimpleBlotter');
 
-      // Accumulate snapshot batches - DO NOT load into grid yet
-      // Wait for snapshot-complete event to load all data at once
-      // This prevents duplicate rows when data comes in batches
+      // Accumulate snapshot batches
       snapshotRowsRef.current.push(...rows);
 
-      logger.debug('Snapshot batch accumulated', {
+      // Load on first non-empty batch if grid is ready
+      // This handles both cached snapshots AND live streaming snapshots
+      if (gridApiRef.current && !snapshotLoadedRef.current && snapshotRowsRef.current.length > 0) {
+        logger.info('Loading initial snapshot batch into grid', {
+          totalRows: snapshotRowsRef.current.length
+        }, 'SimpleBlotter');
+        gridApiRef.current.setGridOption('rowData', snapshotRowsRef.current);
+        snapshotLoadedRef.current = true;
+        setRowCount(snapshotRowsRef.current.length);
+      } else if (gridApiRef.current && snapshotLoadedRef.current && rows.length > 0) {
+        // Additional batches - add incrementally
+        logger.debug('Adding additional snapshot batch', {
+          batchSize: rows.length,
+          totalRows: snapshotRowsRef.current.length
+        }, 'SimpleBlotter');
+        gridApiRef.current.applyTransactionAsync({ add: rows });
+        setRowCount(snapshotRowsRef.current.length);
+      }
+
+      logger.debug('Snapshot batch processed', {
         totalRows: snapshotRowsRef.current.length
       }, 'SimpleBlotter');
     });
@@ -501,21 +518,33 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       const loadTime = loadStartTimeRef.current ? Date.now() - loadStartTimeRef.current : 0;
 
       // Load all accumulated snapshot data into grid at once
-      if (gridApiRef.current && !snapshotLoadedRef.current && snapshotRowsRef.current.length > 0) {
-        logger.info('Loading complete snapshot into grid', {
-          totalRows: snapshotRowsRef.current.length,
-          loadTimeMs: loadTime
-        }, 'SimpleBlotter');
+      // NOTE: We might get multiple snapshot-complete events:
+      // 1. From cached snapshot (could be empty if cache is empty)
+      // 2. From live stream snapshot completion
+      // Always load if we have data, even if we've loaded before (to handle live stream case)
+      if (gridApiRef.current && snapshotRowsRef.current.length > 0) {
+        if (!snapshotLoadedRef.current) {
+          logger.info('Loading complete snapshot into grid', {
+            totalRows: snapshotRowsRef.current.length,
+            loadTimeMs: loadTime
+          }, 'SimpleBlotter');
 
-        gridApiRef.current.setGridOption('rowData', snapshotRowsRef.current);
-        snapshotLoadedRef.current = true;
-        setRowCount(snapshotRowsRef.current.length);
+          gridApiRef.current.setGridOption('rowData', snapshotRowsRef.current);
+          snapshotLoadedRef.current = true;
+          setRowCount(snapshotRowsRef.current.length);
+        } else {
+          logger.debug('Snapshot complete event received but grid already loaded', {
+            currentRows: snapshotRowsRef.current.length,
+            displayedRows: gridApiRef.current.getDisplayedRowCount()
+          }, 'SimpleBlotter');
+        }
       }
 
       logger.info('Snapshot complete', {
         totalRows: snapshotRowsRef.current.length,
         loadTimeMs: loadTime,
-        displayedRows: gridApiRef.current?.getDisplayedRowCount() || 0
+        displayedRows: gridApiRef.current?.getDisplayedRowCount() || 0,
+        alreadyLoaded: snapshotLoadedRef.current
       }, 'SimpleBlotter');
       setLoadTimeMs(loadTime);
       setIsLoading(false);
