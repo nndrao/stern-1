@@ -47,7 +47,6 @@ export type { BrowserOverrideConfig, ViewContextMenuActionHandler } from './brow
 // Utils
 export * from './utils/openfinUtils';
 export * from './utils/urlHelper';
-export * from './utils/windowTitleManager';
 
 // Platform
 export * from './platform/openfinShapes';
@@ -63,3 +62,6 @@ export * from './hooks/useViewManager';
 
 // Components
 export * from './components/OpenfinComponent';
+
+// Dialogs
+export * from './dialogs';
