@@ -91,7 +91,7 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
         <div className="px-4 py-3 border-b border-border bg-card">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-semibold">Datasources</h2>
+            <h2 className="text-sm font-semibold">Dataproviders</h2>
           </div>
         </div>
 
@@ -122,7 +122,7 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
             <div className="px-6 py-3 border-b border-border bg-card flex-shrink-0">
               <div className="flex items-center gap-2 text-sm">
                 <Database className="w-4 h-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Datasources</span>
+                <span className="text-muted-foreground">Dataproviders</span>
                 <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 <span className="font-medium">{currentProvider.name || 'Untitled'}</span>
                 {!currentProvider.providerId && (
@@ -175,8 +175,8 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
         open={!!providerToDelete}
         onClose={() => setProviderToDelete(null)}
         onConfirm={handleConfirmDelete}
-        title="Delete Datasource"
-        description={`Are you sure you want to delete "${providerToDelete?.name || 'this datasource'}"? This action cannot be undone.`}
+        title="Delete Data Provider"
+        description={`Are you sure you want to delete "${providerToDelete?.name || 'this data provider'}"? This action cannot be undone.`}
         isLoading={deleteMutation.isPending}
       />
     </div>

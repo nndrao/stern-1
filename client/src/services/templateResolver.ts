@@ -91,7 +91,7 @@ export class TemplateResolver {
   /**
    * Resolve curly bracket variables: {datasource.variable} → value
    *
-   * Looks up values from datasources like AppVariables.
+   * Looks up values from Dataproviders like AppVariables.
    * Path format: {datasourceName.variableName} or {datasourceName.nested.path}
    *
    * @param template String containing {datasource.variable} patterns

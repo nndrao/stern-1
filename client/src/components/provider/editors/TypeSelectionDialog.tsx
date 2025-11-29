@@ -37,7 +37,7 @@ const PROVIDER_OPTIONS: ProviderTypeOption[] = [
   {
     type: 'stomp',
     icon: <Wifi className="h-8 w-8" />,
-    title: 'STOMP Datasource',
+    title: 'STOMP Data Provider',
     description: 'Real-time streaming data via WebSocket STOMP protocol',
     features: ['Real-time updates', 'Field inference', 'Template variables'],
     recommended: true,
@@ -96,9 +96,9 @@ export const TypeSelectionDialog: React.FC<TypeSelectionDialogProps> = ({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Select Datasource Type</DialogTitle>
+          <DialogTitle className="text-2xl">Select Data Provider Type</DialogTitle>
           <DialogDescription>
-            Choose the protocol that best fits your data source requirements
+            Choose the protocol that best fits your data provider requirements
           </DialogDescription>
         </DialogHeader>
 

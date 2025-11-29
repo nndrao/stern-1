@@ -4,7 +4,7 @@
  * Features: Visual grouping, status indicators, improved toolbar layout
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -29,7 +29,7 @@ import { TreeView } from '../TreeView';
 import { PropertiesPanel } from '../PropertiesPanel';
 // Lazy load IconPicker to prevent loading hundreds of icons on initial page load
 const IconPicker = React.lazy(() => import('../editors/IconPicker').then(m => ({ default: m.IconPicker })));
-import { DockConfiguration, DockMenuItem, createMenuItem, validateDockConfiguration, createDockConfiguration, useOpenFinDock, useOpenfinTheme } from '@stern/openfin-platform';
+import { DockConfiguration, DockMenuItem, createMenuItem, validateDockConfiguration, createDockConfiguration, useOpenFinDock } from '@stern/openfin-platform';
 import { useDockConfig, useSaveDockConfig } from '@/hooks/api/useDockConfigQueries';
 import '@/test/helpers/testApi'; // Import test utility for debugging
 import { logger } from '@/utils/logger';
@@ -122,11 +122,15 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
   const [selectedNode, setSelectedNode] = useState<DockMenuItem | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Sync OpenFin platform theme with React theme provider
-  useOpenfinTheme();
+  // Note: useOpenfinTheme is called at App level, no need to call here
+  // Calling it here causes performance issues on every keystroke
 
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [iconPickerCallback, setIconPickerCallback] = useState<((icon: string) => void) | null>(null);
+
+  // PERFORMANCE FIX: Use ref to get current config without triggering callback recreation
+  const currentConfigRef = useRef<DockConfiguration | null>(null);
+  currentConfigRef.current = currentConfig;
 
   // Sync loaded config to local state
   useEffect(() => {
@@ -142,25 +146,23 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
   }, [loadedConfig, isLoading, userId, appId]);
 
   // Auto-save draft every 30 seconds
-  const handleSaveDraft = useCallback(() => {
-    if (currentConfig) {
-      localStorage.setItem('dock-config-draft', JSON.stringify(currentConfig));
-      toast({
-        title: 'Draft saved',
-        description: 'Your changes have been saved locally',
-      });
-    }
-  }, [currentConfig, toast]);
-
+  // PERFORMANCE FIX: Use ref to avoid recreating callback on every config change
   useEffect(() => {
     if (!isDirty) return;
 
     const timer = setTimeout(() => {
-      handleSaveDraft();
+      const config = currentConfigRef.current;
+      if (config) {
+        localStorage.setItem('dock-config-draft', JSON.stringify(config));
+        toast({
+          title: 'Draft saved',
+          description: 'Your changes have been saved locally',
+        });
+      }
     }, 30000);
 
     return () => clearTimeout(timer);
-  }, [isDirty, handleSaveDraft]);
+  }, [isDirty, toast]);  // Only depends on isDirty and toast, not currentConfig
 
   const handleSave = useCallback(async () => {
     logger.debug('Save button clicked', undefined, 'DockConfigEditor');
@@ -244,15 +246,17 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
   }, [currentConfig, saveMutation, toast]);
 
   const handleAddMenuItem = useCallback(() => {
-    if (!currentConfig) return;
+    const config = currentConfigRef.current;
+    if (!config) return;
 
     const newItem = createMenuItem();
-    let newMenuItems = [...(currentConfig.config.menuItems || [])];
+    let newMenuItems = [...(config.config.menuItems || [])];
 
-    if (selectedNode) {
+    const currentSelectedNode = selectedNode;
+    if (currentSelectedNode) {
       // Add as child
       newMenuItems = newMenuItems.map(menuItem =>
-        addChildToItem(menuItem, selectedNode.id, newItem)
+        addChildToItem(menuItem, currentSelectedNode.id, newItem)
       );
     } else {
       // Add to root
@@ -260,24 +264,25 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     }
 
     setCurrentConfig({
-      ...currentConfig,
+      ...config,
       config: {
-        ...currentConfig.config,
+        ...config.config,
         menuItems: newMenuItems
       }
     });
     setIsDirty(true);
-  }, [currentConfig, selectedNode]);
+  }, [selectedNode]);
 
   const handleDeleteMenuItem = useCallback(() => {
-    if (!currentConfig || !selectedNode) return;
+    const config = currentConfigRef.current;
+    if (!config || !selectedNode) return;
 
-    const newMenuItems = deleteMenuItemRecursive(currentConfig.config.menuItems || [], selectedNode.id);
+    const newMenuItems = deleteMenuItemRecursive(config.config.menuItems || [], selectedNode.id);
 
     setCurrentConfig({
-      ...currentConfig,
+      ...config,
       config: {
-        ...currentConfig.config,
+        ...config.config,
         menuItems: newMenuItems
       }
     });
@@ -288,10 +293,11 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       title: 'Item deleted',
       description: 'Menu item has been removed',
     });
-  }, [currentConfig, selectedNode, toast]);
+  }, [selectedNode, toast]);
 
   const handleDuplicateMenuItem = useCallback(() => {
-    if (!currentConfig || !selectedNode) return;
+    const config = currentConfigRef.current;
+    if (!config || !selectedNode) return;
 
     const duplicate = createMenuItem({
       ...selectedNode,
@@ -299,12 +305,12 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       caption: `${selectedNode.caption} (Copy)`
     });
 
-    const newMenuItems = [...(currentConfig.config.menuItems || []), duplicate];
+    const newMenuItems = [...(config.config.menuItems || []), duplicate];
 
     setCurrentConfig({
-      ...currentConfig,
+      ...config,
       config: {
-        ...currentConfig.config,
+        ...config.config,
         menuItems: newMenuItems
       }
     });
@@ -314,7 +320,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       title: 'Item duplicated',
       description: 'Menu item has been duplicated',
     });
-  }, [currentConfig, selectedNode, toast]);
+  }, [selectedNode, toast]);
 
   const handlePreview = useCallback(async () => {
     if (!currentConfig) return;
@@ -395,29 +401,34 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
   }, [iconPickerCallback]);
 
   const handleUpdateMenuItem = useCallback((id: string, updates: Partial<DockMenuItem>) => {
-    if (!currentConfig) return;
+    const config = currentConfigRef.current;
+    if (!config) return;
 
-    const newMenuItems = updateMenuItemRecursive(currentConfig.config.menuItems || [], id, updates);
+    const newMenuItems = updateMenuItemRecursive(config.config.menuItems || [], id, updates);
 
     // Update selected node if it's the one being updated
-    if (selectedNode?.id === id) {
-      setSelectedNode({ ...selectedNode, ...updates });
-    }
+    setSelectedNode(prev => {
+      if (prev?.id === id) {
+        return { ...prev, ...updates };
+      }
+      return prev;
+    });
 
     setCurrentConfig({
-      ...currentConfig,
+      ...config,
       config: {
-        ...currentConfig.config,
+        ...config.config,
         menuItems: newMenuItems
       }
     });
     setIsDirty(true);
-  }, [currentConfig, selectedNode]);
+  }, []);  // NO DEPENDENCIES - stable function reference!
 
   const handleReorderItems = useCallback((sourceId: string, targetId: string, position: 'before' | 'after' | 'inside') => {
-    if (!currentConfig) return;
+    const config = currentConfigRef.current;
+    if (!config) return;
 
-    let newMenuItems = [...(currentConfig.config.menuItems || [])];
+    let newMenuItems = [...(config.config.menuItems || [])];
 
     // Find and remove source item
     const sourceItem = findMenuItem(newMenuItems, sourceId);
@@ -437,14 +448,14 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     }
 
     setCurrentConfig({
-      ...currentConfig,
+      ...config,
       config: {
-        ...currentConfig.config,
+        ...config.config,
         menuItems: newMenuItems
       }
     });
     setIsDirty(true);
-  }, [currentConfig]);
+  }, []);
 
   const handleCreateNewConfig = useCallback(() => {
     const newConfig = createDockConfiguration(userId, appId) as unknown as DockConfiguration;
@@ -523,12 +534,6 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
               <Copy className="h-3.5 w-3.5 mr-1.5" />
               Duplicate
             </Button>
-
-            {selectedNode && (
-              <Badge variant="secondary" className="ml-2 text-xs">
-                {selectedNode.caption || 'Untitled'}
-              </Badge>
-            )}
           </div>
 
           {/* File & Save Actions */}
@@ -667,6 +672,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
                     </CardHeader>
                     <CardContent className="pt-0">
                       <PropertiesPanel
+                        key={selectedNode.id}
                         item={selectedNode}
                         onUpdate={(updates) => handleUpdateMenuItem(selectedNode.id, updates)}
                         onIconSelect={handleIconSelect}

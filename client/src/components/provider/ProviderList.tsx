@@ -76,7 +76,7 @@ export const ProviderList: React.FC<ProviderListProps> = ({ userId, currentProvi
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
-            placeholder="Search datasources..."
+            placeholder="Search data providers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-9 text-sm"
@@ -90,13 +90,13 @@ export const ProviderList: React.FC<ProviderListProps> = ({ userId, currentProvi
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-              <p className="text-xs text-muted-foreground">Loading datasources...</p>
+              <p className="text-xs text-muted-foreground">Loading Dataproviders...</p>
             </div>
           ) : filteredAndSortedProviders.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2">
               <Database className="h-8 w-8 text-muted-foreground/50" />
               <p className="text-xs text-muted-foreground text-center">
-                {searchQuery.trim() ? 'No matching datasources' : 'No datasources configured'}
+                {searchQuery.trim() ? 'No matching Dataproviders' : 'No Dataproviders configured'}
               </p>
             </div>
           ) : (

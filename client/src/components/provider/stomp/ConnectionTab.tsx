@@ -68,13 +68,13 @@ export function ConnectionTab({
                 <div className="space-y-3">
                   <div>
                     <Label htmlFor="datasource-name" className="text-xs font-normal text-foreground mb-1.5">
-                      Datasource Name *
+                      Data Provider Name *
                     </Label>
                     <Input
                       id="datasource-name"
                       value={name}
                       onChange={(e) => onNameChange(e.target.value)}
-                      placeholder="Enter datasource name"
+                      placeholder="Enter data provider name"
                       className="mt-1 h-8 text-xs bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary"
                     />
                   </div>

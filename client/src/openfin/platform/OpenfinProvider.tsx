@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { init, getCurrentSync } from '@openfin/workspace-platform';
 import {
-  useOpenfinTheme,
   createWorkspaceStorageOverride,
   createCustomActions,
   VIEW_CONTEXT_MENU_ACTIONS,
@@ -44,6 +43,41 @@ const HelpPanel = () => (
     </div>
   </div>
 );
+
+// Main dashboard layout - moved outside Provider to prevent recreation on every render
+interface DashboardContentProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}
+
+const DashboardContent: React.FC<DashboardContentProps> = ({ activeTab, onTabChange }) => {
+  // Note: useOpenfinTheme is called at App level, no need to call here
+  // Calling it here causes performance issues and excessive re-subscriptions
+
+  // Log on mount (for debugging only)
+  useEffect(() => {
+    logger.info('[PROVIDER WINDOW] DashboardContent mounted', {
+      isOpenFin: typeof window !== 'undefined' && !!window.fin,
+      htmlClassName: document.documentElement.className,
+      htmlHasDark: document.documentElement.classList.contains('dark'),
+    }, 'DashboardContent');
+  }, []);
+
+  return (
+    <div className="flex flex-col h-screen bg-background text-foreground p-2.5">
+      <TopTabBar
+        activeTab={activeTab}
+        onTabChange={onTabChange}
+      />
+      <main className="flex-1 overflow-hidden">
+        {activeTab === 'dock' && <DockConfigEditor />}
+        {activeTab === 'providers' && <DataProviderEditor />}
+        {activeTab === 'settings' && <SettingsPanel />}
+        {activeTab === 'help' && <HelpPanel />}
+      </main>
+    </div>
+  );
+};
 
 export default function Provider() {
   const isInitialized = useRef(false);
@@ -570,43 +604,12 @@ export default function Provider() {
     );
   }
 
-  // Main dashboard layout
-  const DashboardContent = () => {
-    // Sync OpenFin platform theme with React theme provider
-    // This enables the provider window to respond to theme changes from the dock
-    useOpenfinTheme();
-
-    // Log on mount
-    useEffect(() => {
-      logger.info('[PROVIDER WINDOW] DashboardContent mounted', {
-        isOpenFin: typeof window !== 'undefined' && !!window.fin,
-        htmlClassName: document.documentElement.className,
-        htmlHasDark: document.documentElement.classList.contains('dark'),
-      }, 'DashboardContent');
-    }, []);
-
-    return (
-      <div className="flex flex-col h-screen bg-background text-foreground p-2.5">
-        <TopTabBar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
-        <main className="flex-1 overflow-hidden">
-          {activeTab === 'dock' && <DockConfigEditor />}
-          {activeTab === 'providers' && <DataProviderEditor />}
-          {activeTab === 'settings' && <SettingsPanel />}
-          {activeTab === 'help' && <HelpPanel />}
-        </main>
-      </div>
-    );
-  };
-
   // Note: ThemeProvider is NOT needed here because the provider window route
   // is already wrapped by ThemeProvider in main.tsx (lines 25-30)
   // Having nested ThemeProviders prevents theme synchronization from working
   return (
     <>
-      <DashboardContent />
+      <DashboardContent activeTab={activeTab} onTabChange={setActiveTab} />
       <Toaster />
     </>
   );

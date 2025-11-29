@@ -65,7 +65,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({ userId = SYSTEM_USER
     if (!provider.name || provider.name.trim() === '') {
       toast({
         title: 'Validation Failed',
-        description: 'Datasource name is required',
+        description: 'Data provider name is required',
         variant: 'destructive'
       });
       return;
@@ -141,15 +141,15 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({ userId = SYSTEM_USER
         />
       ) : (
         <>
-          {/* Header with datasource name for non-STOMP */}
+          {/* Header with data provider name for non-STOMP */}
           <div className="p-6 border-b bg-card flex-shrink-0">
             <div className="space-y-2">
-              <Label htmlFor="providerName" className="text-sm font-medium">Datasource Name *</Label>
+              <Label htmlFor="providerName" className="text-sm font-medium">Data Provider Name *</Label>
               <Input
                 id="providerName"
                 value={provider.name}
                 onChange={(e) => handleFieldChange('name', e.target.value)}
-                placeholder="Enter datasource name"
+                placeholder="Enter data provider name"
                 className="text-base"
               />
             </div>

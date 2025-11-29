@@ -17,7 +17,7 @@ import { DataProviderConfig, ProviderType } from '@stern/shared-types';
 import { cn } from '@/lib/utils';
 
 interface DatasourceTabBarProps {
-  datasources: DataProviderConfig[];
+  Dataproviders: DataProviderConfig[];
   currentDatasource: DataProviderConfig | null;
   onSelect: (datasource: DataProviderConfig) => void;
   onCreate: () => void;
@@ -35,7 +35,7 @@ const PROVIDER_ICONS: Record<ProviderType, React.ReactNode> = {
 };
 
 export const DatasourceTabBar: React.FC<DatasourceTabBarProps> = ({
-  datasources,
+  Dataproviders,
   currentDatasource,
   onSelect,
   onCreate,
@@ -44,16 +44,16 @@ export const DatasourceTabBar: React.FC<DatasourceTabBarProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  // Sort datasources: default first, then by name
-  const sortedDatasources = useMemo(() => {
-    const sorted = [...datasources];
+  // Sort Dataproviders: default first, then by name
+  const sortedDataproviders = useMemo(() => {
+    const sorted = [...Dataproviders];
     sorted.sort((a, b) => {
       if (a.isDefault && !b.isDefault) return -1;
       if (!a.isDefault && b.isDefault) return 1;
       return a.name.localeCompare(b.name);
     });
     return sorted;
-  }, [datasources]);
+  }, [Dataproviders]);
 
   // Measure container width on mount and resize
   useEffect(() => {
@@ -71,8 +71,8 @@ export const DatasourceTabBar: React.FC<DatasourceTabBarProps> = ({
   // Calculate which tabs fit and which overflow
   // Rough estimate: each tab ~150px, + button 80px, overflow button 40px
   const maxVisibleTabs = Math.max(1, Math.floor((containerWidth - 120) / 150));
-  const visibleDatasources = sortedDatasources.slice(0, maxVisibleTabs);
-  const overflowDatasources = sortedDatasources.slice(maxVisibleTabs);
+  const visibleDataproviders = sortedDataproviders.slice(0, maxVisibleTabs);
+  const overflowDataproviders = sortedDataproviders.slice(maxVisibleTabs);
 
   const isDirty = (providerId?: string) => {
     return providerId ? dirtyProviders.has(providerId) : false;
@@ -132,27 +132,27 @@ export const DatasourceTabBar: React.FC<DatasourceTabBarProps> = ({
       <div className="flex items-center flex-1 min-w-0">
         <ScrollArea className="flex-1">
           <div className="flex items-center">
-            {visibleDatasources.map(ds => renderTab(ds))}
+            {visibleDataproviders.map(ds => renderTab(ds))}
           </div>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </div>
 
       {/* Overflow dropdown */}
-      {overflowDatasources.length > 0 && (
+      {overflowDataproviders.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 flex-shrink-0"
-              title={`${overflowDatasources.length} more datasources`}
+              title={`${overflowDataproviders.length} more data providers`}
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
-            {overflowDatasources.map(ds => renderTab(ds, true))}
+            {overflowDataproviders.map(ds => renderTab(ds, true))}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
@@ -163,7 +163,7 @@ export const DatasourceTabBar: React.FC<DatasourceTabBarProps> = ({
         size="sm"
         variant="ghost"
         className="h-8 px-2 flex-shrink-0 text-xs"
-        title="Create new datasource"
+        title="Create new data provider"
       >
         <Plus className="h-4 w-4 mr-1" />
         New
