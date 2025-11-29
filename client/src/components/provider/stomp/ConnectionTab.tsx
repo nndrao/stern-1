@@ -127,7 +127,7 @@ export function ConnectionTab({
                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Template Variables</Label>
                     <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
                       <div><code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">[variable]</code> - Replaced with variable-UUID</div>
-                      <div><code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">{`{datasource.variable}`}</code> - Replaced with datasource value</div>
+                      <div><code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">{`{dataprovider.variable}`}</code> - Replaced with data provider value</div>
                     </div>
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       Example: <code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">{`{AppVariables.ds.Environment}`}</code> → production

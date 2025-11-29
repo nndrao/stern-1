@@ -248,9 +248,9 @@ export function StompConfigurationForm({ name, config, onChange, onNameChange, o
     }
 
     try {
-      const { StompDatasourceProvider } = await import('@/services/providers/StompDatasourceProvider');
+      const { StompDataProvider } = await import('@/services/providers/StompDatasourceProvider');
 
-      const provider = new StompDatasourceProvider({
+      const provider = new StompDataProvider({
         websocketUrl: config.websocketUrl,
         listenerTopic: config.listenerTopic || '',
         requestMessage: config.requestMessage,
@@ -303,7 +303,7 @@ export function StompConfigurationForm({ name, config, onChange, onNameChange, o
     }
 
     try {
-      const { StompDatasourceProvider } = await import('@/services/providers/StompDatasourceProvider');
+      const { StompDataProvider } = await import('@/services/providers/StompDatasourceProvider');
       const { templateResolver } = await import('@/services/templateResolver');
       const { v4: uuidv4 } = await import('uuid');
 
@@ -319,7 +319,7 @@ export function StompConfigurationForm({ name, config, onChange, onNameChange, o
       requestMessage = templateResolver.resolveTemplate(requestMessage, sessionId);
 
       // Create provider with resolved topics
-      const provider = new StompDatasourceProvider({
+      const provider = new StompDataProvider({
         websocketUrl: config.websocketUrl,
         listenerTopic,
         requestMessage,
@@ -350,7 +350,7 @@ export function StompConfigurationForm({ name, config, onChange, onNameChange, o
       }
 
       // Infer fields from data
-      const inferredFieldsMap = StompDatasourceProvider.inferFields(result.data);
+      const inferredFieldsMap = StompDataProvider.inferFields(result.data);
 
       // Convert to FieldNode array
       const fieldNodes = Object.values(inferredFieldsMap).map(field => convertFieldInfoToNode(field));
