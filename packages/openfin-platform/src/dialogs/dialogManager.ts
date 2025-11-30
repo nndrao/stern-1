@@ -64,19 +64,61 @@ export async function openDialog<TProps = any, TResult = any>(
   };
 
   try {
-    // Create the OpenFin window
-    const dialogWindow = await fin.Window.create(windowOptions);
-
-    console.log(`[DialogManager] Window created:`, dialogId);
-
-    // Set up IAB communication
+    // Set up IAB communication topics
     const requestTopic = `stern.dialog.${dialogType}.request`;
     const actionTopic = `stern.dialog.${dialogType}.action`;
 
     // Return a promise that resolves when dialog closes or sends a close action
-    return new Promise<TResult | null>((resolve) => {
+    return new Promise<TResult | null>(async (resolve) => {
       let resolved = false;
       let actionUnsubscribe: (() => void) | null = null;
+      let readyUnsubscribe: (() => void) | null = null;
+      let propsSent = false;
+
+      // Wait for window to load, then send props
+      const sendProps = () => {
+        const request: DialogRequest<TProps> = {
+          type: 'init',
+          dialogId,
+          props,
+          timestamp: Date.now(),
+        };
+
+        console.log(`[DialogManager] Sending props to dialog:`, request);
+
+        fin.InterApplicationBus.publish(requestTopic, request);
+      };
+
+      // Handle ready signal from dialog - MUST be subscribed BEFORE window creation
+      const handleReady = (message: any, identity: any) => {
+        if (message.dialogType === dialogType && !propsSent) {
+          console.log(`[DialogManager] Dialog ready signal received`);
+          propsSent = true;
+
+          if (readyUnsubscribe) {
+            readyUnsubscribe();
+            readyUnsubscribe = null;
+          }
+
+          // Send props immediately
+          sendProps();
+        }
+      };
+
+      // Subscribe to ready signal BEFORE creating window to ensure we don't miss it
+      fin.InterApplicationBus.subscribe(
+        { uuid: '*' },
+        'stern.dialog.ready',
+        handleReady
+      );
+
+      readyUnsubscribe = () => {
+        fin.InterApplicationBus.unsubscribe(
+          { uuid: '*' },
+          'stern.dialog.ready',
+          handleReady
+        );
+      };
 
       // Handle actions from dialog
       const handleAction = (message: DialogAction<TResult>, identity: any) => {
@@ -113,6 +155,23 @@ export async function openDialog<TProps = any, TResult = any>(
         );
       };
 
+      // Cleanup function
+      const cleanup = () => {
+        if (actionUnsubscribe) {
+          actionUnsubscribe();
+          actionUnsubscribe = null;
+        }
+        if (readyUnsubscribe) {
+          readyUnsubscribe();
+          readyUnsubscribe = null;
+        }
+      };
+
+      // NOW create the OpenFin window (after subscriptions are set up)
+      const dialogWindow = await fin.Window.create(windowOptions);
+
+      console.log(`[DialogManager] Window created:`, dialogId);
+
       // Handle window close event
       dialogWindow.on('closed', () => {
         if (!resolved) {
@@ -123,65 +182,19 @@ export async function openDialog<TProps = any, TResult = any>(
         }
       });
 
-      // Cleanup function
-      const cleanup = () => {
-        if (actionUnsubscribe) {
-          actionUnsubscribe();
-          actionUnsubscribe = null;
-        }
-      };
-
-      // Wait for window to load, then send props
-      // We wait for the 'dialog.ready' message or use a timeout
-      const sendProps = () => {
-        const request: DialogRequest<TProps> = {
-          type: 'init',
-          dialogId,
-          props,
-          timestamp: Date.now(),
-        };
-
-        console.log(`[DialogManager] Sending props to dialog:`, request);
-
-        fin.InterApplicationBus.publish(requestTopic, request);
-      };
-
-      // Listen for ready signal from dialog
-      let readyUnsubscribe: (() => void) | null = null;
-      const handleReady = (message: any, identity: any) => {
-        if (message.dialogType === dialogType) {
-          console.log(`[DialogManager] Dialog ready signal received`);
-          if (readyUnsubscribe) {
-            readyUnsubscribe();
-            readyUnsubscribe = null;
-          }
-          // Send props immediately
-          sendProps();
-        }
-      };
-
-      fin.InterApplicationBus.subscribe(
-        { uuid: '*' },
-        'stern.dialog.ready',
-        handleReady
-      );
-
-      readyUnsubscribe = () => {
-        fin.InterApplicationBus.unsubscribe(
-          { uuid: '*' },
-          'stern.dialog.ready',
-          handleReady
-        );
-      };
-
       // Fallback: send props after a short delay if no ready signal
+      // Reduced from 1000ms to 200ms for faster loading
       setTimeout(() => {
         if (readyUnsubscribe) {
           readyUnsubscribe();
           readyUnsubscribe = null;
         }
-        sendProps();
-      }, 1000);
+        if (!propsSent) {
+          console.log(`[DialogManager] Fallback timeout reached, sending props`);
+          propsSent = true;
+          sendProps();
+        }
+      }, 200);
     });
   } catch (error) {
     console.error(`[DialogManager] Error opening dialog:`, error);
