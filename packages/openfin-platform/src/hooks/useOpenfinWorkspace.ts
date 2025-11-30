@@ -68,11 +68,12 @@ export const useOpenFinTheme = () => {
     return () => {};
   }, []);
 
-  return {
+  // CRITICAL: Memoize return object to prevent infinite re-renders
+  return useMemo(() => ({
     getCurrentTheme,
     setTheme,
     subscribeToThemeChanges
-  };
+  }), [getCurrentTheme, setTheme, subscribeToThemeChanges]);
 };
 
 /**
@@ -137,13 +138,14 @@ export const useOpenFinDock = () => {
     }
   }, []);
 
-  return {
+  // CRITICAL: Memoize return object to prevent infinite re-renders
+  return useMemo(() => ({
     registerDock,
     updateDock,
     showDock,
     hideDock,
     deregisterDock
-  };
+  }), [registerDock, updateDock, showDock, hideDock, deregisterDock]);
 };
 
 /**
@@ -234,14 +236,15 @@ export const useOpenFinView = () => {
     }
   }, []);
 
-  return {
+  // CRITICAL: Memoize return object to prevent infinite re-renders
+  return useMemo(() => ({
     getCurrentViewInfo,
     closeCurrentView,
     maximizeCurrentView,
     minimizeCurrentView,
     renameCurrentView,
     createView
-  };
+  }), [getCurrentViewInfo, closeCurrentView, maximizeCurrentView, minimizeCurrentView, renameCurrentView, createView]);
 };
 
 /**
@@ -282,10 +285,11 @@ export const useOpenFinWindow = (): { createWindow: (options: any) => Promise<an
     }
   }, []);
 
-  return {
+  // CRITICAL: Memoize return object to prevent infinite re-renders
+  return useMemo(() => ({
     createWindow,
     getCurrentWindow
-  };
+  }), [createWindow, getCurrentWindow]);
 };
 
 /**
@@ -353,11 +357,12 @@ export const useOpenFinMessaging = () => {
     }
   }, []);
 
-  return {
+  // CRITICAL: Memoize return object to prevent infinite re-renders
+  return useMemo(() => ({
     broadcastToAllViews,
     subscribeToMessages,
     sendToView
-  };
+  }), [broadcastToAllViews, subscribeToMessages, sendToView]);
 };
 
 /**
@@ -385,12 +390,13 @@ export const useOpenFinWorkspaceEvents = () => {
     return () => {};
   }, []);
 
-  return {
+  // CRITICAL: Memoize return object to prevent infinite re-renders
+  return useMemo(() => ({
     onWorkspaceSaved,
     onWorkspaceLoaded,
     onViewClosed,
     onViewFocused
-  };
+  }), [onWorkspaceSaved, onWorkspaceLoaded, onViewClosed, onViewFocused]);
 };
 
 /**
