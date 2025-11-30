@@ -109,6 +109,8 @@ const createColumnDefs = (columnsData: any[]): ColDef[] => {
 // ============================================================================
 
 export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError, blotterType = BLOTTER_TYPES.DEFAULT }) => {
+  console.log('[SimpleBlotter] RENDER - Component is rendering');
+
   // Listen to OpenFin dock theme changes and sync with DOM
   useOpenfinTheme();
 

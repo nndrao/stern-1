@@ -64,7 +64,7 @@ export function useOpenfinTheme() {
     platformContext.logger.info('[useOpenfinTheme] Theme listener setup complete, unsubscribe function created', undefined, 'useOpenfinTheme');
 
     return unsubscribe;
-  }, [on, platform.isOpenFin]);
+  }, [on, platform]);
 
   // Get initial platform theme on mount (sync DOM with OpenFin)
   useEffect(() => {
@@ -99,5 +99,5 @@ export function useOpenfinTheme() {
     };
 
     syncInitialTheme();
-  }, [platform.isOpenFin]);
+  }, [platform]);
 }
