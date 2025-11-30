@@ -38,12 +38,17 @@ export function DialogHost<TProps = any>({
   const actionTopic = `stern.dialog.${dialogType}.action`;
 
   useEffect(() => {
+    let isMounted = true;
+
     // Subscribe to IAB for props
     const handleRequest = (message: DialogRequest<TProps>, identity: any) => {
       console.log(`[DialogHost:${dialogType}] Received props:`, message);
-      setProps(message.props);
-      setDialogId(message.dialogId);
-      setIsReady(true);
+      // Only update state if component is still mounted
+      if (isMounted) {
+        setProps(message.props);
+        setDialogId(message.dialogId);
+        setIsReady(true);
+      }
     };
 
     // Subscribe using OpenFin IAB
@@ -62,12 +67,18 @@ export function DialogHost<TProps = any>({
     });
 
     return () => {
-      // Cleanup subscription
-      fin.InterApplicationBus.unsubscribe(
-        { uuid: '*' },
-        requestTopic,
-        handleRequest
-      );
+      // Mark as unmounted but DON'T unsubscribe immediately
+      // This prevents race conditions with React Strict Mode
+      isMounted = false;
+
+      // Delay unsubscribe to allow any in-flight messages to be processed
+      setTimeout(() => {
+        fin.InterApplicationBus.unsubscribe(
+          { uuid: '*' },
+          requestTopic,
+          handleRequest
+        );
+      }, 100);
     };
   }, [dialogType, requestTopic]);
 
