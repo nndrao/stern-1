@@ -5,7 +5,7 @@
  * Following workspace-starter patterns - uses OpenFin APIs directly
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Dock } from '@openfin/workspace';
 import { platformContext } from '../core/PlatformContext';
 
@@ -396,6 +396,9 @@ export const useOpenFinWorkspaceEvents = () => {
 /**
  * Main hook providing access to all OpenFin workspace services
  * This is a convenience hook that bundles all the individual hooks together
+ *
+ * IMPORTANT: The return value is memoized to prevent infinite re-render loops.
+ * All functions are created with useCallback, so they have stable references.
  */
 export const useOpenFinWorkspace = (): OpenFinWorkspaceServices => {
   const isOpenFin = useIsOpenFin();
@@ -406,7 +409,9 @@ export const useOpenFinWorkspace = (): OpenFinWorkspaceServices => {
   const messaging = useOpenFinMessaging();
   const events = useOpenFinWorkspaceEvents();
 
-  return {
+  // Memoize the return object to prevent creating a new object on every render
+  // This is critical to prevent infinite re-render loops in hooks that depend on this
+  return useMemo(() => ({
     // Environment check
     isOpenFin,
 
@@ -453,7 +458,32 @@ export const useOpenFinWorkspace = (): OpenFinWorkspaceServices => {
       platformContext.logger.debug('getCurrentPage not implemented', undefined, 'useOpenFinWorkspace');
       return null;
     }
-  };
+  }), [
+    isOpenFin,
+    theme.getCurrentTheme,
+    theme.setTheme,
+    theme.subscribeToThemeChanges,
+    dock.registerDock,
+    dock.updateDock,
+    dock.showDock,
+    dock.hideDock,
+    dock.deregisterDock,
+    view.getCurrentViewInfo,
+    view.closeCurrentView,
+    view.maximizeCurrentView,
+    view.minimizeCurrentView,
+    view.renameCurrentView,
+    view.createView,
+    window.createWindow,
+    window.getCurrentWindow,
+    messaging.broadcastToAllViews,
+    messaging.subscribeToMessages,
+    messaging.sendToView,
+    events.onWorkspaceSaved,
+    events.onWorkspaceLoaded,
+    events.onViewClosed,
+    events.onViewFocused,
+  ]);
 };
 
 // Export interface for TypeScript types
