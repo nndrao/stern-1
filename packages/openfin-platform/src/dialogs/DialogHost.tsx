@@ -5,7 +5,7 @@
  * Handles IAB communication setup and provides dialog props and action handlers.
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import type { DialogHostProps, DialogActionHandler, DialogRequest, DialogAction } from './types';
 
 /**
@@ -33,6 +33,12 @@ export function DialogHost<TProps = any>({
   const [dialogId, setDialogId] = useState<string>('');
   const [isReady, setIsReady] = useState(false);
 
+  // Track active subscription to prevent double unsubscribe in React Strict Mode
+  const subscriptionRef = useRef<{
+    handler: (message: DialogRequest<TProps>, identity: any) => void;
+    subscribed: boolean;
+  } | null>(null);
+
   // Get IAB topic names
   const requestTopic = `stern.dialog.${dialogType}.request`;
   const actionTopic = `stern.dialog.${dialogType}.action`;
@@ -58,9 +64,13 @@ export function DialogHost<TProps = any>({
       handleRequest
     );
 
+    // Track this subscription
+    subscriptionRef.current = { handler: handleRequest, subscribed: true };
+
     console.log(`[DialogHost:${dialogType}] Subscribed to ${requestTopic}`);
 
     // Notify parent that we're ready to receive props
+    console.log(`[DialogHost:${dialogType}] Publishing ready signal to stern.dialog.ready`);
     fin.InterApplicationBus.publish('stern.dialog.ready', {
       dialogType,
       timestamp: Date.now(),
@@ -71,14 +81,29 @@ export function DialogHost<TProps = any>({
       // This prevents race conditions with React Strict Mode
       isMounted = false;
 
-      // Delay unsubscribe to allow any in-flight messages to be processed
-      setTimeout(() => {
-        fin.InterApplicationBus.unsubscribe(
-          { uuid: '*' },
-          requestTopic,
-          handleRequest
-        );
-      }, 100);
+      // Only unsubscribe if this is still the active subscription
+      // This prevents React Strict Mode double-mounting from removing the active subscription
+      if (subscriptionRef.current?.handler === handleRequest && subscriptionRef.current?.subscribed) {
+        console.log(`[DialogHost:${dialogType}] Scheduling unsubscribe (100ms delay)`);
+
+        // Delay unsubscribe to allow any in-flight messages to be processed
+        setTimeout(() => {
+          // Double-check this is still the active subscription before unsubscribing
+          if (subscriptionRef.current?.handler === handleRequest && subscriptionRef.current?.subscribed) {
+            console.log(`[DialogHost:${dialogType}] Unsubscribing from ${requestTopic}`);
+            fin.InterApplicationBus.unsubscribe(
+              { uuid: '*' },
+              requestTopic,
+              handleRequest
+            );
+            subscriptionRef.current.subscribed = false;
+          } else {
+            console.log(`[DialogHost:${dialogType}] Skipping unsubscribe - new subscription active`);
+          }
+        }, 100);
+      } else {
+        console.log(`[DialogHost:${dialogType}] Skipping unsubscribe - not active subscription`);
+      }
     };
   }, [dialogType, requestTopic]);
 
