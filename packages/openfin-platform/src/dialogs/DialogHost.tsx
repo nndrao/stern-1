@@ -44,18 +44,31 @@ export function DialogHost<TProps = any>({
   const actionTopic = `stern.dialog.${dialogType}.action`;
 
   useEffect(() => {
+    const mountId = Date.now();
+    console.log(`[LOADING_LAYOUT] DialogHost useEffect START - mountId: ${mountId}, dialogType: ${dialogType}`);
+
     let isMounted = true;
 
     // Subscribe to IAB for props
     const handleRequest = (message: DialogRequest<TProps>, identity: any) => {
-      console.log(`[DialogHost:${dialogType}] Received props:`, message);
+      console.log(`[LOADING_LAYOUT] handleRequest CALLED - mountId: ${mountId}`);
+      console.log(`[LOADING_LAYOUT] Message received:`, JSON.stringify(message, null, 2));
+      console.log(`[LOADING_LAYOUT] isMounted: ${isMounted}`);
+      console.log(`[LOADING_LAYOUT] Current state - props: ${!!props}, dialogId: ${dialogId}, isReady: ${isReady}`);
+
       // Only update state if component is still mounted
       if (isMounted) {
+        console.log(`[LOADING_LAYOUT] Setting state - props, dialogId, isReady`);
         setProps(message.props);
         setDialogId(message.dialogId);
         setIsReady(true);
+        console.log(`[LOADING_LAYOUT] State set complete`);
+      } else {
+        console.error(`[LOADING_LAYOUT] Component NOT mounted! Props lost!`);
       }
     };
+
+    console.log(`[LOADING_LAYOUT] About to subscribe to IAB topic: ${requestTopic}`);
 
     // Subscribe using OpenFin IAB
     fin.InterApplicationBus.subscribe(
@@ -67,43 +80,63 @@ export function DialogHost<TProps = any>({
     // Track this subscription
     subscriptionRef.current = { handler: handleRequest, subscribed: true };
 
-    console.log(`[DialogHost:${dialogType}] Subscribed to ${requestTopic}`);
+    console.log(`[LOADING_LAYOUT] ✅ Subscribed to ${requestTopic} - mountId: ${mountId}`);
+    console.log(`[LOADING_LAYOUT] subscriptionRef set:`, { handlerExists: !!subscriptionRef.current?.handler, subscribed: subscriptionRef.current?.subscribed });
 
     // Notify parent that we're ready to receive props
-    console.log(`[DialogHost:${dialogType}] Publishing ready signal to stern.dialog.ready`);
+    console.log(`[LOADING_LAYOUT] 📢 Publishing ready signal to stern.dialog.ready`);
+    console.log(`[LOADING_LAYOUT] Ready signal payload:`, { dialogType, timestamp: Date.now(), mountId });
+
     fin.InterApplicationBus.publish('stern.dialog.ready', {
       dialogType,
       timestamp: Date.now(),
+      mountId, // Add mountId to track which mount sent this
     });
 
+    console.log(`[LOADING_LAYOUT] ✅ Ready signal published - mountId: ${mountId}`);
+
     return () => {
+      console.log(`[LOADING_LAYOUT] ❌ Cleanup START - mountId: ${mountId}`);
+
       // Mark as unmounted but DON'T unsubscribe immediately
       // This prevents race conditions with React Strict Mode
       isMounted = false;
+      console.log(`[LOADING_LAYOUT] isMounted set to false - mountId: ${mountId}`);
 
       // Only unsubscribe if this is still the active subscription
       // This prevents React Strict Mode double-mounting from removing the active subscription
-      if (subscriptionRef.current?.handler === handleRequest && subscriptionRef.current?.subscribed) {
-        console.log(`[DialogHost:${dialogType}] Scheduling unsubscribe (100ms delay)`);
+      const isActiveSubscription = subscriptionRef.current?.handler === handleRequest && subscriptionRef.current?.subscribed;
+      console.log(`[LOADING_LAYOUT] Is active subscription? ${isActiveSubscription} - mountId: ${mountId}`);
+
+      if (isActiveSubscription) {
+        console.log(`[LOADING_LAYOUT] Scheduling unsubscribe (100ms delay) - mountId: ${mountId}`);
 
         // Delay unsubscribe to allow any in-flight messages to be processed
         setTimeout(() => {
           // Double-check this is still the active subscription before unsubscribing
-          if (subscriptionRef.current?.handler === handleRequest && subscriptionRef.current?.subscribed) {
-            console.log(`[DialogHost:${dialogType}] Unsubscribing from ${requestTopic}`);
+          const stillActive = subscriptionRef.current?.handler === handleRequest && subscriptionRef.current?.subscribed;
+          console.log(`[LOADING_LAYOUT] Delayed unsubscribe check - stillActive: ${stillActive}, mountId: ${mountId}`);
+
+          if (stillActive) {
+            console.log(`[LOADING_LAYOUT] ❌ UNSUBSCRIBING from ${requestTopic} - mountId: ${mountId}`);
             fin.InterApplicationBus.unsubscribe(
               { uuid: '*' },
               requestTopic,
               handleRequest
             );
-            subscriptionRef.current.subscribed = false;
+            if (subscriptionRef.current) {
+              subscriptionRef.current.subscribed = false;
+            }
+            console.log(`[LOADING_LAYOUT] Unsubscribe complete - mountId: ${mountId}`);
           } else {
-            console.log(`[DialogHost:${dialogType}] Skipping unsubscribe - new subscription active`);
+            console.log(`[LOADING_LAYOUT] ⏭️ Skipping unsubscribe - NEW subscription active - mountId: ${mountId}`);
           }
         }, 100);
       } else {
-        console.log(`[DialogHost:${dialogType}] Skipping unsubscribe - not active subscription`);
+        console.log(`[LOADING_LAYOUT] ⏭️ Skipping unsubscribe - NOT active subscription - mountId: ${mountId}`);
       }
+
+      console.log(`[LOADING_LAYOUT] Cleanup END - mountId: ${mountId}`);
     };
   }, [dialogType, requestTopic]);
 

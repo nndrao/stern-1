@@ -64,9 +64,14 @@ export async function openDialog<TProps = any, TResult = any>(
   };
 
   try {
+    console.log(`[LOADING_LAYOUT] ========== DialogManager openDialog START ==========`);
+    console.log(`[LOADING_LAYOUT] dialogType: ${dialogType}, dialogId: ${dialogId}`);
+
     // Set up IAB communication topics
     const requestTopic = `stern.dialog.${dialogType}.request`;
     const actionTopic = `stern.dialog.${dialogType}.action`;
+
+    console.log(`[LOADING_LAYOUT] IAB Topics - request: ${requestTopic}, action: ${actionTopic}`);
 
     // Return a promise that resolves when dialog closes or sends a close action
     return new Promise<TResult | null>(async (resolve) => {
@@ -74,6 +79,8 @@ export async function openDialog<TProps = any, TResult = any>(
       let actionUnsubscribe: (() => void) | null = null;
       let readyUnsubscribe: (() => void) | null = null;
       let propsSent = false;
+
+      console.log(`[LOADING_LAYOUT] Promise executor starting`);
 
       // Wait for window to load, then send props
       const sendProps = () => {
@@ -84,26 +91,41 @@ export async function openDialog<TProps = any, TResult = any>(
           timestamp: Date.now(),
         };
 
-        console.log(`[DialogManager] Sending props to dialog:`, request);
+        console.log(`[LOADING_LAYOUT] 📤 sendProps CALLED`);
+        console.log(`[LOADING_LAYOUT] Publishing to topic: ${requestTopic}`);
+        console.log(`[LOADING_LAYOUT] Props payload:`, JSON.stringify(request, null, 2));
 
         fin.InterApplicationBus.publish(requestTopic, request);
+
+        console.log(`[LOADING_LAYOUT] ✅ Props published to IAB`);
       };
 
       // Handle ready signal from dialog - MUST be subscribed BEFORE window creation
       const handleReady = (message: any, identity: any) => {
+        console.log(`[LOADING_LAYOUT] 📥 handleReady CALLED`);
+        console.log(`[LOADING_LAYOUT] Message received:`, JSON.stringify(message, null, 2));
+        console.log(`[LOADING_LAYOUT] Identity:`, identity);
+        console.log(`[LOADING_LAYOUT] dialogType match? ${message.dialogType} === ${dialogType}: ${message.dialogType === dialogType}`);
+        console.log(`[LOADING_LAYOUT] propsSent? ${propsSent}`);
+
         if (message.dialogType === dialogType && !propsSent) {
-          console.log(`[DialogManager] Dialog ready signal received`);
+          console.log(`[LOADING_LAYOUT] ✅ Ready signal ACCEPTED - sending props`);
           propsSent = true;
 
           if (readyUnsubscribe) {
+            console.log(`[LOADING_LAYOUT] Unsubscribing from ready signal`);
             readyUnsubscribe();
             readyUnsubscribe = null;
           }
 
           // Send props immediately
           sendProps();
+        } else {
+          console.warn(`[LOADING_LAYOUT] ⚠️ Ready signal IGNORED - dialogType: ${message.dialogType}, propsSent: ${propsSent}`);
         }
       };
+
+      console.log(`[LOADING_LAYOUT] About to subscribe to stern.dialog.ready`);
 
       // Subscribe to ready signal BEFORE creating window to ensure we don't miss it
       fin.InterApplicationBus.subscribe(
@@ -112,7 +134,10 @@ export async function openDialog<TProps = any, TResult = any>(
         handleReady
       );
 
+      console.log(`[LOADING_LAYOUT] ✅ Subscribed to stern.dialog.ready`);
+
       readyUnsubscribe = () => {
+        console.log(`[LOADING_LAYOUT] readyUnsubscribe called`);
         fin.InterApplicationBus.unsubscribe(
           { uuid: '*' },
           'stern.dialog.ready',
@@ -167,34 +192,53 @@ export async function openDialog<TProps = any, TResult = any>(
         }
       };
 
+      console.log(`[LOADING_LAYOUT] About to create OpenFin window`);
+      console.log(`[LOADING_LAYOUT] Window options:`, windowOptions);
+
       // NOW create the OpenFin window (after subscriptions are set up)
       const dialogWindow = await fin.Window.create(windowOptions);
 
-      console.log(`[DialogManager] Window created:`, dialogId);
+      console.log(`[LOADING_LAYOUT] ✅ OpenFin window created - dialogId: ${dialogId}`);
 
       // Handle window close event
       dialogWindow.on('closed', () => {
+        console.log(`[LOADING_LAYOUT] Window closed event fired`);
         if (!resolved) {
           resolved = true;
-          console.log(`[DialogManager] Dialog window closed without result`);
+          console.log(`[LOADING_LAYOUT] Dialog window closed without result - resolving with null`);
           cleanup();
           resolve(null);
+        } else {
+          console.log(`[LOADING_LAYOUT] Dialog already resolved, ignoring close event`);
         }
       });
+
+      console.log(`[LOADING_LAYOUT] Setting up 200ms fallback timeout`);
 
       // Fallback: send props after a short delay if no ready signal
       // Reduced from 1000ms to 200ms for faster loading
       setTimeout(() => {
+        console.log(`[LOADING_LAYOUT] ⏰ Fallback timeout fired (200ms elapsed)`);
+        console.log(`[LOADING_LAYOUT] propsSent: ${propsSent}`);
+
         if (readyUnsubscribe) {
+          console.log(`[LOADING_LAYOUT] Cleaning up ready signal subscription`);
           readyUnsubscribe();
           readyUnsubscribe = null;
         }
+
         if (!propsSent) {
-          console.log(`[DialogManager] Fallback timeout reached, sending props`);
+          console.log(`[LOADING_LAYOUT] ⚠️ No ready signal received - using fallback to send props`);
           propsSent = true;
           sendProps();
+        } else {
+          console.log(`[LOADING_LAYOUT] Props already sent via ready signal - fallback not needed`);
         }
+
+        console.log(`[LOADING_LAYOUT] Fallback timeout complete`);
       }, 200);
+
+      console.log(`[LOADING_LAYOUT] ========== DialogManager openDialog SETUP COMPLETE ==========`);
     });
   } catch (error) {
     console.error(`[DialogManager] Error opening dialog:`, error);
