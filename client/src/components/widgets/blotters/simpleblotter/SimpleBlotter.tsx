@@ -165,6 +165,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // Track config loaded state in ref
   const isConfigLoadedRef = useRef(false);
 
+  // Track manage layouts dialog open state (prevent multiple instances)
+  const isManageDialogOpenRef = useRef(false);
+
   // Keep refs up to date
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -740,6 +743,12 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
    * Opens in OpenFin window if available, otherwise falls back to inline dialog
    */
   const handleManageLayouts = useCallback(async () => {
+    // Prevent multiple instances of the manage layouts dialog
+    if (isManageDialogOpenRef.current) {
+      logger.warn('Layout Management dialog is already open', null, 'SimpleBlotter');
+      return;
+    }
+
     if (!isOpenFin()) {
       // Fallback to inline dialog for browser mode
       layoutManager.setIsManageDialogOpen(true);
@@ -750,6 +759,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       logger.error('Cannot open manage layouts: blotter config not loaded', null, 'SimpleBlotter');
       return;
     }
+
+    // Mark dialog as open
+    isManageDialogOpenRef.current = true;
 
     try {
       // Open dialog in OpenFin window
@@ -812,6 +824,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
       logger.info('Manage layouts dialog closed', result, 'SimpleBlotter');
     } catch (error) {
       logger.error('Failed to open manage layouts dialog', error, 'SimpleBlotter');
+    } finally {
+      // Reset flag when dialog closes (success or error)
+      isManageDialogOpenRef.current = false;
     }
   }, [layoutManager]);
 
