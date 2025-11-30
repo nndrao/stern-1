@@ -5,7 +5,7 @@
  * Direct MessagePort communication - no adapter layer needed.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { GetRowIdParams } from 'ag-grid-community';
 import { UseDataProviderAdapterResult, AdapterOptions } from './adapters/types';
 import { getRowIdFromConfig, useProviderConfig } from './utils';
@@ -283,8 +283,10 @@ export function useDataProviderAdapter(
     });
   }, [providerId]);
 
-  // Return API - individual values, no useMemo wrapper
-  return {
+  // Return API - MUST be memoized to prevent infinite re-renders
+  // Without useMemo, this creates a new object on every render, causing components
+  // that use this hook to re-render infinitely
+  return useMemo(() => ({
     isConnected,
     isLoading: isLoading || isConfigLoading,
     isConfigLoaded: !!config && !isConfigLoading,
@@ -299,5 +301,22 @@ export function useDataProviderAdapter(
     setOnUpdate,
     setOnSnapshotComplete,
     setOnError
-  };
+  }), [
+    isConnected,
+    isLoading,
+    isConfigLoading,
+    config,
+    configError,
+    error,
+    snapshotData,
+    statistics,
+    getRowId,
+    connect,
+    disconnect,
+    requestSnapshot,
+    setOnSnapshot,
+    setOnUpdate,
+    setOnSnapshotComplete,
+    setOnError
+  ]);
 }
