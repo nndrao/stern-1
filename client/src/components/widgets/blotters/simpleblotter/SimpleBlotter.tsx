@@ -109,8 +109,6 @@ const createColumnDefs = (columnsData: any[]): ColDef[] => {
 // ============================================================================
 
 export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError, blotterType = BLOTTER_TYPES.DEFAULT }) => {
-  console.log('[SimpleBlotter] RENDER - Component is rendering');
-
   // Listen to OpenFin dock theme changes and sync with DOM
   useOpenfinTheme();
 
@@ -183,15 +181,20 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // Layout Manager
   // ============================================================================
 
+  // CRITICAL: Memoize toolbarState to prevent infinite re-renders
+  // Without this, a new object is created on every render, causing useBlotterLayoutManager
+  // to return a new layoutManager object, which causes SimpleBlotter to re-render
+  const toolbarState = useMemo(() => ({
+    isCollapsed: isToolbarCollapsed,
+    isPinned: isToolbarPinned,
+  }), [isToolbarCollapsed, isToolbarPinned]);
+
   const layoutManager = useBlotterLayoutManager({
     blotterConfigId: viewInstanceId,
     userId,
     blotterName: 'SimpleBlotter',
     gridApi: gridApiRef.current,
-    toolbarState: {
-      isCollapsed: isToolbarCollapsed,
-      isPinned: isToolbarPinned,
-    },
+    toolbarState,
     selectedProviderId: selectedProviderId ?? undefined,
   });
 
