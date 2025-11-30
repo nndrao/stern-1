@@ -704,7 +704,9 @@ export function useBlotterLayoutManager({
   // Return
   // ============================================================================
 
-  return {
+  // CRITICAL: Memoize the return object to prevent infinite re-renders
+  // Without this, every render creates a new object, triggering effects that depend on layoutManager
+  return useMemo(() => ({
     // State
     selectedLayoutId,
     selectedLayout,
@@ -739,7 +741,33 @@ export function useBlotterLayoutManager({
 
     // Callback registration
     registerApplyCallbacks,
-  };
+  }), [
+    selectedLayoutId,
+    selectedLayout,
+    layouts,
+    defaultLayoutId,
+    blotterConfig,
+    blotterUnified,
+    isLoading,
+    isSaving,
+    isSaveDialogOpen,
+    isManageDialogOpen,
+    setIsSaveDialogOpen,
+    setIsManageDialogOpen,
+    initializeBlotter,
+    selectLayout,
+    saveCurrentLayout,
+    saveAsNewLayout,
+    renameLayout,
+    handleDeleteLayout,
+    handleDuplicateLayout,
+    handleSetDefaultLayout,
+    handleUpdateComponentSubType,
+    captureGridState,
+    applyLayoutToGrid,
+    resetGridState,
+    registerApplyCallbacks,
+  ]);
 }
 
 export default useBlotterLayoutManager;
