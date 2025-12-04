@@ -1,5 +1,5 @@
 /**
- * STOMP Datasource Provider
+ * STOMP Data Provider
  * Based on AGV3 implementation with field inference capabilities
  *
  * Features:
@@ -47,7 +47,7 @@ export interface StompStatistics {
   mode: 'idle' | 'snapshot' | 'realtime';
 }
 
-export class StompDatasourceProvider extends EventEmitter {
+export class StompDataProvider extends EventEmitter {
   private client: Client | null = null;
   private config: StompConnectionConfig | null = null;
   private isConnected = false;

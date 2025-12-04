@@ -184,7 +184,7 @@ export class DataProviderConfigService {
       // Filter by componentType case-insensitively to handle legacy data
       const dataProviderConfigs = response.data.filter(config => {
         const type = config.componentType?.toLowerCase();
-        return type === 'data-provider' || type === 'dataprovider';
+        return type === 'data-provider' || type === 'dataprovider' || type === 'datasource';
       });
 
       // Map to DataProviderConfig format

@@ -68,13 +68,13 @@ export function ConnectionTab({
                 <div className="space-y-3">
                   <div>
                     <Label htmlFor="datasource-name" className="text-xs font-normal text-foreground mb-1.5">
-                      Datasource Name *
+                      Data Provider Name *
                     </Label>
                     <Input
                       id="datasource-name"
                       value={name}
                       onChange={(e) => onNameChange(e.target.value)}
-                      placeholder="Enter datasource name"
+                      placeholder="Enter data provider name"
                       className="mt-1 h-8 text-xs bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -127,7 +127,7 @@ export function ConnectionTab({
                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Template Variables</Label>
                     <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
                       <div><code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">[variable]</code> - Replaced with variable-UUID</div>
-                      <div><code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">{`{datasource.variable}`}</code> - Replaced with datasource value</div>
+                      <div><code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">{`{dataprovider.variable}`}</code> - Replaced with data provider value</div>
                     </div>
                     <p className="mt-1.5 text-xs text-muted-foreground">
                       Example: <code className="bg-background px-1 py-0.5 rounded text-blue-400 text-xs">{`{AppVariables.ds.Environment}`}</code> → production

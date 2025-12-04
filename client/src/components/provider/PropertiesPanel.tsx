@@ -1,9 +1,10 @@
 /**
  * Properties Panel Component
  * Displays and edits properties of selected menu items
+ * SIMPLE: Local state + update parent only on blur
  */
 
-import React from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildUrl } from '@/openfin/utils';
 import { RefreshCw, Image } from 'lucide-react';
+import { logger } from '@/utils/logger';
 
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
@@ -28,30 +30,54 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onUpdate,
   onIconSelect
 }) => {
-  const generateId = () => {
-    const id = `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    onUpdate({ id });
-  };
+  // Local state for text inputs - only updates parent on blur
+  const [localCaption, setLocalCaption] = useState(item.caption);
+  const [localId, setLocalId] = useState(item.id);
+  const [localUrl, setLocalUrl] = useState(item.url || '');
+  const [localIcon, setLocalIcon] = useState(item.icon || '');
+  const [localOrder, setLocalOrder] = useState(item.order);
 
-  const handleWindowOptionChange = (key: string, value: any) => {
+  // Sync local state when item ID changes (different node selected)
+  useEffect(() => {
+    setLocalCaption(item.caption);
+    setLocalId(item.id);
+    setLocalUrl(item.url || '');
+    setLocalIcon(item.icon || '');
+    setLocalOrder(item.order);
+  }, [item.id]);
+
+  // Generate unique ID
+  const generateId = useCallback(() => {
+    const id = `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setLocalId(id);
+    onUpdate({ id });
+  }, [onUpdate]);
+
+  // Handle window option changes (immediate update for switches/selects)
+  const handleWindowOptionChange = useCallback((key: string, value: any) => {
     onUpdate({
       windowOptions: {
         ...item.windowOptions,
         [key]: value
       }
     });
-  };
+  }, [item.windowOptions, onUpdate]);
 
-  const handleViewOptionChange = (key: string, value: any) => {
+  // Handle view option changes (immediate update for switches/selects)
+  const handleViewOptionChange = useCallback((key: string, value: any) => {
     onUpdate({
       viewOptions: {
         ...item.viewOptions,
         [key]: value
       }
     });
-  };
+  }, [item.viewOptions, onUpdate]);
 
-  const fullUrl = item.url ? buildUrl(item.url) : '';
+  // Memoize full URL construction
+  const fullUrl = useMemo(() =>
+    item.url ? buildUrl(item.url) : '',
+    [item.url]
+  );
 
   return (
     <Card className="h-full">
@@ -79,8 +105,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <Label htmlFor="caption">Caption *</Label>
               <Input
                 id="caption"
-                value={item.caption}
-                onChange={(e) => onUpdate({ caption: e.target.value })}
+                value={localCaption}
+                onChange={(e) => setLocalCaption(e.target.value)}
+                onBlur={() => onUpdate({ caption: localCaption })}
                 placeholder="Menu item text"
                 required
               />
@@ -92,8 +119,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <div className="flex gap-2">
                 <Input
                   id="id"
-                  value={item.id}
-                  onChange={(e) => onUpdate({ id: e.target.value })}
+                  value={localId}
+                  onChange={(e) => setLocalId(e.target.value)}
+                  onBlur={() => onUpdate({ id: localId })}
                   placeholder="Unique identifier"
                   required
                 />
@@ -113,8 +141,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <Label htmlFor="url">Component URL</Label>
               <Input
                 id="url"
-                value={item.url}
-                onChange={(e) => onUpdate({ url: e.target.value })}
+                value={localUrl}
+                onChange={(e) => setLocalUrl(e.target.value)}
+                onBlur={() => onUpdate({ url: localUrl })}
                 placeholder="/data-grid, /watchlist, etc."
                 disabled={item.children && item.children.length > 0}
               />
@@ -149,14 +178,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <div className="flex gap-2">
                 <Input
                   id="icon"
-                  value={item.icon || ''}
-                  onChange={(e) => onUpdate({ icon: e.target.value })}
+                  value={localIcon}
+                  onChange={(e) => setLocalIcon(e.target.value)}
+                  onBlur={() => onUpdate({ icon: localIcon })}
                   placeholder="/icons/app.svg"
                 />
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => onIconSelect((icon) => onUpdate({ icon }))}
+                  onClick={() => onIconSelect((icon) => {
+                    setLocalIcon(icon);
+                    onUpdate({ icon });
+                  })}
                   title="Select Icon"
                 >
                   <Image className="h-4 w-4" />
@@ -170,8 +203,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <Input
                 id="order"
                 type="number"
-                value={item.order}
-                onChange={(e) => onUpdate({ order: parseInt(e.target.value) || 0 })}
+                value={localOrder}
+                onChange={(e) => setLocalOrder(parseInt(e.target.value) || 0)}
+                onBlur={() => onUpdate({ order: localOrder })}
                 min="0"
               />
             </div>

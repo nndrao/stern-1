@@ -91,7 +91,7 @@ export const TopTabBar: React.FC<TopTabBarProps> = ({
     <div className="flex items-center justify-between h-10 px-3 bg-muted/30 border-b border-border">
       {/* Left: App Title */}
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-foreground">Stern Platform</span>
+        <span className="text-sm font-semibold text-foreground">STAR Platform</span>
         <span className="text-xs text-muted-foreground">v1.0.0</span>
       </div>
 

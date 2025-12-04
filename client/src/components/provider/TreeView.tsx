@@ -1,9 +1,10 @@
 /**
  * Tree View Component
  * Displays menu items in a hierarchical tree structure
+ * PERFORMANCE OPTIMIZED: Uses React.memo to prevent unnecessary re-renders
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -54,7 +55,8 @@ interface TreeNodeProps {
   onDuplicate: () => void;
 }
 
-const TreeNode: React.FC<TreeNodeProps> = ({
+// PERFORMANCE FIX: Memoize TreeNode to prevent re-renders when props haven't changed
+const TreeNode = React.memo<TreeNodeProps>(({
   item,
   level,
   isSelected,
@@ -190,7 +192,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       </ContextMenu>
     </div>
   );
-};
+});
 
 export const TreeView: React.FC<TreeViewProps> = ({
   items,
@@ -216,10 +218,57 @@ export const TreeView: React.FC<TreeViewProps> = ({
     });
   }, []);
 
-  const renderTree = (items: DockMenuItem[], level = 0): React.ReactNode[] => {
+  // PERFORMANCE FIX: Create stable callbacks using a Map to avoid recreating on every render
+  const nodeCallbacks = useMemo(() => {
+    const callbacks = new Map<string, {
+      onToggle: () => void;
+      onSelect: () => void;
+      onUpdate: (updates: Partial<DockMenuItem>) => void;
+      onAdd: () => void;
+      onDelete: () => void;
+      onDuplicate: () => void;
+    }>();
+
+    const createCallbacks = (itemId: string) => {
+      if (!callbacks.has(itemId)) {
+        callbacks.set(itemId, {
+          onToggle: () => toggleExpanded(itemId),
+          onSelect: () => {
+            if (selectedId === itemId) {
+              onSelect?.(null);
+            } else {
+              // Find the item to pass to onSelect
+              const findItem = (items: DockMenuItem[]): DockMenuItem | null => {
+                for (const item of items) {
+                  if (item.id === itemId) return item;
+                  if (item.children) {
+                    const found = findItem(item.children);
+                    if (found) return found;
+                  }
+                }
+                return null;
+              };
+              const item = findItem(items);
+              if (item) onSelect?.(item);
+            }
+          },
+          onUpdate: (updates) => onUpdate?.(itemId, updates),
+          onAdd: () => onAdd?.(itemId),
+          onDelete: () => onDelete?.(itemId),
+          onDuplicate: () => onDuplicate?.(itemId),
+        });
+      }
+      return callbacks.get(itemId)!;
+    };
+
+    return createCallbacks;
+  }, [items, selectedId, onSelect, onUpdate, onAdd, onDelete, onDuplicate, toggleExpanded]);
+
+  const renderTree = useCallback((items: DockMenuItem[], level = 0): React.ReactNode[] => {
     return items.map(item => {
       const isExpanded = expandedIds.has(item.id);
       const isSelected = selectedId === item.id;
+      const callbacks = nodeCallbacks(item.id);
 
       return (
         <React.Fragment key={item.id}>
@@ -228,26 +277,19 @@ export const TreeView: React.FC<TreeViewProps> = ({
             level={level}
             isSelected={isSelected}
             isExpanded={isExpanded}
-            onToggle={() => toggleExpanded(item.id)}
-            onSelect={() => {
-              // Toggle selection: clicking selected item deselects it
-              if (selectedId === item.id) {
-                onSelect?.(null);
-              } else {
-                onSelect?.(item);
-              }
-            }}
-            onReorder={(sourceId, targetId, position) => onReorder?.(sourceId, targetId, position)}
-            onUpdate={(updates) => onUpdate?.(item.id, updates)}
-            onAdd={() => onAdd?.(item.id)}
-            onDelete={() => onDelete?.(item.id)}
-            onDuplicate={() => onDuplicate?.(item.id)}
+            onToggle={callbacks.onToggle}
+            onSelect={callbacks.onSelect}
+            onReorder={onReorder || (() => {})}
+            onUpdate={callbacks.onUpdate}
+            onAdd={callbacks.onAdd}
+            onDelete={callbacks.onDelete}
+            onDuplicate={callbacks.onDuplicate}
           />
           {isExpanded && item.children && renderTree(item.children, level + 1)}
         </React.Fragment>
       );
     });
-  };
+  }, [expandedIds, selectedId, nodeCallbacks, onReorder]);
 
   // Handle click on empty area to deselect
   const handleBackgroundClick = useCallback((e: React.MouseEvent) => {

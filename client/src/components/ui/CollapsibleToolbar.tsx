@@ -178,9 +178,9 @@ export const CollapsibleToolbar: React.FC<CollapsibleToolbarProps> = ({
       {/* Toolbar content (slides down when expanded) */}
       <div
         className={`
-          border-b-2 ${styles.border}
           transition-all duration-300 ease-in-out
           overflow-hidden
+          bg-background
         `}
         style={{
           maxHeight: showContent ? '500px' : '0px',

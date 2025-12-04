@@ -5,7 +5,27 @@
     <link rel="icon" type="image/png" href="/crystal-icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/crystal-icon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stern Trading Platform</title>
+    <title>STAR Trading Platform</title>
+    <style>
+      /* Prevent white flash on load by setting default dark background */
+      html,
+      body {
+        background-color: hsl(222.2 84% 4.9%); /* Tailwind dark background */
+        color: hsl(210 40% 98%); /* Tailwind dark foreground */
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+      /* Light mode override - matches Tailwind's default */
+      html.light,
+      html.light body {
+        background-color: hsl(0 0% 100%);
+        color: hsl(222.2 84% 4.9%);
+      }
+      #root {
+        height: 100%;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

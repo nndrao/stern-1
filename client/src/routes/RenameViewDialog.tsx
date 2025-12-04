@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useOpenfinTheme } from '@stern/openfin-platform';
 import { logger } from '@/utils/logger';
 
 /**
@@ -12,6 +13,9 @@ import { logger } from '@/utils/logger';
  * Query parameters are used to pass the current view name to the dialog.
  */
 export default function RenameViewDialogPage() {
+  // Listen to OpenFin dock theme changes
+  useOpenfinTheme();
+
   const [newName, setNewName] = useState('');
   const [currentName, setCurrentName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

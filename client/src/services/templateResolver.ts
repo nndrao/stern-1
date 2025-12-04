@@ -4,7 +4,7 @@
  *
  * Supports two types of templates:
  * 1. [variable] - replaced with variable-UUID (session-consistent)
- * 2. {datasource.variable} - replaced with value from datasource (e.g., AppVariables)
+ * 2. {dataprovider.variable} - replaced with value from data provider (e.g., AppVariables)
  *
  * Based on AGV3 implementation
  */
@@ -41,7 +41,7 @@ export class TemplateResolver {
    * resolveTemplate("[client-id]", sessionId) → "client-id-abc123..."
    * resolveTemplate("[client-id]", sessionId) → "client-id-abc123..." (same UUID!)
    *
-   * // Datasource variables
+   * // Data provider variables
    * resolveTemplate("{AppVariables.ds.Environment}") → "production"
    */
   resolveTemplate(template: string, sessionId?: string): string {
@@ -50,7 +50,7 @@ export class TemplateResolver {
     // First resolve square brackets (UUID variables)
     let resolved = this.resolveSquareBrackets(template, sessionId);
 
-    // Then resolve curly brackets (datasource variables)
+    // Then resolve curly brackets (data provider variables)
     resolved = this.resolveCurlyBrackets(resolved);
 
     return resolved;
@@ -89,12 +89,12 @@ export class TemplateResolver {
   }
 
   /**
-   * Resolve curly bracket variables: {datasource.variable} → value
+   * Resolve curly bracket variables: {dataprovider.variable} → value
    *
-   * Looks up values from datasources like AppVariables.
-   * Path format: {datasourceName.variableName} or {datasourceName.nested.path}
+   * Looks up values from Data Providers like AppVariables.
+   * Path format: {dataproviderName.variableName} or {dataproviderName.nested.path}
    *
-   * @param template String containing {datasource.variable} patterns
+   * @param template String containing {dataprovider.variable} patterns
    * @returns Resolved string
    *
    * @example

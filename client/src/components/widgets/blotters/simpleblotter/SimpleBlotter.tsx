@@ -20,6 +20,7 @@ import { ModuleRegistry } from 'ag-grid-community';
 import { AllEnterpriseModule } from 'ag-grid-enterprise';
 import { sternAgGridTheme } from '@/utils/grid/agGridTheme';
 import { useAgGridTheme } from '@/hooks/ui/useAgGridTheme';
+import { useOpenfinTheme } from '@stern/openfin-platform';
 import { useSternPlatform } from '@/providers/SternPlatformProvider';
 import { getViewInstanceId, getActiveLayoutId, getViewCustomData } from '@/openfin/utils/viewUtils';
 import { useDataProviderAdapter } from '@/hooks/data-provider';
@@ -31,6 +32,8 @@ import { LayoutSaveDialog } from './LayoutSaveDialog';
 import { LayoutManageDialog } from './LayoutManageDialog';
 import { useBlotterLayoutManager } from './useBlotterLayoutManager';
 import { COMPONENT_TYPES } from '@stern/shared-types';
+import { isOpenFin } from '@stern/openfin-platform';
+import { DIALOG_TYPES, DIALOG_CONFIGS } from '@/config/dialogConfig';
 import { logger } from '@/utils/logger';
 import { BlotterType, BLOTTER_TYPES } from '@/types/blotter';
 
@@ -106,6 +109,9 @@ const createColumnDefs = (columnsData: any[]): ColDef[] => {
 // ============================================================================
 
 export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError, blotterType = BLOTTER_TYPES.DEFAULT }) => {
+  // Listen to OpenFin dock theme changes and sync with DOM
+  useOpenfinTheme();
+
   // Sync AG Grid theme with application theme
   useAgGridTheme();
 
@@ -149,6 +155,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   const gridReadyRef = useRef(false);
   const loadStartTimeRef = useRef<number | null>(null);
 
+  // Track received row keys for deduplication (safety net against double-delivery)
+  const receivedRowKeysRef = useRef<Set<string>>(new Set());
+
   // Store callback props in refs to avoid dependency issues
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
@@ -158,6 +167,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
 
   // Track config loaded state in ref
   const isConfigLoadedRef = useRef(false);
+
+  // Track manage layouts dialog open state (prevent multiple instances)
+  const isManageDialogOpenRef = useRef(false);
 
   // Keep refs up to date
   useEffect(() => {
@@ -172,15 +184,20 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   // Layout Manager
   // ============================================================================
 
+  // CRITICAL: Memoize toolbarState to prevent infinite re-renders
+  // Without this, a new object is created on every render, causing useBlotterLayoutManager
+  // to return a new layoutManager object, which causes SimpleBlotter to re-render
+  const toolbarState = useMemo(() => ({
+    isCollapsed: isToolbarCollapsed,
+    isPinned: isToolbarPinned,
+  }), [isToolbarCollapsed, isToolbarPinned]);
+
   const layoutManager = useBlotterLayoutManager({
     blotterConfigId: viewInstanceId,
     userId,
     blotterName: 'SimpleBlotter',
     gridApi: gridApiRef.current,
-    toolbarState: {
-      isCollapsed: isToolbarCollapsed,
-      isPinned: isToolbarPinned,
-    },
+    toolbarState,
     selectedProviderId: selectedProviderId ?? undefined,
   });
 
@@ -487,8 +504,28 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         alreadyLoaded: snapshotLoadedRef.current
       }, 'SimpleBlotter');
 
-      // Accumulate snapshot batches
-      snapshotRowsRef.current.push(...rows);
+      // Deduplicate rows based on key column (safety net against double-delivery)
+      const keyColumn = currentAdapter.config?.config?.keyColumn || 'id';
+      const uniqueRows = rows.filter(row => {
+        const key = String(row[keyColumn]);
+        if (receivedRowKeysRef.current.has(key)) {
+          return false; // Skip duplicate
+        }
+        receivedRowKeysRef.current.add(key);
+        return true;
+      });
+
+      if (uniqueRows.length !== rows.length) {
+        logger.warn('Duplicates detected and filtered', {
+          original: rows.length,
+          unique: uniqueRows.length,
+          duplicates: rows.length - uniqueRows.length,
+          keyColumn
+        }, 'SimpleBlotter');
+      }
+
+      // Accumulate deduplicated snapshot batches
+      snapshotRowsRef.current.push(...uniqueRows);
 
       // Load on first non-empty batch if grid is ready
       // This handles both cached snapshots AND live streaming snapshots
@@ -574,6 +611,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     setUpdateCount(0); // Reset update counter on new connection
     snapshotLoadedRef.current = false;
     snapshotRowsRef.current = [];
+    receivedRowKeysRef.current.clear(); // Clear deduplication tracking on reconnect
 
     currentAdapter.connect();
 
@@ -726,6 +764,171 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   }, []);
 
   // ============================================================================
+  // Dialog Handlers
+  // ============================================================================
+
+  /**
+   * Handle opening the Manage Layouts dialog
+   * Opens in OpenFin window if available, otherwise falls back to inline dialog
+   */
+  const handleManageLayouts = useCallback(async () => {
+    // Prevent multiple instances of the manage layouts dialog
+    if (isManageDialogOpenRef.current) {
+      logger.warn('Layout Management dialog is already open', null, 'SimpleBlotter');
+      return;
+    }
+
+    if (!isOpenFin()) {
+      // Fallback to inline dialog for browser mode
+      layoutManager.setIsManageDialogOpen(true);
+      return;
+    }
+
+    if (!layoutManager.blotterUnified) {
+      logger.error('Cannot open manage layouts: blotter config not loaded', null, 'SimpleBlotter');
+      return;
+    }
+
+    // Mark dialog as open
+    isManageDialogOpenRef.current = true;
+
+    try {
+      const requestTopic = `stern.dialog.${DIALOG_TYPES.MANAGE_LAYOUTS}.request`;
+      const responseTopic = `stern.dialog.${DIALOG_TYPES.MANAGE_LAYOUTS}.response`;
+      const actionTopic = `stern.dialog.${DIALOG_TYPES.MANAGE_LAYOUTS}.action`;
+
+      // Subscribe to data requests from dialog
+      const handleDataRequest = (message: any) => {
+        logger.info('[ManageLayouts] Dialog requesting data', message, 'SimpleBlotter');
+
+        // Send data to dialog
+        fin.InterApplicationBus.publish(responseTopic, {
+          data: {
+            layouts: layoutManager.layouts,
+            defaultLayoutId: layoutManager.defaultLayoutId,
+            blotterConfigId: layoutManager.blotterUnified!.configId,
+            componentType: layoutManager.blotterUnified!.componentType,
+            componentSubType: layoutManager.blotterUnified!.componentSubType,
+          },
+        });
+
+        logger.info('[ManageLayouts] Data sent to dialog', undefined, 'SimpleBlotter');
+      };
+
+      // Subscribe to actions from dialog
+      const handleAction = async (message: any) => {
+        const { action, payload } = message;
+        logger.info('Manage layouts action received', { action, payload }, 'SimpleBlotter');
+
+        switch (action) {
+          case 'setDefault':
+            if (payload?.layoutId) {
+              await layoutManager.setDefaultLayout(payload.layoutId);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'delete':
+            if (payload?.layoutId) {
+              await layoutManager.deleteLayout(payload.layoutId);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'rename':
+            if (payload?.layoutId && payload?.newName) {
+              await layoutManager.renameLayout(payload.layoutId, payload.newName);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'duplicate':
+            if (payload?.layoutId && payload?.newName) {
+              await layoutManager.duplicateLayout(payload.layoutId, payload.newName);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'updateSubType':
+            if (payload?.newSubType !== undefined) {
+              await layoutManager.updateComponentSubType(payload.newSubType);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'close':
+            // Dialog is closing, cleanup
+            logger.info('[ManageLayouts] Dialog closed by user', undefined, 'SimpleBlotter');
+            break;
+
+          default:
+            logger.warn('Unknown manage layouts action', action, 'SimpleBlotter');
+        }
+      };
+
+      // Helper to send updated data to dialog after actions
+      const sendUpdatedDataToDialog = () => {
+        fin.InterApplicationBus.publish(responseTopic, {
+          data: {
+            layouts: layoutManager.layouts,
+            defaultLayoutId: layoutManager.defaultLayoutId,
+            blotterConfigId: layoutManager.blotterUnified!.configId,
+            componentType: layoutManager.blotterUnified!.componentType,
+            componentSubType: layoutManager.blotterUnified!.componentSubType,
+          },
+        });
+        logger.info('[ManageLayouts] Updated data sent to dialog', undefined, 'SimpleBlotter');
+      };
+
+      // Subscribe to both topics
+      fin.InterApplicationBus.subscribe({ uuid: '*' }, requestTopic, handleDataRequest);
+      fin.InterApplicationBus.subscribe({ uuid: '*' }, actionTopic, handleAction);
+
+      logger.info('[ManageLayouts] Subscribed to IAB topics', { requestTopic, actionTopic }, 'SimpleBlotter');
+
+      // Create the dialog window
+      const dialogConfig = DIALOG_CONFIGS[DIALOG_TYPES.MANAGE_LAYOUTS];
+      const window = await fin.Window.create({
+        name: `dialog-${DIALOG_TYPES.MANAGE_LAYOUTS}-${Date.now()}`,
+        url: `http://localhost:5173/dialogs/manage-layouts`,
+        defaultWidth: dialogConfig.width,
+        defaultHeight: dialogConfig.height,
+        frame: dialogConfig.frame,
+        resizable: dialogConfig.resizable,
+        alwaysOnTop: dialogConfig.alwaysOnTop,
+        defaultCentered: dialogConfig.center,
+        autoShow: true,
+      });
+
+      logger.info('[ManageLayouts] Dialog window created', undefined, 'SimpleBlotter');
+
+      // Wait for window to close
+      await new Promise<void>((resolve) => {
+        window.once('closed', () => {
+          logger.info('[ManageLayouts] Dialog window closed', undefined, 'SimpleBlotter');
+          resolve();
+        });
+      });
+
+      // Cleanup subscriptions
+      fin.InterApplicationBus.unsubscribe({ uuid: '*' }, requestTopic, handleDataRequest);
+      fin.InterApplicationBus.unsubscribe({ uuid: '*' }, actionTopic, handleAction);
+
+      logger.info('[ManageLayouts] Unsubscribed from IAB topics', undefined, 'SimpleBlotter');
+    } catch (error) {
+      logger.error('Failed to open manage layouts dialog', error, 'SimpleBlotter');
+    } finally {
+      // Reset flag when dialog closes (success or error)
+      isManageDialogOpenRef.current = false;
+    }
+  }, [layoutManager]);
+
+  // ============================================================================
   // Render
   // ============================================================================
 
@@ -756,7 +959,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
           onLayoutSelect={layoutManager.selectLayout}
           onSaveLayout={layoutManager.saveCurrentLayout}
           onSaveAsNew={() => layoutManager.setIsSaveDialogOpen(true)}
-          onManageLayouts={() => layoutManager.setIsManageDialogOpen(true)}
+          onManageLayouts={handleManageLayouts}
           // Debug props (for troubleshooting customData persistence)
           debugConfigId={viewInstanceId}
           debugActiveLayoutId={debugActiveLayoutId}
@@ -774,25 +977,27 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         defaultName={`Layout ${layoutManager.layouts.length + 1}`}
       />
 
-      {/* Layout Manage Dialog */}
-      <LayoutManageDialog
-        open={layoutManager.isManageDialogOpen}
-        onClose={() => layoutManager.setIsManageDialogOpen(false)}
-        layouts={layoutManager.layouts}
-        defaultLayoutId={layoutManager.defaultLayoutId}
-        selectedLayoutId={layoutManager.selectedLayoutId ?? undefined}
-        blotterInfo={layoutManager.blotterUnified ? {
-          configId: layoutManager.blotterUnified.configId,
-          componentType: layoutManager.blotterUnified.componentType,
-          componentSubType: layoutManager.blotterUnified.componentSubType,
-        } : undefined}
-        onRename={layoutManager.renameLayout}
-        onDelete={layoutManager.deleteLayout}
-        onDuplicate={layoutManager.duplicateLayout}
-        onSetDefault={layoutManager.setDefaultLayout}
-        onSelect={layoutManager.selectLayout}
-        onSaveComponentSubType={layoutManager.updateComponentSubType}
-      />
+      {/* Layout Manage Dialog (Browser Fallback) */}
+      {!isOpenFin() && (
+        <LayoutManageDialog
+          open={layoutManager.isManageDialogOpen}
+          onClose={() => layoutManager.setIsManageDialogOpen(false)}
+          layouts={layoutManager.layouts}
+          defaultLayoutId={layoutManager.defaultLayoutId}
+          selectedLayoutId={layoutManager.selectedLayoutId ?? undefined}
+          blotterInfo={layoutManager.blotterUnified ? {
+            configId: layoutManager.blotterUnified.configId,
+            componentType: layoutManager.blotterUnified.componentType,
+            componentSubType: layoutManager.blotterUnified.componentSubType,
+          } : undefined}
+          onRename={layoutManager.renameLayout}
+          onDelete={layoutManager.deleteLayout}
+          onDuplicate={layoutManager.duplicateLayout}
+          onSetDefault={layoutManager.setDefaultLayout}
+          onSelect={layoutManager.selectLayout}
+          onSaveComponentSubType={layoutManager.updateComponentSubType}
+        />
+      )}
 
       {/* Grid */}
       <div className="flex-1">

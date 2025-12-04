@@ -24,6 +24,7 @@ export interface UseDataProviderAdapterResult {
   // Data
   snapshotData: any[];
   statistics: any;
+  config: any;  // Provider configuration (includes keyColumn, etc.)
 
   // AG-Grid integration
   getRowId: (params: GetRowIdParams) => string;

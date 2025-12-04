@@ -27,7 +27,7 @@ export interface StompProviderConfig extends ProviderConfig {
 
 // Worker message types
 export type WorkerRequestType = 'subscribe' | 'unsubscribe' | 'getSnapshot' | 'getStatus';
-export type WorkerResponseType = 'snapshot' | 'update' | 'status' | 'error' | 'subscribed' | 'unsubscribed';
+export type WorkerResponseType = 'snapshot' | 'update' | 'status' | 'error' | 'subscribed' | 'unsubscribed' | 'snapshot-complete';
 
 export interface WorkerRequest {
   type: WorkerRequestType;
@@ -68,4 +68,9 @@ export interface ProviderEngine {
   getCacheSize(): number;  // Get number of rows in cache
   getKeyColumn(): string;  // Get key column name used for caching
   getStatistics(): ProviderStatistics;
+
+  // Subscriber tracking methods (prevent double-delivery)
+  registerSubscriber(portId: string): void;
+  unregisterSubscriber(portId: string): void;
+  shouldSubscriberReceiveCachedSnapshot(portId: string): boolean;
 }

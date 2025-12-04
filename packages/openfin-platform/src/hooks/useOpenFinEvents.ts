@@ -32,7 +32,7 @@
  * ```
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useOpenFinWorkspace } from './useOpenfinWorkspace';
 import {
   OpenFinCustomEvents,
@@ -202,10 +202,10 @@ export function useOpenFinEvents(): UseOpenFinEventsReturn {
   }, [workspace]);
 
   /**
-   * OpenFin platform utilities
+   * OpenFin platform utilities - MEMOIZED to prevent re-renders
    * Provides clean access to common OpenFin platform/workspace functions
    */
-  const platform: OpenFinPlatformUtilities = {
+  const platform: OpenFinPlatformUtilities = useMemo(() => ({
     isOpenFin: workspace.isOpenFin,
     createWindow: workspace.createWindow,
     createView: workspace.createView,
@@ -215,11 +215,22 @@ export function useOpenFinEvents(): UseOpenFinEventsReturn {
     minimizeCurrentView: workspace.minimizeCurrentView,
     renameCurrentView: workspace.renameCurrentView,
     getCurrentViewInfo: workspace.getCurrentViewInfo,
-  };
+  }), [
+    workspace.isOpenFin,
+    workspace.createWindow,
+    workspace.createView,
+    workspace.getCurrentWindow,
+    workspace.closeCurrentView,
+    workspace.maximizeCurrentView,
+    workspace.minimizeCurrentView,
+    workspace.renameCurrentView,
+    workspace.getCurrentViewInfo,
+  ]);
 
-  return {
+  // CRITICAL: Return object MUST be memoized to prevent infinite re-renders
+  return useMemo(() => ({
     on,
     broadcast,
     platform,
-  };
+  }), [on, broadcast, platform]);
 }

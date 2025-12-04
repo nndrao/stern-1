@@ -30,7 +30,7 @@ function App() {
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-2xl mx-auto text-center">
           <h1 className="text-4xl font-bold tracking-tight text-foreground mb-6">
-            Stern Trading Platform
+            STAR Trading Platform
           </h1>
           <p className="text-xl text-muted-foreground mb-8">
             {isInOpenFin ? '🚀 Running in OpenFin' : '🌐 Running in Browser'}
