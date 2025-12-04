@@ -155,6 +155,9 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
   const gridReadyRef = useRef(false);
   const loadStartTimeRef = useRef<number | null>(null);
 
+  // Track received row keys for deduplication (safety net against double-delivery)
+  const receivedRowKeysRef = useRef<Set<string>>(new Set());
+
   // Store callback props in refs to avoid dependency issues
   const onReadyRef = useRef(onReady);
   const onErrorRef = useRef(onError);
@@ -501,8 +504,28 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
         alreadyLoaded: snapshotLoadedRef.current
       }, 'SimpleBlotter');
 
-      // Accumulate snapshot batches
-      snapshotRowsRef.current.push(...rows);
+      // Deduplicate rows based on key column (safety net against double-delivery)
+      const keyColumn = currentAdapter.config?.config?.keyColumn || 'id';
+      const uniqueRows = rows.filter(row => {
+        const key = String(row[keyColumn]);
+        if (receivedRowKeysRef.current.has(key)) {
+          return false; // Skip duplicate
+        }
+        receivedRowKeysRef.current.add(key);
+        return true;
+      });
+
+      if (uniqueRows.length !== rows.length) {
+        logger.warn('Duplicates detected and filtered', {
+          original: rows.length,
+          unique: uniqueRows.length,
+          duplicates: rows.length - uniqueRows.length,
+          keyColumn
+        }, 'SimpleBlotter');
+      }
+
+      // Accumulate deduplicated snapshot batches
+      snapshotRowsRef.current.push(...uniqueRows);
 
       // Load on first non-empty batch if grid is ready
       // This handles both cached snapshots AND live streaming snapshots
@@ -588,6 +611,7 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     setUpdateCount(0); // Reset update counter on new connection
     snapshotLoadedRef.current = false;
     snapshotRowsRef.current = [];
+    receivedRowKeysRef.current.clear(); // Clear deduplication tracking on reconnect
 
     currentAdapter.connect();
 

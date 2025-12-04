@@ -281,7 +281,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({ userId = SYSTEM_USER
                 onClick={handleSave}
                 disabled={createMutation.isPending || updateMutation.isPending || !provider.name.trim()}
               >
-                {createMutation.isPending || updateMutation.isPending ? 'Saving...' : (isEditMode ? 'Update Datasource' : 'Create Datasource')}
+                {createMutation.isPending || updateMutation.isPending ? 'Saving...' : (isEditMode ? 'Update Dataprovider' : 'Create Dataprovider')}
               </Button>
             </div>
           </div>

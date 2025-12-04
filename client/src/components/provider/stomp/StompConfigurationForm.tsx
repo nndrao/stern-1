@@ -684,7 +684,7 @@ export function StompConfigurationForm({ name, config, onChange, onNameChange, o
               Cancel
             </Button>
             <Button onClick={onSave} variant="default" size="sm" className="h-7 px-3 text-xs">
-              {isEditMode ? 'Update Datasource' : 'Create Datasource'}
+              {isEditMode ? 'Update Dataprovider' : 'Create Dataprovider'}
             </Button>
           </div>
         </div>

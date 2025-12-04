@@ -22,6 +22,12 @@ export class StompEngine implements ProviderEngine {
   private subscription: any = null;
   private clientId: string;
 
+  /**
+   * Track which subscribers are receiving the live snapshot
+   * This prevents double-delivery when subscribers auto-request getSnapshot
+   */
+  private subscribersReceivingLiveSnapshot = new Set<string>();
+
   constructor(
     providerId: string,
     config: StompProviderConfig,
@@ -230,6 +236,11 @@ export class StompEngine implements ProviderEngine {
     console.log(`[StompEngine] Snapshot complete: ${this.providerId} (${this.cacheManager.size()} rows)`);
     this.isSnapshotComplete = true;
     this.statistics.mode = 'realtime';
+
+    // All subscribers that received live snapshot data are now marked
+    // Late subscribers (who connect after this point) will need to request cached data
+    console.log(`[StompEngine] Subscribers who received live snapshot: ${Array.from(this.subscribersReceivingLiveSnapshot).join(', ')}`);
+
     this.broadcastStatus();
   }
 
@@ -266,6 +277,15 @@ export class StompEngine implements ProviderEngine {
    */
   private broadcastData(rows: any[]): void {
     const messageType = this.isSnapshotComplete ? 'update' : 'snapshot';
+
+    // During snapshot phase, track which subscribers are receiving live data
+    // This prevents them from auto-requesting the cached snapshot
+    if (!this.isSnapshotComplete) {
+      const currentSubscribers = this.broadcastManager.getSubscribers(this.providerId);
+      currentSubscribers.forEach(portId => {
+        this.subscribersReceivingLiveSnapshot.add(portId);
+      });
+    }
 
     this.broadcastManager.broadcast(this.providerId, {
       type: messageType,
@@ -319,6 +339,49 @@ export class StompEngine implements ProviderEngine {
    */
   getKeyColumn(): string {
     return this.cacheManager.getKeyColumn();
+  }
+
+  /**
+   * Check if a subscriber should receive cached snapshot data
+   * Returns true if:
+   * 1. Snapshot is complete (late subscriber scenario)
+   * 2. Subscriber did NOT receive the live snapshot (wasn't connected during streaming)
+   */
+  shouldSubscriberReceiveCachedSnapshot(portId: string): boolean {
+    if (!this.isSnapshotComplete) {
+      // Snapshot still streaming - subscriber will get live data via broadcasts
+      return false;
+    }
+
+    // Snapshot is complete - check if this subscriber already got live data
+    const receivedLiveSnapshot = this.subscribersReceivingLiveSnapshot.has(portId);
+
+    if (receivedLiveSnapshot) {
+      console.log(`[StompEngine] Subscriber ${portId} already received live snapshot, skipping cached data`);
+      return false;
+    } else {
+      console.log(`[StompEngine] Subscriber ${portId} is a late joiner, needs cached snapshot`);
+      return true;
+    }
+  }
+
+  /**
+   * Register a new subscriber (called when they connect)
+   * If snapshot is still streaming, add them to the live snapshot tracking
+   */
+  registerSubscriber(portId: string): void {
+    if (!this.isSnapshotComplete) {
+      console.log(`[StompEngine] Registering subscriber ${portId} during live snapshot phase`);
+      this.subscribersReceivingLiveSnapshot.add(portId);
+    }
+  }
+
+  /**
+   * Unregister a subscriber (called when they disconnect)
+   */
+  unregisterSubscriber(portId: string): void {
+    this.subscribersReceivingLiveSnapshot.delete(portId);
+    console.log(`[StompEngine] Unregistered subscriber ${portId}`);
   }
 
   /**

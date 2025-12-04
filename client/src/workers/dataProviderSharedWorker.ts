@@ -128,6 +128,10 @@ async function handleSubscribe(port: MessagePort, request: WorkerRequest): Promi
     // Register port with broadcast manager
     broadcastManager.addSubscriber(providerId, portId, port);
 
+    // Register subscriber with engine for snapshot tracking
+    // If snapshot is still streaming, this marks the subscriber as receiving live data
+    engine.registerSubscriber(portId);
+
     // Send subscription confirmation
     sendToPort(port, {
       type: 'subscribed',
@@ -174,8 +178,14 @@ function handleUnsubscribe(port: MessagePort, request: WorkerRequest): void {
 
   console.log(`[SharedWorker:${blotterType}] Unsubscribe request from ${portId} for provider ${providerId}`);
 
-  // Remove subscriber
+  // Remove subscriber from broadcast manager
   broadcastManager.removeSubscriber(providerId, portId);
+
+  // Unregister subscriber from engine tracking
+  const engine = engineRegistry.get(providerId);
+  if (engine) {
+    engine.unregisterSubscriber(portId);
+  }
 
   // Stop engine if no more subscribers
   if (broadcastManager.getSubscriberCount(providerId) === 0) {
@@ -201,6 +211,17 @@ function handleUnsubscribe(port: MessagePort, request: WorkerRequest): void {
 async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Promise<void> {
   const { providerId, requestId, portId } = request;
 
+  if (!portId) {
+    sendToPort(port, {
+      type: 'error',
+      providerId,
+      requestId,
+      error: 'Port ID is required',
+      timestamp: Date.now()
+    });
+    return;
+  }
+
   console.log(`[SharedWorker:${blotterType}] getSnapshot request from ${portId} for provider ${providerId}`);
 
   const engine = engineRegistry.get(providerId);
@@ -217,12 +238,38 @@ async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Pro
     return;
   }
 
+  // CRITICAL FIX: Check if this subscriber should receive cached data
+  // Prevents double-delivery when subscriber already received live snapshot
+  if (!engine.shouldSubscriberReceiveCachedSnapshot(portId)) {
+    console.log(`[SharedWorker:${blotterType}] Subscriber ${portId} already received live snapshot, skipping cached data delivery`);
+
+    // Send empty snapshot response to satisfy the request
+    sendToPort(port, {
+      type: 'snapshot',
+      providerId,
+      requestId,
+      data: [],  // Empty - already received live data
+      statistics: engine.getStatistics(),
+      timestamp: Date.now()
+    });
+
+    sendToPort(port, {
+      type: 'snapshot-complete',
+      providerId,
+      requestId: `${requestId}-complete`,
+      timestamp: Date.now()
+    });
+
+    return;
+  }
+
+  // Subscriber needs cached data (late joiner scenario)
   const snapshot = engine.getSnapshotCache();
   const cacheSize = engine.getCacheSize();
   const keyColumn = engine.getKeyColumn();
   const stats = engine.getStatistics();
 
-  console.log(`[SharedWorker:${blotterType}] getSnapshot: cacheSize=${cacheSize}, snapshotLength=${snapshot.length}, mode=${stats.mode}, rowsReceived=${stats.snapshotRowsReceived}, keyColumn=${keyColumn}`);
+  console.log(`[SharedWorker:${blotterType}] getSnapshot: Late joiner ${portId} receiving cached snapshot. cacheSize=${cacheSize}, snapshotLength=${snapshot.length}, mode=${stats.mode}, rowsReceived=${stats.snapshotRowsReceived}, keyColumn=${keyColumn}`);
 
   // Add cache diagnostics to statistics for client-side logging
   const statsWithDiagnostics = {
@@ -249,7 +296,7 @@ async function handleGetSnapshot(port: MessagePort, request: WorkerRequest): Pro
     timestamp: Date.now()
   });
 
-  console.log(`[SharedWorker:${blotterType}] Cached snapshot sent to ${portId}: ${snapshot.length} rows`);
+  console.log(`[SharedWorker:${blotterType}] Cached snapshot sent to late joiner ${portId}: ${snapshot.length} rows`);
 
   // Send snapshot-complete event immediately after cached data
   // This tells the client that all cached data has been sent

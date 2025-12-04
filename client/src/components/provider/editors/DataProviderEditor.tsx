@@ -109,7 +109,7 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
         <div className="p-3 border-t border-border bg-card">
           <Button onClick={handleCreate} className="w-full" size="sm">
             <Plus className="w-4 h-4 mr-2" />
-            New Datasource
+            New Dataprovider
           </Button>
         </div>
       </div>
@@ -149,14 +149,14 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
                 <Settings className="w-8 h-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No Datasource Selected</h3>
+              <h3 className="text-lg font-semibold mb-2">No DataProvider Selected</h3>
               <p className="text-sm text-muted-foreground mb-6">
                 Select an existing datasource from the sidebar to view and edit its configuration,
                 or create a new one to get started.
               </p>
               <Button onClick={handleCreate} size="lg" className="gap-2">
                 <Plus className="w-4 h-4" />
-                Create New Datasource
+                Create New Dataprovider
               </Button>
             </div>
           </div>

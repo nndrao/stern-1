@@ -98,4 +98,39 @@ export class BroadcastManager {
   getActiveProviders(): string[] {
     return Array.from(this.subscribers.keys());
   }
+
+  /**
+   * Get all subscriber port IDs for a provider
+   * Used by StompEngine to track which subscribers are receiving live snapshot data
+   */
+  getSubscribers(providerId: string): string[] {
+    const subs = this.subscribers.get(providerId);
+    if (!subs) return [];
+    return Array.from(subs.keys());
+  }
+
+  /**
+   * Broadcast to a specific subscriber (targeted delivery)
+   * Used to send cached snapshot data only to late joiners
+   */
+  broadcastToSubscriber(providerId: string, portId: string, message: WorkerResponse): void {
+    const subs = this.subscribers.get(providerId);
+    if (!subs) {
+      console.warn(`[BroadcastManager] No subscribers for provider ${providerId}`);
+      return;
+    }
+
+    const port = subs.get(portId);
+    if (!port) {
+      console.warn(`[BroadcastManager] Port ${portId} not found for provider ${providerId}`);
+      return;
+    }
+
+    try {
+      port.postMessage(message);
+    } catch (error) {
+      console.error(`[BroadcastManager] MessagePort send error (${portId}):`, error);
+      this.removeSubscriber(providerId, portId);
+    }
+  }
 }

@@ -293,6 +293,7 @@ export function useDataProviderAdapter(
     error: error || configError,
     snapshotData,
     statistics,
+    config,  // Expose config for keyColumn access
     getRowId,
     connect,
     disconnect,
