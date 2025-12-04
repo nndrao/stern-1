@@ -2,19 +2,19 @@
 
   "_comment": "OpenFin Runtime Version: Using 42.138.103.1 which is compatible with @openfin/core ^42.103.1 and @openfin/workspace ^22.3.27. OpenFin supports multiple runtime versions in parallel via RVM (Runtime Version Manager).",
   "devtools_port": 9090,
-  "licenseKey": "stern-trading-demo",
+  "licenseKey": "star-trading-demo",
   "runtime": {
     "arguments": "--v=1 --inspect --remote-debugging-port=9222",
     "version": "42.138.103.1"
   },
   "platform": {
-    "uuid": "stern-platform",
+    "uuid": "star-platform",
     "icon": "http://localhost:5173/star.svg",
     "autoShow": false,
     "providerUrl": "http://localhost:5173/platform/provider",
     "preventQuitOnLastWindowClosed": true,
     "defaultWindowOptions": {
-      "title": "Stern Platform",
+      "title": "STAR Platform",
       "customData": {
         "platformContext": {
           "apiUrl": "http://localhost:3001",
@@ -43,15 +43,15 @@
     }
   },
   "shortcut": {
-    "company": "Stern Trading",
-    "description": "Stern Trading Platform",
+    "company": "STAR Trading",
+    "description": "STAR Trading Platform",
     "icon": "http://localhost:5173/star.png",
-    "name": "Stern Trading Platform",
+    "name": "STAR Trading Platform",
     "target": ["desktop", "start-menu"]
   },
   "supportInformation": {
-    "company": "Stern Trading",
-    "product": "Stern Trading Platform",
+    "company": "STAR Trading",
+    "product": "STAR Trading Platform",
     "email": "support@sterntrading.com",
     "forwardErrorReports": false
   },
@@ -60,7 +60,7 @@
       {
         "appId": "stern-blotter",
         "name": "stern-blotter",
-        "title": "Stern Blotter",
+        "title": "STAR Blotter",
         "description": "Main trading blotter",
         "url": "http://localhost:5173/",
         "manifestType": "view",

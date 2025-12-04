@@ -145,7 +145,7 @@ export default function Provider() {
       return {
         platformSettings: {
           id: manifest.platform?.uuid || "stern-platform",
-          title: manifest.shortcut?.name || "Stern Trading Platform",
+          title: manifest.shortcut?.name || "STAR Trading Platform",
           icon: iconUrl
         },
         customSettings: manifest.customSettings || { apps: [] },
@@ -157,7 +157,7 @@ export default function Provider() {
       return {
         platformSettings: {
           id: "stern-platform",
-          title: "Stern Trading Platform",
+          title: "STAR Trading Platform",
           icon: buildUrl("/star.svg")  // SVG for windows (dock converts to PNG automatically)
         },
         customSettings: { apps: [] },
@@ -297,7 +297,7 @@ export default function Provider() {
             enableDuplicateWithLayouts: true,
             enableRenameView: true,
             enableWindowTitleUpdates: true,
-            defaultWindowTitle: 'Stern Platform'
+            defaultWindowTitle: 'STAR Platform'
           }
         );
 
@@ -313,7 +313,7 @@ export default function Provider() {
           },
           overrideCallback: combinedOverride,
           theme: [{
-            label: "Stern Theme",
+            label: "STAR Theme",
             default: "dark",
             palettes: {
               light: {
@@ -597,7 +597,7 @@ export default function Provider() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <h1 className="text-2xl font-bold mb-4 mt-4">Stern Trading Platform</h1>
+          <h1 className="text-2xl font-bold mb-4 mt-4">STAR Trading Platform</h1>
           <p>Initializing workspace...</p>
         </div>
       </div>

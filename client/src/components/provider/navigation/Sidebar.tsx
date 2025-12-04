@@ -111,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4">
           {!collapsed && (
-            <h2 className="text-lg font-semibold">Stern Platform</h2>
+            <h2 className="text-lg font-semibold">STAR Platform</h2>
           )}
           <Button
             variant="ghost"
@@ -193,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!collapsed && (
             <div className="mt-4 px-2 text-xs text-muted-foreground">
               <p>Version 1.0.0</p>
-              <p className="mt-1">© 2024 Stern Trading</p>
+              <p className="mt-1">© 2024 STAR Trading</p>
             </div>
           )}
         </div>
