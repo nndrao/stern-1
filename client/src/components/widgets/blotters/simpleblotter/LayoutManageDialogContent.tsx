@@ -5,7 +5,7 @@
  * Can be used in both inline Dialog and OpenFin window contexts.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -261,6 +261,13 @@ export const LayoutManageDialogContent: React.FC<LayoutManageDialogContentProps>
   // Component SubType edit state
   const [isEditingSubType, setIsEditingSubType] = useState(false);
   const [editedSubType, setEditedSubType] = useState(componentSubType || '');
+
+  // Sync editedSubType with componentSubType prop when it changes
+  useEffect(() => {
+    if (!isEditingSubType) {
+      setEditedSubType(componentSubType || '');
+    }
+  }, [componentSubType, isEditingSubType]);
 
   // Handlers
   const handleStartEdit = (layout: LayoutInfo) => {

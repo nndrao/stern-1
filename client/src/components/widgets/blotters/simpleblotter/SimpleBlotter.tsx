@@ -32,7 +32,7 @@ import { LayoutSaveDialog } from './LayoutSaveDialog';
 import { LayoutManageDialog } from './LayoutManageDialog';
 import { useBlotterLayoutManager } from './useBlotterLayoutManager';
 import { COMPONENT_TYPES } from '@stern/shared-types';
-import { openDialog, isOpenFin } from '@stern/openfin-platform';
+import { isOpenFin } from '@stern/openfin-platform';
 import { DIALOG_TYPES, DIALOG_CONFIGS } from '@/config/dialogConfig';
 import { logger } from '@/utils/logger';
 import { BlotterType, BLOTTER_TYPES } from '@/types/blotter';
@@ -769,64 +769,133 @@ export const SimpleBlotterV2: React.FC<SimpleBlotterProps> = ({ onReady, onError
     isManageDialogOpenRef.current = true;
 
     try {
-      // Open dialog in OpenFin window
-      const result = await openDialog(
-        DIALOG_TYPES.MANAGE_LAYOUTS,
-        DIALOG_CONFIGS[DIALOG_TYPES.MANAGE_LAYOUTS],
-        {
-          layouts: layoutManager.layouts,
-          defaultLayoutId: layoutManager.defaultLayoutId,
-          blotterConfigId: layoutManager.blotterUnified.configId,
-          componentType: layoutManager.blotterUnified.componentType,
-          componentSubType: layoutManager.blotterUnified.componentSubType,
-        },
-        {
-          onAction: async (action, payload) => {
-            logger.info('Manage layouts action received', { action, payload }, 'SimpleBlotter');
+      const requestTopic = `stern.dialog.${DIALOG_TYPES.MANAGE_LAYOUTS}.request`;
+      const responseTopic = `stern.dialog.${DIALOG_TYPES.MANAGE_LAYOUTS}.response`;
+      const actionTopic = `stern.dialog.${DIALOG_TYPES.MANAGE_LAYOUTS}.action`;
 
-            switch (action) {
-              case 'setDefault':
-                if (payload?.layoutId) {
-                  await layoutManager.setDefaultLayout(payload.layoutId);
-                }
-                break;
+      // Subscribe to data requests from dialog
+      const handleDataRequest = (message: any) => {
+        logger.info('[ManageLayouts] Dialog requesting data', message, 'SimpleBlotter');
 
-              case 'delete':
-                if (payload?.layoutId) {
-                  await layoutManager.deleteLayout(payload.layoutId);
-                }
-                break;
-
-              case 'rename':
-                if (payload?.layoutId && payload?.newName) {
-                  await layoutManager.renameLayout(payload.layoutId, payload.newName);
-                }
-                break;
-
-              case 'duplicate':
-                if (payload?.layoutId && payload?.newName) {
-                  await layoutManager.duplicateLayout(payload.layoutId, payload.newName);
-                }
-                break;
-
-              case 'updateSubType':
-                if (payload?.newSubType !== undefined) {
-                  await layoutManager.updateComponentSubType(payload.newSubType);
-                }
-                break;
-
-              case 'close':
-                // Dialog is closing, no action needed
-                break;
-
-              default:
-                logger.warn('Unknown manage layouts action', action, 'SimpleBlotter');
-            }
+        // Send data to dialog
+        fin.InterApplicationBus.publish(responseTopic, {
+          data: {
+            layouts: layoutManager.layouts,
+            defaultLayoutId: layoutManager.defaultLayoutId,
+            blotterConfigId: layoutManager.blotterUnified!.configId,
+            componentType: layoutManager.blotterUnified!.componentType,
+            componentSubType: layoutManager.blotterUnified!.componentSubType,
           },
-        }
-      );
+        });
 
-      logger.info('Manage layouts dialog closed', result, 'SimpleBlotter');
+        logger.info('[ManageLayouts] Data sent to dialog', undefined, 'SimpleBlotter');
+      };
+
+      // Subscribe to actions from dialog
+      const handleAction = async (message: any) => {
+        const { action, payload } = message;
+        logger.info('Manage layouts action received', { action, payload }, 'SimpleBlotter');
+
+        switch (action) {
+          case 'setDefault':
+            if (payload?.layoutId) {
+              await layoutManager.setDefaultLayout(payload.layoutId);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'delete':
+            if (payload?.layoutId) {
+              await layoutManager.deleteLayout(payload.layoutId);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'rename':
+            if (payload?.layoutId && payload?.newName) {
+              await layoutManager.renameLayout(payload.layoutId, payload.newName);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'duplicate':
+            if (payload?.layoutId && payload?.newName) {
+              await layoutManager.duplicateLayout(payload.layoutId, payload.newName);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'updateSubType':
+            if (payload?.newSubType !== undefined) {
+              await layoutManager.updateComponentSubType(payload.newSubType);
+              // Send updated data back to dialog
+              sendUpdatedDataToDialog();
+            }
+            break;
+
+          case 'close':
+            // Dialog is closing, cleanup
+            logger.info('[ManageLayouts] Dialog closed by user', undefined, 'SimpleBlotter');
+            break;
+
+          default:
+            logger.warn('Unknown manage layouts action', action, 'SimpleBlotter');
+        }
+      };
+
+      // Helper to send updated data to dialog after actions
+      const sendUpdatedDataToDialog = () => {
+        fin.InterApplicationBus.publish(responseTopic, {
+          data: {
+            layouts: layoutManager.layouts,
+            defaultLayoutId: layoutManager.defaultLayoutId,
+            blotterConfigId: layoutManager.blotterUnified!.configId,
+            componentType: layoutManager.blotterUnified!.componentType,
+            componentSubType: layoutManager.blotterUnified!.componentSubType,
+          },
+        });
+        logger.info('[ManageLayouts] Updated data sent to dialog', undefined, 'SimpleBlotter');
+      };
+
+      // Subscribe to both topics
+      fin.InterApplicationBus.subscribe({ uuid: '*' }, requestTopic, handleDataRequest);
+      fin.InterApplicationBus.subscribe({ uuid: '*' }, actionTopic, handleAction);
+
+      logger.info('[ManageLayouts] Subscribed to IAB topics', { requestTopic, actionTopic }, 'SimpleBlotter');
+
+      // Create the dialog window
+      const dialogConfig = DIALOG_CONFIGS[DIALOG_TYPES.MANAGE_LAYOUTS];
+      const window = await fin.Window.create({
+        name: `dialog-${DIALOG_TYPES.MANAGE_LAYOUTS}-${Date.now()}`,
+        url: `http://localhost:5173/dialogs/manage-layouts`,
+        defaultWidth: dialogConfig.width,
+        defaultHeight: dialogConfig.height,
+        frame: dialogConfig.frame,
+        resizable: dialogConfig.resizable,
+        alwaysOnTop: dialogConfig.alwaysOnTop,
+        defaultCentered: dialogConfig.center,
+        autoShow: true,
+      });
+
+      logger.info('[ManageLayouts] Dialog window created', undefined, 'SimpleBlotter');
+
+      // Wait for window to close
+      await new Promise<void>((resolve) => {
+        window.once('closed', () => {
+          logger.info('[ManageLayouts] Dialog window closed', undefined, 'SimpleBlotter');
+          resolve();
+        });
+      });
+
+      // Cleanup subscriptions
+      fin.InterApplicationBus.unsubscribe({ uuid: '*' }, requestTopic, handleDataRequest);
+      fin.InterApplicationBus.unsubscribe({ uuid: '*' }, actionTopic, handleAction);
+
+      logger.info('[ManageLayouts] Unsubscribed from IAB topics', undefined, 'SimpleBlotter');
     } catch (error) {
       logger.error('Failed to open manage layouts dialog', error, 'SimpleBlotter');
     } finally {

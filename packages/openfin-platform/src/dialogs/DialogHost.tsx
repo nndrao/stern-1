@@ -48,6 +48,7 @@ export function DialogHost<TProps = any>({
     console.log(`[LOADING_LAYOUT] DialogHost useEffect START - mountId: ${mountId}, dialogType: ${dialogType}`);
 
     let isMounted = true;
+    let readySignalTimeoutId: NodeJS.Timeout | null = null;
 
     // Subscribe to IAB for props
     const handleRequest = (message: DialogRequest<TProps>, identity: any) => {
@@ -84,19 +85,38 @@ export function DialogHost<TProps = any>({
     console.log(`[LOADING_LAYOUT] subscriptionRef set:`, { handlerExists: !!subscriptionRef.current?.handler, subscribed: subscriptionRef.current?.subscribed });
 
     // Notify parent that we're ready to receive props
-    console.log(`[LOADING_LAYOUT] 📢 Publishing ready signal to stern.dialog.ready`);
-    console.log(`[LOADING_LAYOUT] Ready signal payload:`, { dialogType, timestamp: Date.now(), mountId });
+    // IMPORTANT: Add small delay to ensure IAB connection is fully established
+    // This prevents race conditions where the signal is sent before the parent can receive it
+    console.log(`[LOADING_LAYOUT] 📢 Scheduling ready signal publication (50ms delay)`);
 
-    fin.InterApplicationBus.publish('stern.dialog.ready', {
-      dialogType,
-      timestamp: Date.now(),
-      mountId, // Add mountId to track which mount sent this
-    });
+    readySignalTimeoutId = setTimeout(() => {
+      // Only send if still mounted (prevents StrictMode first mount from sending signal)
+      if (!isMounted) {
+        console.log(`[LOADING_LAYOUT] ⏭️ Component unmounted before ready signal - skipping publish - mountId: ${mountId}`);
+        return;
+      }
 
-    console.log(`[LOADING_LAYOUT] ✅ Ready signal published - mountId: ${mountId}`);
+      console.log(`[LOADING_LAYOUT] 📢 Publishing ready signal to stern.dialog.ready`);
+      console.log(`[LOADING_LAYOUT] Ready signal payload:`, { dialogType, timestamp: Date.now(), mountId });
+
+      fin.InterApplicationBus.publish('stern.dialog.ready', {
+        dialogType,
+        timestamp: Date.now(),
+        mountId, // Add mountId to track which mount sent this
+      });
+
+      console.log(`[LOADING_LAYOUT] ✅ Ready signal published - mountId: ${mountId}`);
+    }, 50);
 
     return () => {
       console.log(`[LOADING_LAYOUT] ❌ Cleanup START - mountId: ${mountId}`);
+
+      // Cancel ready signal timeout if component unmounts before it fires
+      if (readySignalTimeoutId) {
+        console.log(`[LOADING_LAYOUT] Canceling ready signal timeout - mountId: ${mountId}`);
+        clearTimeout(readySignalTimeoutId);
+        readySignalTimeoutId = null;
+      }
 
       // Mark as unmounted but DON'T unsubscribe immediately
       // This prevents race conditions with React Strict Mode

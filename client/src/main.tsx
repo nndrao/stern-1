@@ -49,63 +49,73 @@ createRoot(document.getElementById('root')!).render(
           enableSystem
           disableTransitionOnChange
         >
-          <SternPlatformProvider>
-            <BrowserRouter>
-              <div style={{ height: '100%', overflow: 'hidden' }}>
-                <Routes>
-                  <Route path="/" element={<App />} />
-                  <Route
-                    path="/platform/provider"
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <PlatformProvider />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/customcomponents"
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <DemoComponent />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/blotters/simple"
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <SimpleBlotter />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/default"
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <SimpleBlotter />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/dialogs/rename-view"
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <RenameViewDialog />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/dialogs/manage-layouts"
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <ManageLayoutsDialog />
-                      </Suspense>
-                    }
-                  />
-                </Routes>
-              </div>
-            </BrowserRouter>
-          </SternPlatformProvider>
+          <BrowserRouter>
+            <div style={{ height: '100%', overflow: 'hidden' }}>
+              <Routes>
+                {/* Dialog routes - lightweight, no platform provider */}
+                <Route
+                  path="/dialogs/rename-view"
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <RenameViewDialog />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/dialogs/manage-layouts"
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <ManageLayoutsDialog />
+                    </Suspense>
+                  }
+                />
+
+                {/* Application routes - wrapped with SternPlatformProvider */}
+                <Route
+                  path="/*"
+                  element={
+                    <SternPlatformProvider>
+                      <Routes>
+                        <Route path="/" element={<App />} />
+                        <Route
+                          path="/platform/provider"
+                          element={
+                            <Suspense fallback={<LoadingFallback />}>
+                              <PlatformProvider />
+                            </Suspense>
+                          }
+                        />
+                        <Route
+                          path="/customcomponents"
+                          element={
+                            <Suspense fallback={<LoadingFallback />}>
+                              <DemoComponent />
+                            </Suspense>
+                          }
+                        />
+                        <Route
+                          path="/blotters/simple"
+                          element={
+                            <Suspense fallback={<LoadingFallback />}>
+                              <SimpleBlotter />
+                            </Suspense>
+                          }
+                        />
+                        <Route
+                          path="/default"
+                          element={
+                            <Suspense fallback={<LoadingFallback />}>
+                              <SimpleBlotter />
+                            </Suspense>
+                          }
+                        />
+                      </Routes>
+                    </SternPlatformProvider>
+                  }
+                />
+              </Routes>
+            </div>
+          </BrowserRouter>
         </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
