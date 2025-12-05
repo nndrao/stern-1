@@ -2,12 +2,12 @@
  * useBlotterDataConnection Hook
  *
  * Manages the data provider connection lifecycle for the blotter.
- * Handles snapshot processing, updates, and connection state.
+ * Uses the simplified STOMP provider for shared connections.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { GridApi } from 'ag-grid-community';
-import { useDataProviderAdapter } from '@/hooks/data-provider';
+import { useStompProvider } from '@/providers/stomp';
 import { BlotterType } from '@/types/blotter';
 import { logger } from '@/utils/logger';
 
@@ -22,8 +22,8 @@ export interface UseBlotterDataConnectionOptions {
   gridApi: GridApi | null;
   /** Whether grid is ready */
   gridReady: boolean;
-  /** Blotter type for worker isolation */
-  blotterType: BlotterType | string;
+  /** Blotter type (for logging/identification) */
+  blotterType?: BlotterType | string;
   /** Callback for row count updates */
   onRowCountChange?: (count: number) => void;
   /** Callback when loading state changes */
@@ -35,12 +35,20 @@ export interface UseBlotterDataConnectionOptions {
 }
 
 export interface UseBlotterDataConnectionResult {
-  /** The data provider adapter */
-  adapter: ReturnType<typeof useDataProviderAdapter>;
   /** Whether currently connected */
   isConnected: boolean;
   /** Whether config is loaded */
   isConfigLoaded: boolean;
+  /** Whether currently loading */
+  isLoading: boolean;
+  /** Provider statistics */
+  statistics: any;
+  /** Get row ID function for AG-Grid */
+  getRowId: (params: any) => string;
+  /** Connect to provider */
+  connect: () => Promise<void>;
+  /** Disconnect from provider */
+  disconnect: () => void;
 }
 
 // ============================================================================
@@ -61,14 +69,13 @@ export function useBlotterDataConnection({
   // Refs
   // ============================================================================
 
-  const snapshotRowsRef = useRef<any[]>([]);
   const snapshotLoadedRef = useRef(false);
   const loadStartTimeRef = useRef<number | null>(null);
-  const receivedRowKeysRef = useRef<Set<string>>(new Set());
-  const isConnectedRef = useRef(false);
+  const rowCountRef = useRef(0);
+  const gridApiRef = useRef(gridApi);
+  gridApiRef.current = gridApi;
 
-  // Store callback refs to avoid dependency issues
-  // Update directly on render - no useEffect needed for refs
+  // Callback refs (updated on each render)
   const onRowCountChangeRef = useRef(onRowCountChange);
   const onLoadingChangeRef = useRef(onLoadingChange);
   const onLoadCompleteRef = useRef(onLoadComplete);
@@ -79,130 +86,125 @@ export function useBlotterDataConnection({
   onErrorRef.current = onError;
 
   // ============================================================================
-  // Data Provider Adapter
+  // Snapshot Handler
   // ============================================================================
 
-  const adapter = useDataProviderAdapter(providerId, {
-    autoConnect: false,
-    preferOpenFin: true,
-    blotterType,
-  });
+  const handleSnapshot = useCallback((rows: any[]) => {
+    const api = gridApiRef.current;
+    if (!api || rows.length === 0) return;
 
-  // Store adapter in ref - update directly on render
-  const adapterRef = useRef(adapter);
-  adapterRef.current = adapter;
+    logger.debug('Snapshot received', { rowCount: rows.length }, 'useBlotterDataConnection');
+
+    if (!snapshotLoadedRef.current) {
+      // First snapshot - set row data
+      api.setGridOption('rowData', rows);
+      snapshotLoadedRef.current = true;
+      rowCountRef.current = rows.length;
+    } else {
+      // Additional snapshot data - add to grid
+      api.applyTransactionAsync({ add: rows });
+      rowCountRef.current += rows.length;
+    }
+
+    onRowCountChangeRef.current?.(rowCountRef.current);
+  }, []);
+
+  // ============================================================================
+  // Update Handler
+  // ============================================================================
+
+  const handleUpdate = useCallback((rows: any[]) => {
+    const api = gridApiRef.current;
+    if (!api || !snapshotLoadedRef.current || rows.length === 0) return;
+
+    logger.debug('Update received', { rowCount: rows.length }, 'useBlotterDataConnection');
+
+    api.applyTransactionAsync({ update: rows });
+  }, []);
+
+  // ============================================================================
+  // Snapshot Complete Handler
+  // ============================================================================
+
+  const handleSnapshotComplete = useCallback(() => {
+    const loadTime = loadStartTimeRef.current ? Date.now() - loadStartTimeRef.current : 0;
+
+    logger.info('Snapshot complete', {
+      rowCount: rowCountRef.current,
+      loadTimeMs: loadTime,
+    }, 'useBlotterDataConnection');
+
+    onLoadCompleteRef.current?.(loadTime);
+    onLoadingChangeRef.current?.(false);
+  }, []);
+
+  // ============================================================================
+  // Error Handler
+  // ============================================================================
+
+  const handleError = useCallback((error: Error) => {
+    logger.error('Provider error', error, 'useBlotterDataConnection');
+    onLoadingChangeRef.current?.(false);
+    onErrorRef.current?.(error);
+  }, []);
+
+  // ============================================================================
+  // STOMP Provider
+  // ============================================================================
+
+  const provider = useStompProvider(providerId, {
+    autoConnect: false,
+    onSnapshot: handleSnapshot,
+    onUpdate: handleUpdate,
+    onSnapshotComplete: handleSnapshotComplete,
+    onError: handleError,
+  });
 
   // ============================================================================
   // Connection Effect
   // ============================================================================
 
   useEffect(() => {
-    const currentAdapter = adapterRef.current;
-
-    if (!currentAdapter || !currentAdapter.isConfigLoaded || !gridReady || !gridApi) {
+    // Only connect when grid is ready and config is loaded
+    if (!gridReady || !gridApi || !provider.isConfigLoaded) {
       logger.debug('Skipping connection - conditions not met', {
-        hasAdapter: !!currentAdapter,
-        isConfigLoaded: currentAdapter?.isConfigLoaded,
         gridReady,
         hasGridApi: !!gridApi,
+        isConfigLoaded: provider.isConfigLoaded,
       }, 'useBlotterDataConnection');
       return;
     }
 
-    logger.info('Setting up data connection', { providerId }, 'useBlotterDataConnection');
+    // Reset state for new connection
+    snapshotLoadedRef.current = false;
+    rowCountRef.current = 0;
+    loadStartTimeRef.current = Date.now();
 
-    // Setup snapshot handler
-    currentAdapter.setOnSnapshot((rows) => {
-      const keyColumn = currentAdapter.config?.config?.keyColumn || 'id';
-
-      // Deduplicate rows
-      const uniqueRows = rows.filter(row => {
-        const key = row[keyColumn] != null ? String(row[keyColumn]) : null;
-        if (key === null) return true; // Allow rows without keys
-        if (receivedRowKeysRef.current.has(key)) {
-          return false;
-        }
-        receivedRowKeysRef.current.add(key);
-        return true;
-      });
-
-      if (uniqueRows.length !== rows.length) {
-        logger.warn('Duplicates filtered', {
-          original: rows.length,
-          unique: uniqueRows.length,
-        }, 'useBlotterDataConnection');
-      }
-
-      snapshotRowsRef.current.push(...uniqueRows);
-
-      if (gridApi && !snapshotLoadedRef.current && snapshotRowsRef.current.length > 0) {
-        logger.info('Loading initial snapshot', { totalRows: snapshotRowsRef.current.length }, 'useBlotterDataConnection');
-        gridApi.setGridOption('rowData', snapshotRowsRef.current);
-        snapshotLoadedRef.current = true;
-        onRowCountChangeRef.current?.(snapshotRowsRef.current.length);
-      } else if (gridApi && snapshotLoadedRef.current && rows.length > 0) {
-        gridApi.applyTransactionAsync({ add: rows });
-        onRowCountChangeRef.current?.(snapshotRowsRef.current.length);
-      }
-    });
-
-    // Setup snapshot complete handler
-    currentAdapter.setOnSnapshotComplete(() => {
-      const loadTime = loadStartTimeRef.current ? Date.now() - loadStartTimeRef.current : 0;
-
-      if (gridApi && snapshotRowsRef.current.length > 0 && !snapshotLoadedRef.current) {
-        gridApi.setGridOption('rowData', snapshotRowsRef.current);
-        snapshotLoadedRef.current = true;
-        onRowCountChangeRef.current?.(snapshotRowsRef.current.length);
-      }
-
-      logger.info('Snapshot complete', {
-        totalRows: snapshotRowsRef.current.length,
-        loadTimeMs: loadTime,
-      }, 'useBlotterDataConnection');
-
-      onLoadCompleteRef.current?.(loadTime);
-      onLoadingChangeRef.current?.(false);
-    });
-
-    // Setup update handler
-    currentAdapter.setOnUpdate((rows) => {
-      if (snapshotLoadedRef.current && gridApi) {
-        gridApi.applyTransactionAsync({ update: rows });
-      }
-    });
-
-    // Setup error handler
-    currentAdapter.setOnError((error) => {
-      logger.error('Provider error', error, 'useBlotterDataConnection');
-      onLoadingChangeRef.current?.(false);
-      onErrorRef.current?.(error);
-    });
+    logger.info('Connecting to provider', { providerId, blotterType }, 'useBlotterDataConnection');
+    onLoadingChangeRef.current?.(true);
 
     // Connect
-    onLoadingChangeRef.current?.(true);
-    loadStartTimeRef.current = Date.now();
-    snapshotLoadedRef.current = false;
-    snapshotRowsRef.current = [];
-    receivedRowKeysRef.current.clear();
+    provider.connect();
 
-    currentAdapter.connect();
-    isConnectedRef.current = true;
-
-    // Cleanup
+    // Cleanup on unmount or provider change
     return () => {
-      logger.debug('Disconnecting from provider', {}, 'useBlotterDataConnection');
-      if (adapterRef.current) {
-        adapterRef.current.disconnect();
-        isConnectedRef.current = false;
-      }
+      logger.debug('Disconnecting from provider', { providerId }, 'useBlotterDataConnection');
+      provider.disconnect();
     };
-  }, [gridReady, providerId, gridApi]);
+  }, [gridReady, gridApi, provider.isConfigLoaded, providerId, blotterType, provider.connect, provider.disconnect]);
+
+  // ============================================================================
+  // Return
+  // ============================================================================
 
   return {
-    adapter,
-    isConnected: isConnectedRef.current,
-    isConfigLoaded: adapter?.isConfigLoaded ?? false,
+    isConnected: provider.isConnected,
+    isConfigLoaded: provider.isConfigLoaded,
+    isLoading: provider.isLoading,
+    statistics: provider.statistics,
+    getRowId: provider.getRowId,
+    connect: provider.connect,
+    disconnect: provider.disconnect,
   };
 }
 

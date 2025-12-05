@@ -168,7 +168,7 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
   // Data Connection
   // ============================================================================
 
-  const { adapter } = useBlotterDataConnection({
+  const dataConnection = useBlotterDataConnection({
     providerId: selectedProviderId,
     gridApi: gridApiRef.current,
     gridReady,
@@ -301,9 +301,9 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
     const unsubRefresh = platform.subscribeToEvent(
       OpenFinCustomEvents.DATA_REFRESH,
       () => {
-        if (adapter?.isConnected) {
-          adapter.disconnect();
-          setTimeout(() => adapter?.connect(), 100);
+        if (dataConnection.isConnected) {
+          dataConnection.disconnect();
+          setTimeout(() => dataConnection.connect(), 100);
         }
       }
     );
@@ -327,7 +327,7 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
       unsubRefresh();
       unsubConfig();
     };
-  }, [platform, selectedProviderId, adapter]);
+  }, [platform, selectedProviderId, dataConnection]);
 
   // ============================================================================
   // Handlers
@@ -345,11 +345,11 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
   }, []);
 
   const getRowId = useCallback((params: any) => {
-    if (adapter?.getRowId) {
-      return adapter.getRowId(params);
+    if (dataConnection.getRowId) {
+      return dataConnection.getRowId(params);
     }
     return params.data?.id || params.data?.positionId || `row-${params.rowIndex}`;
-  }, [adapter]);
+  }, [dataConnection.getRowId]);
 
   const handleManageLayouts = useCallback(async () => {
     if (isManageDialogOpenRef.current) return;
@@ -454,7 +454,7 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
           selectedProviderId={selectedProviderId}
           availableProviders={availableProviders}
           isLoading={isLoading}
-          adapter={adapter}
+          adapter={dataConnection}
           rowCount={rowCount}
           loadTimeMs={loadTimeMs}
           onProviderSelect={handleProviderSelect}
