@@ -47,18 +47,21 @@ export async function createApp(): Promise<express.Application> {
     crossOriginOpenerPolicy: false
   }));
 
-  // Rate limiting
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Limit each IP to 100 requests per windowMs in production
-    message: {
-      error: 'Too many requests from this IP, please try again later.',
-      retryAfter: 15 * 60
-    },
-    standardHeaders: true,
-    legacyHeaders: false
-  });
-  app.use('/api/', limiter);
+  // Rate limiting - disabled in development, strict in production
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (!isDev) {
+    const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // Limit each IP to 100 requests per windowMs in production
+      message: {
+        error: 'Too many requests from this IP, please try again later.',
+        retryAfter: 15 * 60
+      },
+      standardHeaders: true,
+      legacyHeaders: false
+    });
+    app.use('/api/', limiter);
+  }
 
   // Body parsing middleware
   app.use(express.json({ limit: '10mb' }));

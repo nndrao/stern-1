@@ -30,12 +30,10 @@ import {
   Loader2,
   MoreVertical
 } from 'lucide-react';
-import { UnifiedConfig, SimpleBlotterLayoutConfig } from '@stern/shared-types';
+import type { LayoutInfo } from './layout-dialogs';
 
-export interface LayoutInfo {
-  config: SimpleBlotterLayoutConfig;
-  unified: UnifiedConfig;
-}
+// Re-export for convenience
+export type { LayoutInfo } from './layout-dialogs';
 
 export interface LayoutSelectorProps {
   /** List of available layouts */
