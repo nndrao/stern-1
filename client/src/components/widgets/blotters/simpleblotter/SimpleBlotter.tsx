@@ -126,6 +126,7 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
   const onErrorRef = useRef(onError);
   const isManageDialogOpenRef = useRef(false);
   const initialLayoutAppliedRef = useRef(false);
+  const isInitializedRef = useRef(false);
 
   useEffect(() => {
     onReadyRef.current = onReady;
@@ -183,6 +184,12 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
   // ============================================================================
 
   useEffect(() => {
+    // Prevent double initialization
+    if (isInitializedRef.current) {
+      return;
+    }
+    isInitializedRef.current = true;
+
     // Load providers
     platform.configService.getAll({
       componentType: COMPONENT_TYPES.DATA_PROVIDER,
@@ -219,7 +226,8 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
           logger.warn('Failed to restore view caption', error, 'SimpleBlotter');
         });
     }
-  }, [platform.configService, platform.isOpenFin, layoutManager.initializeBlotter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ============================================================================
   // Layout Application Effect

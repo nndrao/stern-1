@@ -106,6 +106,9 @@ export function useLayoutManager({
   // Callbacks ref for layout application
   const applyCallbacksRef = useRef<LayoutApplyCallbacks>({});
 
+  // Store mutation functions in refs to keep callbacks stable
+  const getOrCreateBlotterRef = useRef<typeof getOrCreateBlotter | null>(null);
+
   // ============================================================================
   // Grid State Manager
   // ============================================================================
@@ -128,6 +131,7 @@ export function useLayoutManager({
   // ============================================================================
 
   const getOrCreateBlotter = useGetOrCreateBlotterConfig();
+  getOrCreateBlotterRef.current = getOrCreateBlotter;
   const updateBlotterConfig = useUpdateBlotterConfig();
   const updateComponentSubTypeMutation = useUpdateComponentSubType();
   const createLayoutMutation = useCreateLayout();
@@ -173,7 +177,11 @@ export function useLayoutManager({
 
   const initializeBlotter = useCallback(async () => {
     try {
-      const result = await getOrCreateBlotter.mutateAsync({
+      const mutation = getOrCreateBlotterRef.current;
+      if (!mutation) {
+        throw new Error('Mutation not initialized');
+      }
+      const result = await mutation.mutateAsync({
         configId: blotterConfigId,
         userId,
         name: blotterName,
@@ -216,7 +224,7 @@ export function useLayoutManager({
       logger.error('Failed to initialize blotter', error, 'useLayoutManager');
       throw error;
     }
-  }, [blotterConfigId, userId, blotterName, getOrCreateBlotter]);
+  }, [blotterConfigId, userId, blotterName]);
 
   const selectLayout = useCallback(async (layoutId: string, isInitialLoad: boolean = false) => {
     setSelectedLayoutId(layoutId);
