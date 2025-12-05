@@ -249,17 +249,17 @@ export function useGridStateManager({
           gridApi.setPivotColumns(layoutConfig.pivotColumns);
         }
 
-        if (layoutConfig.sideBarState) {
-          try {
-            gridApi.setSideBarVisible(layoutConfig.sideBarState.visible);
-            if (layoutConfig.sideBarState.visible && layoutConfig.sideBarState.openToolPanel) {
-              gridApi.openToolPanel(layoutConfig.sideBarState.openToolPanel);
-            } else if (!layoutConfig.sideBarState.openToolPanel) {
-              gridApi.closeToolPanel();
-            }
-          } catch {
-            // Side bar may not be configured
+        // Always apply sidebar state - default to hidden if not specified
+        try {
+          const sideBarVisible = layoutConfig.sideBarState?.visible ?? false;
+          gridApi.setSideBarVisible(sideBarVisible);
+          if (sideBarVisible && layoutConfig.sideBarState?.openToolPanel) {
+            gridApi.openToolPanel(layoutConfig.sideBarState.openToolPanel);
+          } else {
+            gridApi.closeToolPanel();
           }
+        } catch {
+          // Side bar may not be configured
         }
 
         logger.debug('Layout applied to grid', {

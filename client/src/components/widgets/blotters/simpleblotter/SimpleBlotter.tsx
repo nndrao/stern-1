@@ -254,11 +254,15 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
       if (gridApiRef.current && config.filterState) {
         gridApiRef.current.setFilterModel(config.filterState);
       }
-      if (gridApiRef.current && config.sideBarState) {
+      // Always apply sidebar state - default to hidden if not specified
+      if (gridApiRef.current) {
         try {
-          gridApiRef.current.setSideBarVisible(config.sideBarState.visible);
-          if (config.sideBarState.visible && config.sideBarState.openToolPanel) {
+          const sideBarVisible = config.sideBarState?.visible ?? false;
+          gridApiRef.current.setSideBarVisible(sideBarVisible);
+          if (sideBarVisible && config.sideBarState?.openToolPanel) {
             gridApiRef.current.openToolPanel(config.sideBarState.openToolPanel);
+          } else {
+            gridApiRef.current.closeToolPanel();
           }
         } catch {
           // Side bar may not be configured

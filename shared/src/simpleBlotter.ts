@@ -467,7 +467,7 @@ export function createDefaultLayoutConfig(overrides?: Partial<SimpleBlotterLayou
     pinnedColumns: undefined,
     rowGroupColumns: [],
     pivotColumns: [],
-    sideBarState: undefined,
+    sideBarState: { visible: false, openToolPanel: null },
     ...overrides
   };
 }
