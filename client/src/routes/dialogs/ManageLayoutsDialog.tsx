@@ -2,12 +2,13 @@
  * ManageLayoutsDialog Route
  *
  * OpenFin window route for managing SimpleBlotter layouts.
- * Dialog requests data from parent on mount - follows pull pattern instead of push.
+ * Uses LayoutManageDialogContent for consistent UI across inline and OpenFin contexts.
  */
 
 import React, { useEffect, useState } from 'react';
 import { useOpenfinTheme } from '@stern/openfin-platform';
-import { LayoutManageDialogContent, LayoutInfo } from '@/components/widgets/blotters/simpleblotter/LayoutManageDialogContent';
+import { LayoutManageDialogContent } from '@/components/widgets/blotters/simpleblotter/LayoutManageDialogContent';
+import type { LayoutInfo, BlotterInfo } from '@/components/widgets/blotters/simpleblotter/layout-dialogs';
 import { DIALOG_TYPES } from '@/config/dialogConfig';
 
 /**
@@ -18,24 +19,11 @@ export interface ManageLayoutsDialogData {
   layouts: LayoutInfo[];
   /** ID of the default layout */
   defaultLayoutId?: string;
-  /** Current blotter config ID */
-  blotterConfigId: string;
-  /** Component type from blotter config */
-  componentType: string;
-  /** Component subtype from blotter config */
-  componentSubType?: string;
+  /** Currently selected layout ID */
+  selectedLayoutId?: string;
+  /** Blotter configuration info */
+  blotterInfo?: BlotterInfo;
 }
-
-/**
- * Actions that can be sent back to parent
- */
-export type ManageLayoutsAction =
-  | { type: 'setDefault'; layoutId: string }
-  | { type: 'delete'; layoutId: string }
-  | { type: 'rename'; layoutId: string; newName: string }
-  | { type: 'duplicate'; layoutId: string; newName: string }
-  | { type: 'updateSubType'; newSubType: string }
-  | { type: 'close' };
 
 /**
  * ManageLayoutsDialog Component
@@ -95,7 +83,7 @@ export const ManageLayoutsDialog: React.FC = () => {
       fin.InterApplicationBus.unsubscribe({ uuid: '*' }, responseTopic, handleResponse);
       console.log('[ManageLayoutsDialog] Unsubscribed from IAB');
     };
-  }, []); // Empty dependencies - run once on mount, but handleResponse receives all updates
+  }, []);
 
   // Send action to parent
   const sendAction = (action: string, payload?: any) => {
@@ -109,6 +97,14 @@ export const ManageLayoutsDialog: React.FC = () => {
       action,
       payload,
     });
+  };
+
+  // Close the dialog window
+  const handleClose = () => {
+    sendAction('close');
+    if (window.fin) {
+      fin.Window.getCurrentSync().close();
+    }
   };
 
   if (isLoading) {
@@ -129,12 +125,16 @@ export const ManageLayoutsDialog: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background p-6">
+      <h1 className="text-lg font-semibold mb-1">Manage Layouts</h1>
+      <p className="text-xs text-muted-foreground mb-4">
+        View, edit, and organize your saved layouts.
+      </p>
+
       <LayoutManageDialogContent
         layouts={data.layouts}
         defaultLayoutId={data.defaultLayoutId}
-        blotterConfigId={data.blotterConfigId}
-        componentType={data.componentType}
-        componentSubType={data.componentSubType}
+        selectedLayoutId={data.selectedLayoutId}
+        blotterInfo={data.blotterInfo}
         onSetDefault={(layoutId) => {
           sendAction('setDefault', { layoutId });
         }}
@@ -147,12 +147,14 @@ export const ManageLayoutsDialog: React.FC = () => {
         onDuplicate={(layoutId, newName) => {
           sendAction('duplicate', { layoutId, newName });
         }}
-        onComponentSubTypeChange={(newSubType) => {
+        onSaveComponentSubType={(newSubType) => {
           sendAction('updateSubType', { newSubType });
         }}
-        onClose={() => {
-          sendAction('close');
+        onSelect={(layoutId) => {
+          sendAction('select', { layoutId });
+          handleClose();
         }}
+        onClose={handleClose}
       />
     </div>
   );

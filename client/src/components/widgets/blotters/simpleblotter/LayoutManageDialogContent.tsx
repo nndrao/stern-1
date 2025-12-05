@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,442 +24,294 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Star,
-  Trash2,
-  Copy,
-  Edit2,
-  Check,
-  X,
-  MoreVertical,
-} from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { UnifiedConfig, SimpleBlotterLayoutConfig } from '@stern/shared-types';
+import { Layout, Loader2, Save } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { LayoutItem } from './layout-dialogs';
+import type { LayoutManageDialogContentProps, LayoutInfo } from './layout-dialogs';
 
-export interface LayoutInfo {
-  config: SimpleBlotterLayoutConfig;
-  unified: UnifiedConfig;
-}
-
-export interface LayoutManageDialogContentProps {
-  /** List of available layouts */
-  layouts: LayoutInfo[];
-  /** ID of the default layout */
-  defaultLayoutId?: string;
-  /** Current blotter config ID */
-  blotterConfigId: string;
-  /** Component type from blotter config */
-  componentType: string;
-  /** Component subtype from blotter config */
-  componentSubType?: string;
-  /** Whether operations are in progress */
-  isLoading?: boolean;
-  /** Callback to set a layout as default */
-  onSetDefault: (layoutId: string) => void;
-  /** Callback to delete a layout */
-  onDelete: (layoutId: string) => void;
-  /** Callback to rename a layout */
-  onRename: (layoutId: string, newName: string) => void;
-  /** Callback to duplicate a layout */
-  onDuplicate: (layoutId: string, newName: string) => void;
-  /** Callback when component subtype changes */
-  onComponentSubTypeChange?: (newSubType: string) => void;
-  /** Callback to close the dialog */
-  onClose?: () => void;
-}
-
-/**
- * LayoutItem Component
- *
- * Individual layout row with edit/delete actions
- */
-interface LayoutItemProps {
-  layout: LayoutInfo;
-  isDefault: boolean;
-  isEditing: boolean;
-  editedName: string;
-  onSetDefault: () => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
-  onStartEdit: () => void;
-  onCancelEdit: () => void;
-  onSaveEdit: () => void;
-  onNameChange: (name: string) => void;
-}
-
-const LayoutItem: React.FC<LayoutItemProps> = ({
-  layout,
-  isDefault,
-  isEditing,
-  editedName,
-  onSetDefault,
-  onDelete,
-  onDuplicate,
-  onStartEdit,
-  onCancelEdit,
-  onSaveEdit,
-  onNameChange,
-}) => {
-  return (
-    <div
-      className={`
-        flex items-center gap-3 p-3 rounded-md border
-        ${isDefault ? 'bg-yellow-50 border-yellow-200' : 'bg-background'}
-        hover:bg-muted/50 transition-colors
-      `}
-    >
-      {/* Default Star Icon */}
-      <button
-        onClick={onSetDefault}
-        className={`
-          flex-shrink-0 transition-colors
-          ${isDefault ? 'text-yellow-500' : 'text-muted-foreground hover:text-yellow-500'}
-        `}
-        title={isDefault ? 'Default layout' : 'Set as default'}
-      >
-        <Star
-          className={`h-5 w-5 ${isDefault ? 'fill-yellow-500' : ''}`}
-        />
-      </button>
-
-      {/* Layout Name (editable) */}
-      <div className="flex-1 min-w-0">
-        {isEditing ? (
-          <Input
-            value={editedName}
-            onChange={(e) => onNameChange(e.target.value)}
-            className="h-8"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onSaveEdit();
-              if (e.key === 'Escape') onCancelEdit();
-            }}
-          />
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="font-medium truncate">
-              {layout.unified.name}
-            </span>
-            {isDefault && (
-              <span className="text-xs text-yellow-600 font-medium">
-                (Default)
-              </span>
-            )}
-          </div>
-        )}
-        <div className="text-xs text-muted-foreground mt-0.5 truncate">
-          ID: {layout.unified.configId}
-        </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex items-center gap-1">
-        {isEditing ? (
-          <>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              onClick={onSaveEdit}
-              title="Save"
-            >
-              <Check className="h-4 w-4 text-green-600" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 w-8 p-0"
-              onClick={onCancelEdit}
-              title="Cancel"
-            >
-              <X className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </>
-        ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 w-8 p-0"
-              >
-                <MoreVertical className="h-4 w-4" />
-                <span className="sr-only">Actions</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onStartEdit}>
-                <Edit2 className="h-4 w-4 mr-2" />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDuplicate}>
-                <Copy className="h-4 w-4 mr-2" />
-                Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={onDelete}
-                className="text-destructive focus:text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
-    </div>
-  );
-};
+// Re-export types for convenience
+export type { LayoutInfo, LayoutManageDialogContentProps } from './layout-dialogs';
 
 /**
  * LayoutManageDialogContent Component
+ *
+ * Displays blotter config info and a list of layouts with management actions.
  */
 export const LayoutManageDialogContent: React.FC<LayoutManageDialogContentProps> = ({
   layouts,
   defaultLayoutId,
-  blotterConfigId,
-  componentType,
-  componentSubType,
+  selectedLayoutId,
+  blotterInfo,
   isLoading = false,
-  onSetDefault,
-  onDelete,
   onRename,
+  onDelete,
   onDuplicate,
-  onComponentSubTypeChange,
+  onSetDefault,
+  onSelect,
+  onSaveComponentSubType,
   onClose,
 }) => {
   // Edit state
-  const [editingLayoutId, setEditingLayoutId] = useState<string | null>(null);
-  const [editedName, setEditedName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Delete confirmation state
-  const [deleteConfirmLayout, setDeleteConfirmLayout] = useState<LayoutInfo | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Duplicate dialog state
-  const [duplicateLayout, setDuplicateLayout] = useState<LayoutInfo | null>(null);
+  const [duplicateDialogId, setDuplicateDialogId] = useState<string | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
 
-  // Component SubType edit state
-  const [isEditingSubType, setIsEditingSubType] = useState(false);
-  const [editedSubType, setEditedSubType] = useState(componentSubType || '');
+  // ComponentSubType editing state
+  const [editedSubType, setEditedSubType] = useState(blotterInfo?.componentSubType || '');
+  const [isSubTypeModified, setIsSubTypeModified] = useState(false);
+  const [isSavingSubType, setIsSavingSubType] = useState(false);
 
-  // Sync editedSubType with componentSubType prop when it changes
+  // Reset subType when blotterInfo changes (e.g., dialog reopens)
   useEffect(() => {
-    if (!isEditingSubType) {
-      setEditedSubType(componentSubType || '');
-    }
-  }, [componentSubType, isEditingSubType]);
+    setEditedSubType(blotterInfo?.componentSubType || '');
+    setIsSubTypeModified(false);
+  }, [blotterInfo?.componentSubType]);
 
-  // Handlers
-  const handleStartEdit = (layout: LayoutInfo) => {
-    setEditingLayoutId(layout.unified.configId);
-    setEditedName(layout.unified.name);
+  // Handlers for subType editing
+  const handleSubTypeChange = (value: string) => {
+    setEditedSubType(value);
+    setIsSubTypeModified(value !== (blotterInfo?.componentSubType || ''));
   };
 
-  const handleCancelEdit = () => {
-    setEditingLayoutId(null);
-    setEditedName('');
-  };
+  const handleSaveSubType = async () => {
+    if (!onSaveComponentSubType || !isSubTypeModified) return;
 
-  const handleSaveEdit = () => {
-    if (editingLayoutId && editedName.trim()) {
-      onRename(editingLayoutId, editedName.trim());
-      setEditingLayoutId(null);
-      setEditedName('');
+    setIsSavingSubType(true);
+    try {
+      await onSaveComponentSubType(editedSubType);
+      setIsSubTypeModified(false);
+    } finally {
+      setIsSavingSubType(false);
     }
   };
 
-  const handleDeleteClick = (layout: LayoutInfo) => {
-    setDeleteConfirmLayout(layout);
+  // Handlers for layout editing
+  const handleEditStart = (layout: LayoutInfo) => {
+    setEditingId(layout.unified.configId);
+    setEditName(layout.unified.name);
   };
 
-  const handleDeleteConfirm = () => {
-    if (deleteConfirmLayout) {
-      onDelete(deleteConfirmLayout.unified.configId);
-      setDeleteConfirmLayout(null);
+  const handleEditCancel = () => {
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const handleEditSave = async () => {
+    if (!editingId || !editName.trim()) return;
+
+    setIsProcessing(true);
+    try {
+      await onRename(editingId, editName.trim());
+      setEditingId(null);
+      setEditName('');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleDuplicateClick = (layout: LayoutInfo) => {
-    setDuplicateLayout(layout);
+  // Delete handlers
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+
+    setIsProcessing(true);
+    try {
+      await onDelete(deleteConfirmId);
+      setDeleteConfirmId(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Duplicate handlers
+  const openDuplicateDialog = (layout: LayoutInfo) => {
+    setDuplicateDialogId(layout.unified.configId);
     setDuplicateName(`${layout.unified.name} (Copy)`);
   };
 
-  const handleDuplicateConfirm = () => {
-    if (duplicateLayout && duplicateName.trim()) {
-      onDuplicate(duplicateLayout.unified.configId, duplicateName.trim());
-      setDuplicateLayout(null);
+  const handleDuplicate = async () => {
+    if (!duplicateDialogId || !duplicateName.trim()) return;
+
+    setIsProcessing(true);
+    try {
+      await onDuplicate(duplicateDialogId, duplicateName.trim());
+      setDuplicateDialogId(null);
       setDuplicateName('');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleSaveSubType = () => {
-    if (onComponentSubTypeChange && editedSubType.trim()) {
-      onComponentSubTypeChange(editedSubType.trim());
-      setIsEditingSubType(false);
+  // Set default handler
+  const handleSetDefault = async (layoutId: string) => {
+    setIsProcessing(true);
+    try {
+      await onSetDefault(layoutId);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleCancelSubType = () => {
-    setEditedSubType(componentSubType || '');
-    setIsEditingSubType(false);
+  // Layout selection handler
+  const handleSelect = (layout: LayoutInfo) => {
+    if (onSelect) {
+      onSelect(layout.unified.configId);
+    }
+    if (onClose) {
+      onClose();
+    }
   };
+
+  const layoutToDelete = layouts.find((l) => l.unified.configId === deleteConfirmId);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4 h-full">
       {/* Blotter Config Info Section */}
-      <div className="space-y-4">
-        <div>
-          <h4 className="text-sm font-medium mb-3">Blotter Configuration</h4>
-          <div className="grid gap-3">
-            {/* Config ID (read-only) */}
-            <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">Config ID</Label>
-              <div className="flex items-center gap-2 p-2 bg-muted rounded-md font-mono text-xs break-all">
-                {blotterConfigId}
-              </div>
+      {blotterInfo && (
+        <div className="flex-shrink-0 rounded-lg border bg-gradient-to-br from-muted/40 to-muted/20 p-4">
+          {/* Config ID - Prominent display */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
+              <Layout className="h-4 w-4 text-primary" />
             </div>
-
-            {/* Component Type (read-only) */}
-            <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">Component Type</Label>
-              <div className="flex items-center gap-2 p-2 bg-muted rounded-md text-sm">
-                {componentType}
-              </div>
-            </div>
-
-            {/* Component SubType (editable) */}
-            <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">Component SubType</Label>
-              {isEditingSubType ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={editedSubType}
-                    onChange={(e) => setEditedSubType(e.target.value)}
-                    className="flex-1"
-                    placeholder="Enter component subtype..."
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveSubType();
-                      if (e.key === 'Escape') handleCancelSubType();
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleSaveSubType}
-                    title="Save"
-                  >
-                    <Check className="h-4 w-4 text-green-600" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={handleCancelSubType}
-                    title="Cancel"
-                  >
-                    <X className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 p-2 bg-muted rounded-md text-sm">
-                    {componentSubType || <span className="text-muted-foreground italic">Not set</span>}
-                  </div>
-                  {onComponentSubTypeChange && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setIsEditingSubType(true)}
-                      title="Edit SubType"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              )}
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                Config ID
+              </p>
+              <p className="font-mono text-xs truncate" title={blotterInfo.configId}>
+                {blotterInfo.configId}
+              </p>
             </div>
           </div>
-        </div>
-      </div>
 
-      <Separator />
+          {/* Type badges and SubType input */}
+          <div className="flex items-center gap-3">
+            {/* Component Type Badge */}
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">
+                Type
+              </span>
+              <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                {blotterInfo.componentType}
+              </span>
+            </div>
 
-      {/* Layouts Section */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium">
-            Layouts ({layouts.length})
-          </h4>
-        </div>
-
-        {/* Layouts List */}
-        <ScrollArea className="h-[300px] pr-4">
-          <div className="space-y-2">
-            {layouts.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No layouts available
-              </div>
-            ) : (
-              layouts.map((layout) => (
-                <LayoutItem
-                  key={layout.unified.configId}
-                  layout={layout}
-                  isDefault={layout.unified.configId === defaultLayoutId}
-                  isEditing={editingLayoutId === layout.unified.configId}
-                  editedName={editedName}
-                  onSetDefault={() => onSetDefault(layout.unified.configId)}
-                  onDelete={() => handleDeleteClick(layout)}
-                  onDuplicate={() => handleDuplicateClick(layout)}
-                  onStartEdit={() => handleStartEdit(layout)}
-                  onCancelEdit={handleCancelEdit}
-                  onSaveEdit={handleSaveEdit}
-                  onNameChange={setEditedName}
+            {/* SubType - Editable */}
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1 block">
+                SubType
+              </span>
+              <div className="flex gap-1.5">
+                <Input
+                  value={editedSubType}
+                  onChange={(e) => handleSubTypeChange(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="e.g., trades, positions"
+                  className="h-7 text-xs flex-1 px-2.5 bg-background/50"
+                  autoComplete="off"
+                  disabled={isSavingSubType || !onSaveComponentSubType}
                 />
-              ))
-            )}
+                {onSaveComponentSubType && (
+                  <Button
+                    size="sm"
+                    variant={isSubTypeModified ? 'default' : 'ghost'}
+                    className={cn(
+                      'h-7 w-7 p-0',
+                      isSubTypeModified && 'bg-primary hover:bg-primary/90'
+                    )}
+                    onClick={handleSaveSubType}
+                    disabled={!isSubTypeModified || isSavingSubType}
+                  >
+                    {isSavingSubType ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
-        </ScrollArea>
+        </div>
+      )}
+
+      {/* Layouts Section Header */}
+      <div className="flex items-center justify-between flex-shrink-0">
+        <Label className="text-sm font-medium">Layouts ({layouts.length})</Label>
       </div>
 
-      {/* Delete Confirmation AlertDialog */}
+      {/* Layouts List - Scrollable */}
+      <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">
+        {layouts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground border border-dashed rounded-md">
+            <Layout className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-sm font-medium">No layouts saved yet.</p>
+            <p className="text-xs mt-1">
+              Save your current grid configuration to create a layout.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1.5 pb-1">
+            {layouts.map((layout) => (
+              <LayoutItem
+                key={layout.unified.configId}
+                layout={layout}
+                isDefault={layout.unified.configId === defaultLayoutId}
+                isSelected={layout.unified.configId === selectedLayoutId}
+                isEditing={editingId === layout.unified.configId}
+                editName={editName}
+                isProcessing={isProcessing && editingId === layout.unified.configId}
+                onEditStart={() => handleEditStart(layout)}
+                onEditCancel={handleEditCancel}
+                onEditSave={handleEditSave}
+                onEditNameChange={setEditName}
+                onSetDefault={() => handleSetDefault(layout.unified.configId)}
+                onDuplicate={() => openDuplicateDialog(layout)}
+                onDelete={() => setDeleteConfirmId(layout.unified.configId)}
+                onSelect={onSelect ? () => handleSelect(layout) : undefined}
+              />
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+
+      {/* Delete Confirmation Dialog */}
       <AlertDialog
-        open={deleteConfirmLayout !== null}
-        onOpenChange={(open) => !open && setDeleteConfirmLayout(null)}
+        open={!!deleteConfirmId}
+        onOpenChange={(open) => !open && setDeleteConfirmId(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Layout</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the layout "{deleteConfirmLayout?.unified.name}"?
-              This action cannot be undone.
+              Are you sure you want to delete "{layoutToDelete?.unified.name}"? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive hover:bg-destructive/90"
+              onClick={handleDelete}
+              disabled={isProcessing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -468,46 +319,49 @@ export const LayoutManageDialogContent: React.FC<LayoutManageDialogContentProps>
 
       {/* Duplicate Dialog */}
       <Dialog
-        open={duplicateLayout !== null}
-        onOpenChange={(open) => !open && setDuplicateLayout(null)}
+        open={!!duplicateDialogId}
+        onOpenChange={(open) => !open && setDuplicateDialogId(null)}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Duplicate Layout</DialogTitle>
-            <DialogDescription>
-              Enter a name for the duplicated layout
-            </DialogDescription>
+            <DialogDescription>Enter a name for the duplicated layout.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="duplicate-name">Layout Name</Label>
-              <Input
-                id="duplicate-name"
-                value={duplicateName}
-                onChange={(e) => setDuplicateName(e.target.value)}
-                placeholder="Enter layout name..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && duplicateName.trim()) {
-                    handleDuplicateConfirm();
-                  }
-                }}
-              />
-            </div>
+
+          <div className="py-4">
+            <Input
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              placeholder="Enter layout name..."
+              autoFocus
+              disabled={isProcessing}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isProcessing) {
+                  handleDuplicate();
+                }
+              }}
+            />
           </div>
-          <DialogFooter>
+
+          <div className="flex justify-end gap-2">
             <Button
               variant="outline"
-              onClick={() => setDuplicateLayout(null)}
+              onClick={() => setDuplicateDialogId(null)}
+              disabled={isProcessing}
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleDuplicateConfirm}
-              disabled={!duplicateName.trim()}
-            >
-              Duplicate
+            <Button onClick={handleDuplicate} disabled={isProcessing || !duplicateName.trim()}>
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Duplicating...
+                </>
+              ) : (
+                'Duplicate'
+              )}
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
