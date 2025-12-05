@@ -564,6 +564,26 @@ export default function Provider() {
           const providerWindow = fin.Window.getCurrentSync();
           await providerWindow.hide();
 
+          // Register cleanup handler for graceful shutdown
+          providerWindow.on('close-requested', async () => {
+            logger.info('Provider window close requested - cleaning up...', undefined, 'Provider');
+            try {
+              // Deregister dock to prevent orphaned instances
+              if (dock.isDockAvailable()) {
+                await dock.deregister();
+                logger.info('Dock deregistered', undefined, 'Provider');
+              }
+
+              // Quit the platform
+              const platform = getCurrentSync();
+              await platform.quit();
+            } catch (error) {
+              logger.error('Error during cleanup', error, 'Provider');
+              // Force quit if cleanup fails
+              fin.Platform.getCurrentSync().quit();
+            }
+          });
+
         } catch (error: any) {
           logger.error('Failed to register workspace components', error, 'Provider');
           // Continue execution even if dock registration fails
