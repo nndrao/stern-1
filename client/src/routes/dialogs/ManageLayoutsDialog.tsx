@@ -13,15 +13,32 @@ import { DIALOG_TYPES } from '@/config/dialogConfig';
 
 /**
  * Data received from parent window via IAB
+ * Note: Parent sends flat fields, we transform to blotterInfo
  */
-export interface ManageLayoutsDialogData {
+interface RawDialogData {
   /** List of available layouts */
   layouts: LayoutInfo[];
   /** ID of the default layout */
   defaultLayoutId?: string;
   /** Currently selected layout ID */
   selectedLayoutId?: string;
-  /** Blotter configuration info */
+  /** Blotter config ID (flat field from parent) */
+  blotterConfigId?: string;
+  /** Component type (flat field from parent) */
+  componentType?: string;
+  /** Component subtype (flat field from parent) */
+  componentSubType?: string;
+  /** Or nested blotterInfo (if sent that way) */
+  blotterInfo?: BlotterInfo;
+}
+
+/**
+ * Normalized data structure used by the component
+ */
+export interface ManageLayoutsDialogData {
+  layouts: LayoutInfo[];
+  defaultLayoutId?: string;
+  selectedLayoutId?: string;
   blotterInfo?: BlotterInfo;
 }
 
@@ -63,7 +80,23 @@ export const ManageLayoutsDialog: React.FC = () => {
       if (!isMounted) return;
 
       console.log('[ManageLayoutsDialog] Received data from parent:', message);
-      setData(message.data);
+
+      const rawData: RawDialogData = message.data;
+
+      // Normalize: transform flat fields to blotterInfo if needed
+      const normalizedData: ManageLayoutsDialogData = {
+        layouts: rawData.layouts || [],
+        defaultLayoutId: rawData.defaultLayoutId,
+        selectedLayoutId: rawData.selectedLayoutId,
+        blotterInfo: rawData.blotterInfo || (rawData.blotterConfigId ? {
+          configId: rawData.blotterConfigId,
+          componentType: rawData.componentType || 'SimpleBlotter',
+          componentSubType: rawData.componentSubType,
+        } : undefined),
+      };
+
+      console.log('[ManageLayoutsDialog] Normalized data:', normalizedData);
+      setData(normalizedData);
       setIsLoading(false);
     };
 
