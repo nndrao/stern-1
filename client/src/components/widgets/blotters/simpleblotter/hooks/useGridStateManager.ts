@@ -135,15 +135,19 @@ export function useGridStateManager({
 
       let sideBarState: SideBarState | undefined;
       try {
-        const sideBar = gridApi.getSideBar();
-        if (sideBar) {
-          const openToolPanel = gridApi.getOpenedToolPanel();
-          sideBarState = {
-            visible: gridApi.isSideBarVisible(),
-            openToolPanel: openToolPanel || null,
-          };
-        }
-      } catch {
+        // Always try to capture sidebar state - don't rely on getSideBar() returning a value
+        // since sideBar={true} may not return a meaningful value from getSideBar()
+        const isVisible = gridApi.isSideBarVisible?.() ?? false;
+        const openToolPanel = gridApi.getOpenedToolPanel?.() || null;
+
+        sideBarState = {
+          visible: isVisible,
+          openToolPanel: openToolPanel,
+        };
+
+        logger.debug('Sidebar state captured', { sideBarState }, 'useGridStateManager');
+      } catch (e) {
+        logger.warn('Failed to capture sidebar state', { error: e }, 'useGridStateManager');
         sideBarState = undefined;
       }
 
@@ -154,6 +158,8 @@ export function useGridStateManager({
         columnCount: columnState.length,
         filterCount: Object.keys(filterState).length,
         sortCount: sortState.length,
+        sideBarVisible: sideBarState?.visible,
+        openToolPanel: sideBarState?.openToolPanel,
       }, 'useGridStateManager');
 
       return {
