@@ -28,7 +28,7 @@ import { LayoutSaveDialog } from './LayoutSaveDialog';
 import { LayoutManageDialog } from './LayoutManageDialog';
 import { BlotterGrid } from './components/BlotterGrid';
 import { useLayoutManager } from './hooks/useLayoutManager';
-import { useBlotterDataConnection } from './hooks/useBlotterDataConnection';
+import { useBlotterData } from '@/providers/stomp';
 import { COMPONENT_TYPES } from '@stern/shared-types';
 import { isOpenFin } from '@stern/openfin-platform';
 import { DIALOG_TYPES, DIALOG_CONFIGS } from '@/config/dialogConfig';
@@ -168,11 +168,10 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
   // Data Connection
   // ============================================================================
 
-  const dataConnection = useBlotterDataConnection({
+  const dataConnection = useBlotterData({
     providerId: selectedProviderId,
     gridApi: gridApiRef.current,
     gridReady,
-    blotterType,
     onRowCountChange: setRowCount,
     onLoadingChange: setIsLoading,
     onLoadComplete: setLoadTimeMs,

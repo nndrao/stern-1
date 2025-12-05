@@ -1,29 +1,27 @@
 /**
  * STOMP Data Provider
  *
- * Simplified STOMP data provider with SharedWorker for connection sharing.
+ * Simplified 2-file STOMP data provider:
+ * - stompDataWorker.ts: SharedWorker with embedded STOMP connection + cache
+ * - useBlotterData.ts: React hook for blotter data connection
  *
  * Usage:
  * ```tsx
- * const {
- *   isConnected,
- *   isLoading,
- *   error,
- *   statistics,
- *   getRowId,
- *   connect,
- *   disconnect,
- * } = useStompProvider(providerId, {
- *   onSnapshot: (rows) => gridApi.applyTransaction({ add: rows }),
- *   onUpdate: (rows) => gridApi.applyTransaction({ update: rows }),
- *   onSnapshotComplete: () => console.log('Ready'),
- *   onError: (err) => console.error(err),
+ * const dataConnection = useBlotterData({
+ *   providerId,
+ *   gridApi,
+ *   gridReady,
+ *   onRowCountChange: setRowCount,
+ *   onLoadingChange: setIsLoading,
+ *   onLoadComplete: setLoadTimeMs,
+ *   onError: handleError,
  * });
  * ```
  */
 
-export { SharedStompProvider } from './SharedStompProvider';
-export type { StompProviderConfig, ProviderStatistics, ProviderMessage } from './SharedStompProvider';
+export { useBlotterData } from './useBlotterData';
+export type { UseBlotterDataOptions, UseBlotterDataResult } from './useBlotterData';
 
+// Legacy exports (for backwards compatibility during migration)
+export { SharedStompProvider } from './SharedStompProvider';
 export { useStompProvider } from './useStompProvider';
-export type { UseStompProviderOptions, UseStompProviderResult } from './useStompProvider';
