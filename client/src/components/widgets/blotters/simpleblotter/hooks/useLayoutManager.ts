@@ -361,7 +361,7 @@ export function useLayoutManager({
   // Return
   // ============================================================================
 
-  return useMemo(() => ({
+  return {
     // State
     selectedLayoutId,
     selectedLayout,
@@ -396,31 +396,7 @@ export function useLayoutManager({
 
     // Callback registration
     registerApplyCallbacks,
-  }), [
-    selectedLayoutId,
-    selectedLayout,
-    layouts,
-    defaultLayoutId,
-    blotterConfig,
-    blotterUnified,
-    isLoading,
-    isSaving,
-    isSaveDialogOpen,
-    isManageDialogOpen,
-    initializeBlotter,
-    selectLayout,
-    saveCurrentLayout,
-    saveAsNewLayout,
-    renameLayout,
-    handleDeleteLayout,
-    handleDuplicateLayout,
-    handleSetDefaultLayout,
-    handleUpdateComponentSubType,
-    gridStateManager.captureGridState,
-    applyLayoutToGrid,
-    gridStateManager.resetGridState,
-    registerApplyCallbacks,
-  ]);
+  };
 }
 
 export default useLayoutManager;

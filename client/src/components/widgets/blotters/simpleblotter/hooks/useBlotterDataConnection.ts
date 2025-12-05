@@ -5,7 +5,7 @@
  * Handles snapshot processing, updates, and connection state.
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { GridApi } from 'ag-grid-community';
 import { useDataProviderAdapter } from '@/hooks/data-provider';
 import { BlotterType } from '@/types/blotter';
@@ -68,18 +68,15 @@ export function useBlotterDataConnection({
   const isConnectedRef = useRef(false);
 
   // Store callback refs to avoid dependency issues
+  // Update directly on render - no useEffect needed for refs
   const onRowCountChangeRef = useRef(onRowCountChange);
   const onLoadingChangeRef = useRef(onLoadingChange);
   const onLoadCompleteRef = useRef(onLoadComplete);
   const onErrorRef = useRef(onError);
-
-  // Keep refs updated
-  useEffect(() => {
-    onRowCountChangeRef.current = onRowCountChange;
-    onLoadingChangeRef.current = onLoadingChange;
-    onLoadCompleteRef.current = onLoadComplete;
-    onErrorRef.current = onError;
-  }, [onRowCountChange, onLoadingChange, onLoadComplete, onError]);
+  onRowCountChangeRef.current = onRowCountChange;
+  onLoadingChangeRef.current = onLoadingChange;
+  onLoadCompleteRef.current = onLoadComplete;
+  onErrorRef.current = onError;
 
   // ============================================================================
   // Data Provider Adapter
@@ -91,11 +88,9 @@ export function useBlotterDataConnection({
     blotterType,
   });
 
-  // Store adapter in ref
+  // Store adapter in ref - update directly on render
   const adapterRef = useRef(adapter);
-  useEffect(() => {
-    adapterRef.current = adapter;
-  }, [adapter]);
+  adapterRef.current = adapter;
 
   // ============================================================================
   // Connection Effect
