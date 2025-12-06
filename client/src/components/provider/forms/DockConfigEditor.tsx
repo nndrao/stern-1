@@ -447,14 +447,14 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
           {/* Edit Actions */}
           <div className="flex items-center gap-1">
             <span className="text-xs font-medium text-muted-foreground mr-2">Edit:</span>
-            <Button variant="outline" size="sm" onClick={handleAddMenuItem} className="h-8">
+            <Button variant="outline" size="sm" onClick={() => handleAddMenuItem()} className="h-8">
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               Add
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDeleteMenuItem}
+              onClick={() => handleDeleteMenuItem()}
               disabled={!selectedId}
               className="h-8"
             >
@@ -464,7 +464,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDuplicateMenuItem}
+              onClick={() => handleDuplicateMenuItem()}
               disabled={!selectedId}
               className="h-8"
             >
