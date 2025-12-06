@@ -106,6 +106,10 @@ function addChildToItem(item: DockMenuItem, parentId: string, child: DockMenuIte
 // System userId for admin configurations - shared across all users
 const SYSTEM_USER_ID = 'System';
 
+/**
+ * Dock Configuration Editor - Simplified
+ * Uses simple local state for fast, responsive editing
+ */
 export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
   userId = SYSTEM_USER_ID, // Default to System for admin configs
   appId = 'stern-platform'
@@ -208,36 +212,22 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       logger.info('Save completed successfully', undefined, 'DockConfigEditor');
       setIsDirty(false);
 
-      // Reload the dock to show the updated configuration
+      // Update the dock with the new configuration (fast, no reload!)
       if (window.fin) {
         try {
-          logger.info('Reloading dock with updated configuration...', undefined, 'DockConfigEditor');
+          logger.info('Updating dock with new configuration...', undefined, 'DockConfigEditor');
           const dock = await import('@/openfin/platform/openfinDock');
 
-          // Do full reload (deregister and re-register) to ensure menu items update properly
-          // Note: updateConfig() doesn't work reliably when called via dynamic import due to module state issues
-          logger.info('🔄 Deregistering dock to clear OpenFin cache...', undefined, 'DockConfigEditor');
-          await dock.deregister();
+          // Use fast updateConfig - no reload needed!
+          await dock.updateConfig({
+            menuItems: currentConfig.config?.menuItems || []
+          });
 
-          // Wait longer to ensure OpenFin fully clears the cache
-          logger.info('⏳ Waiting for OpenFin to clear cache...', undefined, 'DockConfigEditor');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
-          logger.info('🔄 Registering dock with config:', {
-            configId: currentConfig.configId,
+          logger.info('✅ Dock updated successfully', {
             menuItemCount: currentConfig.config?.menuItems?.length
           }, 'DockConfigEditor');
-          logger.info('📋 MENU ITEMS TO REGISTER:', JSON.stringify(currentConfig.config?.menuItems, null, 2), 'DockConfigEditor');
-
-          await dock.registerFromConfig(currentConfig);
-
-          // Wait a bit longer before showing to ensure registration is complete
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await dock.show();
-
-          logger.info('✅ Dock registration complete - cache should be refreshed', undefined, 'DockConfigEditor');
         } catch (dockError) {
-          logger.error('Failed to reload dock', dockError, 'DockConfigEditor');
+          logger.error('Failed to update dock', dockError, 'DockConfigEditor');
         }
       }
 
@@ -261,8 +251,9 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     if (!config) return;
 
     const newItem = createMenuItem();
-    let newMenuItems = [...(config.config.menuItems || [])];
 
+    // Update local config
+    let newMenuItems = [...(config.config.menuItems || [])];
     const currentSelectedNode = selectedNode;
     if (currentSelectedNode) {
       // Add as child
@@ -282,6 +273,9 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       }
     });
     setIsDirty(true);
+
+    // Select the newly added item
+    setSelectedNode(newItem);
   }, [selectedNode]);
 
   const handleDeleteMenuItem = useCallback(() => {
@@ -670,38 +664,24 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
             <ResizablePanel defaultSize={60} minSize={40}>
               <div className="h-full p-4 overflow-auto">
-                {selectedNode ? (
-                  <Card className="h-full shadow-sm">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="h-4 w-4 text-primary" />
-                        <CardTitle className="text-base">Properties</CardTitle>
-                      </div>
-                      <CardDescription className="text-xs">
-                        Configure the selected menu item
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <PropertiesPanel
-                        key={selectedNode.id}
-                        item={selectedNode}
-                        onUpdate={(updates) => handleUpdateMenuItem(selectedNode.id, updates)}
-                        onIconSelect={handleIconSelect}
-                      />
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="h-full flex items-center justify-center shadow-sm">
-                    <CardContent className="text-center">
-                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted mb-3">
-                        <Settings2 className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                      <p className="text-muted-foreground">
-                        Select a menu item to edit its properties
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
+                <Card className="h-full shadow-sm">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-base">Properties</CardTitle>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Configure the selected menu item
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <PropertiesPanel
+                      item={selectedNode}
+                      onUpdate={handleUpdateMenuItem}
+                      onIconSelect={handleIconSelect}
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -721,3 +701,4 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     </div>
   );
 };
+

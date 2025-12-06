@@ -9,8 +9,8 @@
  * Key Principles:
  * 1. Use Dock.register() from @openfin/workspace (not custom window management)
  * 2. Custom actions must be registered BEFORE dock registration in platform init()
- * 3. Use updateDockProviderConfig() for updates, not deregister/register
- * 4. For full reload: deregister -> wait 500ms -> register -> show
+ * 3. Use updateDockProviderConfig() for fast updates (rebuilds buttons to prevent caching)
+ * 4. Cache-busting: always rebuild buttons array from scratch on each update
  * 5. Developer tools require searching through all windows/apps
  *
  * @module dock
@@ -283,11 +283,10 @@ export async function deregister(): Promise<void> {
 }
 
 /**
- * Update dock configuration dynamically
+ * Update dock configuration dynamically without reload
  *
- * NOTE: When menu items are updated, we MUST do a full reload (deregister + register)
- * because OpenFin's updateDockProviderConfig() doesn't properly update dropdown button
- * options (nested menu structure). It only works reliably for top-level button properties.
+ * Uses updateDockProviderConfig() for fast, non-disruptive updates.
+ * Cache-busting is achieved by rebuilding the buttons array from scratch each time.
  *
  * @param config - New configuration to apply
  * @returns Promise that resolves when update is complete
@@ -297,50 +296,19 @@ export async function updateConfig(config: {
   workspaceComponents?: WorkspaceButtonsConfig;
 }): Promise<void> {
   try {
-    if (!registration || !currentConfig || !currentDockId) {
+    if (!registration || !currentConfig) {
       throw new Error('Dock not registered - call register() first');
     }
 
     logger.info('Updating dock configuration', undefined, 'dock');
 
-    // If menu items are being updated, we need to do a full reload
-    // because updateDockProviderConfig() doesn't properly update dropdown options
-    if (config.menuItems) {
-      logger.info('Menu items changed - performing full dock reload for reliable update', undefined, 'dock');
-
-      // Deregister current dock
-      await deregister();
-
-      // Wait for deregistration to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Re-register with updated menu items
-      // Extract icon URL (currentConfig.icon can be string or TaskbarIcon)
-      const iconUrl = typeof currentConfig.icon === 'string'
-        ? currentConfig.icon
-        : ((currentConfig.icon as any)?.image || '');
-
-      await register({
-        id: currentDockId,
-        title: currentConfig.title || 'Stern Platform',
-        icon: iconUrl || '',
-        menuItems: config.menuItems,
-        workspaceComponents: config.workspaceComponents as WorkspaceButtonsConfig | undefined || currentConfig.workspaceComponents as WorkspaceButtonsConfig | undefined,
-        disableUserRearrangement: currentConfig.disableUserRearrangement
-      });
-
-      // Show the dock
-      await show();
-
-      logger.info('Dock reloaded successfully with updated menu items', {
-        menuItemCount: config.menuItems.length
-      }, 'dock');
-
-      return;
-    }
-
-    // For non-menu updates (like workspace components), use efficient update
+    // Build new buttons array from scratch (prevents caching)
     const buttons: DockButton[] = [];
+
+    // Add Applications dropdown with all menu items
+    if (config.menuItems && config.menuItems.length > 0) {
+      buttons.push(buildApplicationsButton(config.menuItems));
+    }
 
     // Add system buttons
     buttons.push(...buildSystemButtons());

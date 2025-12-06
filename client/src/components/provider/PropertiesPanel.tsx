@@ -1,7 +1,7 @@
 /**
  * Properties Panel Component
  * Displays and edits properties of selected menu items
- * SIMPLE: Local state + update parent only on blur
+ * Uses simple props and local state for fast, responsive editing
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
@@ -15,13 +15,12 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildUrl } from '@/openfin/utils';
 import { RefreshCw, Image } from 'lucide-react';
-import { logger } from '@/utils/logger';
 
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
 interface PropertiesPanelProps {
-  item: DockMenuItem;
-  onUpdate: (updates: Partial<DockMenuItem>) => void;
+  item: DockMenuItem | null;
+  onUpdate: (id: string, updates: Partial<DockMenuItem>) => void;
   onIconSelect: (callback: (icon: string) => void) => void;
 }
 
@@ -30,54 +29,81 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   onUpdate,
   onIconSelect
 }) => {
-  // Local state for text inputs - only updates parent on blur
-  const [localCaption, setLocalCaption] = useState(item.caption);
-  const [localId, setLocalId] = useState(item.id);
-  const [localUrl, setLocalUrl] = useState(item.url || '');
-  const [localIcon, setLocalIcon] = useState(item.icon || '');
-  const [localOrder, setLocalOrder] = useState(item.order);
 
-  // Sync local state when item ID changes (different node selected)
+  // Local state for text inputs - only calls onUpdate on blur
+  const [localCaption, setLocalCaption] = useState(item?.caption || '');
+  const [localId, setLocalId] = useState(item?.id || '');
+  const [localUrl, setLocalUrl] = useState(item?.url || '');
+  const [localIcon, setLocalIcon] = useState(item?.icon || '');
+  const [localOrder, setLocalOrder] = useState(item?.order || 0);
+
+  // Sync local state when item changes (different node selected)
   useEffect(() => {
-    setLocalCaption(item.caption);
-    setLocalId(item.id);
-    setLocalUrl(item.url || '');
-    setLocalIcon(item.icon || '');
-    setLocalOrder(item.order);
-  }, [item.id]);
+    if (item) {
+      setLocalCaption(item.caption);
+      setLocalId(item.id);
+      setLocalUrl(item.url || '');
+      setLocalIcon(item.icon || '');
+      setLocalOrder(item.order);
+    }
+  }, [item?.id]);
+
+  // Helper to update item - just calls parent callback
+  const updateItem = useCallback((updates: Partial<DockMenuItem>) => {
+    if (item) {
+      onUpdate(item.id, updates);
+    }
+  }, [item?.id, onUpdate]);
 
   // Generate unique ID
   const generateId = useCallback(() => {
     const id = `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setLocalId(id);
-    onUpdate({ id });
-  }, [onUpdate]);
+    updateItem({ id });
+  }, [updateItem]);
 
   // Handle window option changes (immediate update for switches/selects)
   const handleWindowOptionChange = useCallback((key: string, value: any) => {
-    onUpdate({
-      windowOptions: {
-        ...item.windowOptions,
-        [key]: value
-      }
-    });
-  }, [item.windowOptions, onUpdate]);
+    if (item) {
+      updateItem({
+        windowOptions: {
+          ...item.windowOptions,
+          [key]: value
+        }
+      });
+    }
+  }, [item?.windowOptions, updateItem]);
 
   // Handle view option changes (immediate update for switches/selects)
   const handleViewOptionChange = useCallback((key: string, value: any) => {
-    onUpdate({
-      viewOptions: {
-        ...item.viewOptions,
-        [key]: value
-      }
-    });
-  }, [item.viewOptions, onUpdate]);
+    if (item) {
+      updateItem({
+        viewOptions: {
+          ...item.viewOptions,
+          [key]: value
+        }
+      });
+    }
+  }, [item?.viewOptions, updateItem]);
 
   // Memoize full URL construction
   const fullUrl = useMemo(() =>
-    item.url ? buildUrl(item.url) : '',
-    [item.url]
+    item?.url ? buildUrl(item.url) : '',
+    [item?.url]
   );
+
+  // If no item selected, show empty state
+  if (!item) {
+    return (
+      <Card className="h-full flex items-center justify-center">
+        <CardContent className="text-center">
+          <p className="text-muted-foreground">
+            Select a menu item to edit its properties
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="h-full">
@@ -107,7 +133,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 id="caption"
                 value={localCaption}
                 onChange={(e) => setLocalCaption(e.target.value)}
-                onBlur={() => onUpdate({ caption: localCaption })}
+                onBlur={() => updateItem({ caption: localCaption })}
                 placeholder="Menu item text"
                 required
               />
@@ -121,7 +147,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   id="id"
                   value={localId}
                   onChange={(e) => setLocalId(e.target.value)}
-                  onBlur={() => onUpdate({ id: localId })}
+                  onBlur={() => updateItem({ id: localId })}
                   placeholder="Unique identifier"
                   required
                 />
@@ -143,7 +169,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 id="url"
                 value={localUrl}
                 onChange={(e) => setLocalUrl(e.target.value)}
-                onBlur={() => onUpdate({ url: localUrl })}
+                onBlur={() => updateItem({ url: localUrl })}
                 placeholder="/data-grid, /watchlist, etc."
                 disabled={item.children && item.children.length > 0}
               />
@@ -159,7 +185,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <Label htmlFor="openMode">Open Mode</Label>
               <Select
                 value={item.openMode}
-                onValueChange={(value: 'window' | 'view') => onUpdate({ openMode: value })}
+                onValueChange={(value: 'window' | 'view') => updateItem({ openMode: value })}
                 disabled={item.children && item.children.length > 0}
               >
                 <SelectTrigger id="openMode">
@@ -180,7 +206,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   id="icon"
                   value={localIcon}
                   onChange={(e) => setLocalIcon(e.target.value)}
-                  onBlur={() => onUpdate({ icon: localIcon })}
+                  onBlur={() => updateItem({ icon: localIcon })}
                   placeholder="/icons/app.svg"
                 />
                 <Button
@@ -188,7 +214,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   size="icon"
                   onClick={() => onIconSelect((icon) => {
                     setLocalIcon(icon);
-                    onUpdate({ icon });
+                    updateItem({ icon });
                   })}
                   title="Select Icon"
                 >
@@ -205,7 +231,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 type="number"
                 value={localOrder}
                 onChange={(e) => setLocalOrder(parseInt(e.target.value) || 0)}
-                onBlur={() => onUpdate({ order: localOrder })}
+                onBlur={() => updateItem({ order: localOrder })}
                 min="0"
               />
             </div>
