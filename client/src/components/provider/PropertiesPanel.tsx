@@ -1,17 +1,15 @@
 /**
- * Properties Panel Component - Refactored
+ * Properties Panel Component - Refactored for Performance
  *
- * Displays and edits properties of selected menu items.
- * Uses simple props and local state for fast, responsive editing.
- *
- * Key improvements:
- * - Removed verbose logging that ran on every render
- * - Uses ref pattern for stable callbacks (prevents re-renders)
- * - Local state for text inputs means typing doesn't trigger parent updates
+ * Key design:
+ * - All editing happens in local state only (instant typing)
+ * - Changes are applied to the config ONLY when user clicks "Apply Changes"
+ * - No onBlur handlers that update parent state
+ * - This completely isolates typing from tree re-renders
  */
 
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,8 +17,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { buildUrl } from '@/openfin/utils';
-import { RefreshCw, Image } from 'lucide-react';
+import { RefreshCw, Image, Save, RotateCcw } from 'lucide-react';
 
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
@@ -30,103 +29,190 @@ interface PropertiesPanelProps {
   onIconSelect: (callback: (icon: string) => void) => void;
 }
 
-const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   item,
   onUpdate,
   onIconSelect
 }) => {
-  // Refs for stable callbacks - prevents callback recreation
-  const itemRef = useRef(item);
-  const onUpdateRef = useRef(onUpdate);
-  itemRef.current = item;
-  onUpdateRef.current = onUpdate;
+  // ============================================================================
+  // Local State - All editing happens here, no parent updates until Apply
+  // ============================================================================
 
-  // Local state for text inputs - only calls onUpdate on blur
-  const [localCaption, setLocalCaption] = useState(item?.caption || '');
-  const [localId, setLocalId] = useState(item?.id || '');
-  const [localUrl, setLocalUrl] = useState(item?.url || '');
-  const [localIcon, setLocalIcon] = useState(item?.icon || '');
-  const [localOrder, setLocalOrder] = useState(item?.order || 0);
+  // General tab
+  const [localCaption, setLocalCaption] = useState('');
+  const [localId, setLocalId] = useState('');
+  const [localUrl, setLocalUrl] = useState('');
+  const [localIcon, setLocalIcon] = useState('');
+  const [localOrder, setLocalOrder] = useState(0);
+  const [localOpenMode, setLocalOpenMode] = useState<'window' | 'view'>('window');
 
-  // Local state for window dimension inputs - only calls onUpdate on blur
-  const [localWidth, setLocalWidth] = useState(item?.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width);
-  const [localHeight, setLocalHeight] = useState(item?.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height);
-  const [localMinWidth, setLocalMinWidth] = useState(item?.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth);
-  const [localMinHeight, setLocalMinHeight] = useState(item?.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight);
+  // Window tab
+  const [localWidth, setLocalWidth] = useState(DEFAULT_WINDOW_OPTIONS.width);
+  const [localHeight, setLocalHeight] = useState(DEFAULT_WINDOW_OPTIONS.height);
+  const [localMinWidth, setLocalMinWidth] = useState(DEFAULT_WINDOW_OPTIONS.minWidth);
+  const [localMinHeight, setLocalMinHeight] = useState(DEFAULT_WINDOW_OPTIONS.minHeight);
+  const [localResizable, setLocalResizable] = useState(DEFAULT_WINDOW_OPTIONS.resizable);
+  const [localMaximizable, setLocalMaximizable] = useState(DEFAULT_WINDOW_OPTIONS.maximizable);
+  const [localMinimizable, setLocalMinimizable] = useState(DEFAULT_WINDOW_OPTIONS.minimizable);
+  const [localCenter, setLocalCenter] = useState(DEFAULT_WINDOW_OPTIONS.center);
+  const [localFrame, setLocalFrame] = useState(DEFAULT_WINDOW_OPTIONS.frame);
+  const [localAlwaysOnTop, setLocalAlwaysOnTop] = useState(false);
 
-  // Local state for view dimension inputs - only calls onUpdate on blur
-  const [localViewWidth, setLocalViewWidth] = useState(item?.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width);
-  const [localViewHeight, setLocalViewHeight] = useState(item?.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height);
+  // View tab
+  const [localViewWidth, setLocalViewWidth] = useState(DEFAULT_VIEW_OPTIONS.bounds.width);
+  const [localViewHeight, setLocalViewHeight] = useState(DEFAULT_VIEW_OPTIONS.bounds.height);
+  const [localCustomData, setLocalCustomData] = useState('{}');
 
-  // Sync local state when item changes (different node selected)
+  // Track if local state differs from item
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // ============================================================================
+  // Sync local state when a different item is selected
+  // ============================================================================
+
   useEffect(() => {
     if (item) {
-      setLocalCaption(item.caption);
-      setLocalId(item.id);
+      setLocalCaption(item.caption || '');
+      setLocalId(item.id || '');
       setLocalUrl(item.url || '');
       setLocalIcon(item.icon || '');
-      setLocalOrder(item.order);
+      setLocalOrder(item.order || 0);
+      setLocalOpenMode(item.openMode || 'window');
 
-      // Sync window dimension state
-      setLocalWidth(item.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width);
-      setLocalHeight(item.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height);
-      setLocalMinWidth(item.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth);
-      setLocalMinHeight(item.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight);
+      // Window options
+      setLocalWidth(item.windowOptions?.width ?? DEFAULT_WINDOW_OPTIONS.width);
+      setLocalHeight(item.windowOptions?.height ?? DEFAULT_WINDOW_OPTIONS.height);
+      setLocalMinWidth(item.windowOptions?.minWidth ?? DEFAULT_WINDOW_OPTIONS.minWidth);
+      setLocalMinHeight(item.windowOptions?.minHeight ?? DEFAULT_WINDOW_OPTIONS.minHeight);
+      setLocalResizable(item.windowOptions?.resizable ?? DEFAULT_WINDOW_OPTIONS.resizable);
+      setLocalMaximizable(item.windowOptions?.maximizable ?? DEFAULT_WINDOW_OPTIONS.maximizable);
+      setLocalMinimizable(item.windowOptions?.minimizable ?? DEFAULT_WINDOW_OPTIONS.minimizable);
+      setLocalCenter(item.windowOptions?.center ?? DEFAULT_WINDOW_OPTIONS.center);
+      setLocalFrame(item.windowOptions?.frame ?? DEFAULT_WINDOW_OPTIONS.frame);
+      setLocalAlwaysOnTop(item.windowOptions?.alwaysOnTop ?? false);
 
-      // Sync view dimension state
-      setLocalViewWidth(item.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width);
-      setLocalViewHeight(item.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height);
+      // View options
+      setLocalViewWidth(item.viewOptions?.bounds?.width ?? DEFAULT_VIEW_OPTIONS.bounds.width);
+      setLocalViewHeight(item.viewOptions?.bounds?.height ?? DEFAULT_VIEW_OPTIONS.bounds.height);
+      setLocalCustomData(JSON.stringify(item.viewOptions?.customData || {}, null, 2));
+
+      setHasChanges(false);
     }
   }, [item?.id]);
 
-  // Helper to update item - STABLE callback using refs
-  const updateItem = useCallback((updates: Partial<DockMenuItem>) => {
-    const currentItem = itemRef.current;
-    if (currentItem) {
-      onUpdateRef.current(currentItem.id, updates);
-    }
+  // ============================================================================
+  // Change handlers - only update local state, mark as changed
+  // ============================================================================
+
+  const handleFieldChange = useCallback(<T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
+    setter(value);
+    setHasChanges(true);
   }, []);
 
-  // Generate unique ID - STABLE
+  // Generate unique ID
   const generateId = useCallback(() => {
     const id = `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setLocalId(id);
-    onUpdateRef.current(itemRef.current?.id || '', { id });
+    setHasChanges(true);
   }, []);
 
-  // Handle window option changes - STABLE using refs
-  const handleWindowOptionChange = useCallback((key: string, value: unknown) => {
-    const currentItem = itemRef.current;
-    if (currentItem) {
-      onUpdateRef.current(currentItem.id, {
-        windowOptions: {
-          ...currentItem.windowOptions,
-          [key]: value
-        }
-      });
-    }
-  }, []);
+  // Handle icon selection
+  const handleIconClick = useCallback(() => {
+    onIconSelect((icon) => {
+      setLocalIcon(icon);
+      setHasChanges(true);
+    });
+  }, [onIconSelect]);
 
-  // Handle view option changes - STABLE using refs
-  const handleViewOptionChange = useCallback((key: string, value: unknown) => {
-    const currentItem = itemRef.current;
-    if (currentItem) {
-      onUpdateRef.current(currentItem.id, {
-        viewOptions: {
-          ...currentItem.viewOptions,
-          [key]: value
-        }
-      });
+  // ============================================================================
+  // Apply Changes - commits all local state to the config
+  // ============================================================================
+
+  const applyChanges = useCallback(() => {
+    if (!item) return;
+
+    // Parse custom data JSON
+    let customData = {};
+    try {
+      customData = JSON.parse(localCustomData);
+    } catch {
+      // Keep empty object if invalid JSON
     }
-  }, []);
+
+    // Build the complete update object
+    const updates: Partial<DockMenuItem> = {
+      caption: localCaption,
+      id: localId,
+      url: localUrl,
+      icon: localIcon,
+      order: localOrder,
+      openMode: localOpenMode,
+      windowOptions: {
+        width: localWidth,
+        height: localHeight,
+        minWidth: localMinWidth,
+        minHeight: localMinHeight,
+        resizable: localResizable,
+        maximizable: localMaximizable,
+        minimizable: localMinimizable,
+        center: localCenter,
+        frame: localFrame,
+        alwaysOnTop: localAlwaysOnTop,
+      },
+      viewOptions: {
+        bounds: {
+          width: localViewWidth,
+          height: localViewHeight,
+        },
+        customData,
+      },
+    };
+
+    onUpdate(item.id, updates);
+    setHasChanges(false);
+  }, [
+    item, localCaption, localId, localUrl, localIcon, localOrder, localOpenMode,
+    localWidth, localHeight, localMinWidth, localMinHeight,
+    localResizable, localMaximizable, localMinimizable, localCenter, localFrame, localAlwaysOnTop,
+    localViewWidth, localViewHeight, localCustomData, onUpdate
+  ]);
+
+  // Reset to original values
+  const resetChanges = useCallback(() => {
+    if (item) {
+      setLocalCaption(item.caption || '');
+      setLocalId(item.id || '');
+      setLocalUrl(item.url || '');
+      setLocalIcon(item.icon || '');
+      setLocalOrder(item.order || 0);
+      setLocalOpenMode(item.openMode || 'window');
+      setLocalWidth(item.windowOptions?.width ?? DEFAULT_WINDOW_OPTIONS.width);
+      setLocalHeight(item.windowOptions?.height ?? DEFAULT_WINDOW_OPTIONS.height);
+      setLocalMinWidth(item.windowOptions?.minWidth ?? DEFAULT_WINDOW_OPTIONS.minWidth);
+      setLocalMinHeight(item.windowOptions?.minHeight ?? DEFAULT_WINDOW_OPTIONS.minHeight);
+      setLocalResizable(item.windowOptions?.resizable ?? DEFAULT_WINDOW_OPTIONS.resizable);
+      setLocalMaximizable(item.windowOptions?.maximizable ?? DEFAULT_WINDOW_OPTIONS.maximizable);
+      setLocalMinimizable(item.windowOptions?.minimizable ?? DEFAULT_WINDOW_OPTIONS.minimizable);
+      setLocalCenter(item.windowOptions?.center ?? DEFAULT_WINDOW_OPTIONS.center);
+      setLocalFrame(item.windowOptions?.frame ?? DEFAULT_WINDOW_OPTIONS.frame);
+      setLocalAlwaysOnTop(item.windowOptions?.alwaysOnTop ?? false);
+      setLocalViewWidth(item.viewOptions?.bounds?.width ?? DEFAULT_VIEW_OPTIONS.bounds.width);
+      setLocalViewHeight(item.viewOptions?.bounds?.height ?? DEFAULT_VIEW_OPTIONS.bounds.height);
+      setLocalCustomData(JSON.stringify(item.viewOptions?.customData || {}, null, 2));
+      setHasChanges(false);
+    }
+  }, [item]);
 
   // Memoize full URL construction
   const fullUrl = useMemo(() =>
-    item?.url ? buildUrl(item.url) : '',
-    [item?.url]
+    localUrl ? buildUrl(localUrl) : '',
+    [localUrl]
   );
 
-  // If no item selected, show empty state
+  // ============================================================================
+  // Render
+  // ============================================================================
+
   if (!item) {
     return (
       <Card className="h-full flex items-center justify-center">
@@ -142,36 +228,56 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   const hasChildren = item.children && item.children.length > 0;
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Item Properties</CardTitle>
-        <CardDescription>
-          Configure the selected menu item
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="h-full flex flex-col">
+      {/* Apply/Reset buttons - always visible when there are changes */}
+      {hasChanges && (
+        <div className="flex items-center gap-2 p-3 bg-amber-500/10 border-b border-amber-500/20">
+          <Badge variant="outline" className="text-amber-600 border-amber-500/30">
+            Unsaved changes
+          </Badge>
+          <div className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetChanges}
+            className="h-7"
+          >
+            <RotateCcw className="h-3 w-3 mr-1" />
+            Reset
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={applyChanges}
+            className="h-7"
+          >
+            <Save className="h-3 w-3 mr-1" />
+            Apply Changes
+          </Button>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto p-4">
         <Tabs defaultValue="general" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="window" disabled={item.openMode !== 'window'}>
+            <TabsTrigger value="window" disabled={localOpenMode !== 'window'}>
               Window
             </TabsTrigger>
-            <TabsTrigger value="view" disabled={item.openMode !== 'view'}>
+            <TabsTrigger value="view" disabled={localOpenMode !== 'view'}>
               View
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="space-y-4">
+          <TabsContent value="general" className="space-y-4 mt-4">
             {/* Caption */}
             <div className="space-y-2">
               <Label htmlFor="caption">Caption *</Label>
               <Input
                 id="caption"
                 value={localCaption}
-                onChange={(e) => setLocalCaption(e.target.value)}
-                onBlur={() => updateItem({ caption: localCaption })}
+                onChange={(e) => handleFieldChange(setLocalCaption, e.target.value)}
                 placeholder="Menu item text"
-                required
               />
             </div>
 
@@ -182,10 +288,8 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
                 <Input
                   id="id"
                   value={localId}
-                  onChange={(e) => setLocalId(e.target.value)}
-                  onBlur={() => updateItem({ id: localId })}
+                  onChange={(e) => handleFieldChange(setLocalId, e.target.value)}
                   placeholder="Unique identifier"
-                  required
                 />
                 <Button
                   variant="outline"
@@ -204,14 +308,13 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
               <Input
                 id="url"
                 value={localUrl}
-                onChange={(e) => setLocalUrl(e.target.value)}
-                onBlur={() => updateItem({ url: localUrl })}
+                onChange={(e) => handleFieldChange(setLocalUrl, e.target.value)}
                 placeholder="/data-grid, /watchlist, etc."
                 disabled={hasChildren}
               />
               {fullUrl && (
                 <p className="text-xs text-muted-foreground">
-                  Full URL: {fullUrl}?id={item.id}
+                  Full URL: {fullUrl}?id={localId}
                 </p>
               )}
             </div>
@@ -220,8 +323,8 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
             <div className="space-y-2">
               <Label htmlFor="openMode">Open Mode</Label>
               <Select
-                value={item.openMode}
-                onValueChange={(value: 'window' | 'view') => updateItem({ openMode: value })}
+                value={localOpenMode}
+                onValueChange={(value: 'window' | 'view') => handleFieldChange(setLocalOpenMode, value)}
                 disabled={hasChildren}
               >
                 <SelectTrigger id="openMode">
@@ -241,17 +344,13 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
                 <Input
                   id="icon"
                   value={localIcon}
-                  onChange={(e) => setLocalIcon(e.target.value)}
-                  onBlur={() => updateItem({ icon: localIcon })}
+                  onChange={(e) => handleFieldChange(setLocalIcon, e.target.value)}
                   placeholder="/icons/app.svg"
                 />
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => onIconSelect((icon) => {
-                    setLocalIcon(icon);
-                    updateItem({ icon });
-                  })}
+                  onClick={handleIconClick}
                   title="Select Icon"
                 >
                   <Image className="h-4 w-4" />
@@ -266,203 +365,170 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
                 id="order"
                 type="number"
                 value={localOrder}
-                onChange={(e) => setLocalOrder(parseInt(e.target.value) || 0)}
-                onBlur={() => updateItem({ order: localOrder })}
+                onChange={(e) => handleFieldChange(setLocalOrder, parseInt(e.target.value) || 0)}
                 min="0"
               />
             </div>
           </TabsContent>
 
-          <TabsContent value="window" className="space-y-4">
-            <div className="space-y-4">
-              {/* Window Dimensions */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Dimensions</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="width">Width</Label>
-                    <Input
-                      id="width"
-                      type="number"
-                      value={localWidth}
-                      onChange={(e) => setLocalWidth(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleWindowOptionChange('width', localWidth)}
-                      min="100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="height">Height</Label>
-                    <Input
-                      id="height"
-                      type="number"
-                      value={localHeight}
-                      onChange={(e) => setLocalHeight(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleWindowOptionChange('height', localHeight)}
-                      min="100"
-                    />
-                  </div>
+          <TabsContent value="window" className="space-y-4 mt-4">
+            {/* Window Dimensions */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Dimensions</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="width">Width</Label>
+                  <Input
+                    id="width"
+                    type="number"
+                    value={localWidth}
+                    onChange={(e) => handleFieldChange(setLocalWidth, parseInt(e.target.value) || 0)}
+                    min="100"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="height">Height</Label>
+                  <Input
+                    id="height"
+                    type="number"
+                    value={localHeight}
+                    onChange={(e) => handleFieldChange(setLocalHeight, parseInt(e.target.value) || 0)}
+                    min="100"
+                  />
                 </div>
               </div>
+            </div>
 
-              <Separator />
+            <Separator />
 
-              {/* Window Constraints */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Size Constraints</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="minWidth">Min Width</Label>
-                    <Input
-                      id="minWidth"
-                      type="number"
-                      value={localMinWidth}
-                      onChange={(e) => setLocalMinWidth(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleWindowOptionChange('minWidth', localMinWidth)}
-                      min="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="minHeight">Min Height</Label>
-                    <Input
-                      id="minHeight"
-                      type="number"
-                      value={localMinHeight}
-                      onChange={(e) => setLocalMinHeight(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleWindowOptionChange('minHeight', localMinHeight)}
-                      min="0"
-                    />
-                  </div>
+            {/* Window Constraints */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Size Constraints</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="minWidth">Min Width</Label>
+                  <Input
+                    id="minWidth"
+                    type="number"
+                    value={localMinWidth}
+                    onChange={(e) => handleFieldChange(setLocalMinWidth, parseInt(e.target.value) || 0)}
+                    min="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="minHeight">Min Height</Label>
+                  <Input
+                    id="minHeight"
+                    type="number"
+                    value={localMinHeight}
+                    onChange={(e) => handleFieldChange(setLocalMinHeight, parseInt(e.target.value) || 0)}
+                    min="0"
+                  />
                 </div>
               </div>
+            </div>
 
-              <Separator />
+            <Separator />
 
-              {/* Window Options */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Window Options</h4>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="resizable">Resizable</Label>
-                    <Switch
-                      id="resizable"
-                      checked={item.windowOptions?.resizable ?? DEFAULT_WINDOW_OPTIONS.resizable}
-                      onCheckedChange={(checked) => handleWindowOptionChange('resizable', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="maximizable">Maximizable</Label>
-                    <Switch
-                      id="maximizable"
-                      checked={item.windowOptions?.maximizable ?? DEFAULT_WINDOW_OPTIONS.maximizable}
-                      onCheckedChange={(checked) => handleWindowOptionChange('maximizable', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="minimizable">Minimizable</Label>
-                    <Switch
-                      id="minimizable"
-                      checked={item.windowOptions?.minimizable ?? DEFAULT_WINDOW_OPTIONS.minimizable}
-                      onCheckedChange={(checked) => handleWindowOptionChange('minimizable', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="center">Center on Screen</Label>
-                    <Switch
-                      id="center"
-                      checked={item.windowOptions?.center ?? DEFAULT_WINDOW_OPTIONS.center}
-                      onCheckedChange={(checked) => handleWindowOptionChange('center', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="frame">Show Frame</Label>
-                    <Switch
-                      id="frame"
-                      checked={item.windowOptions?.frame ?? DEFAULT_WINDOW_OPTIONS.frame}
-                      onCheckedChange={(checked) => handleWindowOptionChange('frame', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="alwaysOnTop">Always on Top</Label>
-                    <Switch
-                      id="alwaysOnTop"
-                      checked={item.windowOptions?.alwaysOnTop ?? false}
-                      onCheckedChange={(checked) => handleWindowOptionChange('alwaysOnTop', checked)}
-                    />
-                  </div>
+            {/* Window Options */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Window Options</h4>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="resizable">Resizable</Label>
+                  <Switch
+                    id="resizable"
+                    checked={localResizable}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalResizable, checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="maximizable">Maximizable</Label>
+                  <Switch
+                    id="maximizable"
+                    checked={localMaximizable}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalMaximizable, checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="minimizable">Minimizable</Label>
+                  <Switch
+                    id="minimizable"
+                    checked={localMinimizable}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalMinimizable, checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="center">Center on Screen</Label>
+                  <Switch
+                    id="center"
+                    checked={localCenter}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalCenter, checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="frame">Show Frame</Label>
+                  <Switch
+                    id="frame"
+                    checked={localFrame}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalFrame, checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="alwaysOnTop">Always on Top</Label>
+                  <Switch
+                    id="alwaysOnTop"
+                    checked={localAlwaysOnTop}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalAlwaysOnTop, checked)}
+                  />
                 </div>
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="view" className="space-y-4">
-            <div className="space-y-4">
-              {/* View Bounds */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">View Bounds</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="viewWidth">Width</Label>
-                    <Input
-                      id="viewWidth"
-                      type="number"
-                      value={localViewWidth}
-                      onChange={(e) => setLocalViewWidth(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleViewOptionChange('bounds', {
-                        ...item.viewOptions?.bounds,
-                        width: localViewWidth
-                      })}
-                      min="100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="viewHeight">Height</Label>
-                    <Input
-                      id="viewHeight"
-                      type="number"
-                      value={localViewHeight}
-                      onChange={(e) => setLocalViewHeight(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleViewOptionChange('bounds', {
-                        ...item.viewOptions?.bounds,
-                        height: localViewHeight
-                      })}
-                      min="100"
-                    />
-                  </div>
+          <TabsContent value="view" className="space-y-4 mt-4">
+            {/* View Bounds */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">View Bounds</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="viewWidth">Width</Label>
+                  <Input
+                    id="viewWidth"
+                    type="number"
+                    value={localViewWidth}
+                    onChange={(e) => handleFieldChange(setLocalViewWidth, parseInt(e.target.value) || 0)}
+                    min="100"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="viewHeight">Height</Label>
+                  <Input
+                    id="viewHeight"
+                    type="number"
+                    value={localViewHeight}
+                    onChange={(e) => handleFieldChange(setLocalViewHeight, parseInt(e.target.value) || 0)}
+                    min="100"
+                  />
                 </div>
               </div>
+            </div>
 
-              <Separator />
+            <Separator />
 
-              {/* Custom Data */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Custom Data (JSON)</h4>
-                <textarea
-                  className="w-full h-32 p-2 text-sm border rounded-md font-mono bg-background"
-                  value={JSON.stringify(item.viewOptions?.customData || {}, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      const customData = JSON.parse(e.target.value);
-                      handleViewOptionChange('customData', customData);
-                    } catch {
-                      // Invalid JSON, ignore until valid
-                    }
-                  }}
-                  placeholder="{}"
-                />
-              </div>
+            {/* Custom Data */}
+            <div>
+              <h4 className="text-sm font-medium mb-3">Custom Data (JSON)</h4>
+              <textarea
+                className="w-full h-32 p-2 text-sm border rounded-md font-mono bg-background"
+                value={localCustomData}
+                onChange={(e) => handleFieldChange(setLocalCustomData, e.target.value)}
+                placeholder="{}"
+              />
             </div>
           </TabsContent>
         </Tabs>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
-
-/**
- * Memoize component to prevent re-renders when item reference changes but ID is the same.
- * TreeView may return new object references from tree traversal on each render.
- */
-export const PropertiesPanel = React.memo(PropertiesPanelComponent, (prevProps, nextProps) => {
-  // Only re-render if the item ID changes or item becomes null/non-null
-  return prevProps.item?.id === nextProps.item?.id;
-});
