@@ -126,9 +126,11 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
 
   // ============================================================================
   // Apply Changes - commits all local state to the config
+  // Performance: No useCallback needed since this is only called from onClick
+  // This prevents the massive dependency array from causing re-creates on every keystroke
   // ============================================================================
 
-  const applyChanges = useCallback(() => {
+  const applyChanges = () => {
     if (!item) return;
 
     // Parse custom data JSON
@@ -170,15 +172,11 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
 
     onUpdate(item.id, updates);
     setHasChanges(false);
-  }, [
-    item, localCaption, localId, localUrl, localIcon, localOrder, localOpenMode,
-    localWidth, localHeight, localMinWidth, localMinHeight,
-    localResizable, localMaximizable, localMinimizable, localCenter, localFrame, localAlwaysOnTop,
-    localViewWidth, localViewHeight, localCustomData, onUpdate
-  ]);
+  };
 
   // Reset to original values
-  const resetChanges = useCallback(() => {
+  // Performance: No useCallback needed since this is only called from onClick
+  const resetChanges = () => {
     if (item) {
       setLocalCaption(item.caption || '');
       setLocalId(item.id || '');
@@ -201,7 +199,7 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
       setLocalCustomData(JSON.stringify(item.viewOptions?.customData || {}, null, 2));
       setHasChanges(false);
     }
-  }, [item]);
+  };
 
   // Memoize full URL construction
   const fullUrl = useMemo(() =>
