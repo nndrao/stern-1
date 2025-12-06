@@ -11,7 +11,6 @@ import {
 } from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
 import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
-import { DataProviderEditor } from '@/components/provider/editors/DataProviderEditor';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/ui/use-toast';
 import * as dock from './openfinDock';
@@ -71,7 +70,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({ activeTab, onTabCha
       />
       <main className="flex-1 overflow-hidden">
         {activeTab === 'dock' && <DockConfigEditor />}
-        {activeTab === 'providers' && <DataProviderEditor />}
         {activeTab === 'settings' && <SettingsPanel />}
         {activeTab === 'help' && <HelpPanel />}
       </main>

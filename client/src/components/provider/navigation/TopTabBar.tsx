@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
 import {
   LayoutDashboard,
-  Database,
   Settings,
   HelpCircle,
   Moon,
@@ -33,11 +32,6 @@ const navItems: NavItem[] = [
     id: 'dock',
     label: 'Dock',
     icon: <LayoutDashboard className="h-4 w-4" />
-  },
-  {
-    id: 'providers',
-    label: 'Data Providers',
-    icon: <Database className="h-4 w-4" />
   },
   {
     id: 'settings',
