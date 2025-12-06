@@ -254,11 +254,12 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     // Update local config
     let newMenuItems = [...(config.config.menuItems || [])];
-    const currentSelectedNode = selectedNode;
-    if (currentSelectedNode) {
+
+    // PERFORMANCE: Access selectedNode directly from closure instead of dependency
+    if (selectedNode) {
       // Add as child
       newMenuItems = newMenuItems.map(menuItem =>
-        addChildToItem(menuItem, currentSelectedNode.id, newItem)
+        addChildToItem(menuItem, selectedNode.id, newItem)
       );
     } else {
       // Add to root
@@ -276,10 +277,11 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     // Select the newly added item
     setSelectedNode(newItem);
-  }, [selectedNode]);
+  }, []);
 
   const handleDeleteMenuItem = useCallback(() => {
     const config = currentConfigRef.current;
+    // PERFORMANCE: Access selectedNode from closure, not dependency
     if (!config || !selectedNode) return;
 
     const newMenuItems = deleteMenuItemRecursive(config.config.menuItems || [], selectedNode.id);
@@ -298,7 +300,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       title: 'Item deleted',
       description: 'Menu item has been removed',
     });
-  }, [selectedNode, toast]);
+  }, [toast]);
 
   const handleDuplicateMenuItem = useCallback(() => {
     const config = currentConfigRef.current;
@@ -411,13 +413,10 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     const newMenuItems = updateMenuItemRecursive(config.config.menuItems || [], id, updates);
 
-    // Update selected node if it's the one being updated
-    setSelectedNode(prev => {
-      if (prev?.id === id) {
-        return { ...prev, ...updates };
-      }
-      return prev;
-    });
+    // PERFORMANCE FIX: Don't update selectedNode on property changes
+    // PropertiesPanel gets the item from the tree directly via findMenuItem
+    // Only the config needs to be updated - selectedNode stays stable
+    // This prevents cascading re-renders in PropertiesPanel
 
     setCurrentConfig({
       ...config,

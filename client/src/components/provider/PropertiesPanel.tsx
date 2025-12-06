@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildUrl } from '@/openfin/utils';
 import { RefreshCw, Image } from 'lucide-react';
+import { logger } from '@/utils/logger';
 
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
@@ -24,11 +25,16 @@ interface PropertiesPanelProps {
   onIconSelect: (callback: (icon: string) => void) => void;
 }
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
+const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   item,
   onUpdate,
   onIconSelect
 }) => {
+  // Track component renders
+  logger.info('[STATE_UPDATE] PropertiesPanel rendered', {
+    itemId: item?.id,
+    itemCaption: item?.caption
+  }, 'PropertiesPanel');
 
   // Local state for text inputs - only calls onUpdate on blur
   const [localCaption, setLocalCaption] = useState(item?.caption || '');
@@ -37,20 +43,52 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const [localIcon, setLocalIcon] = useState(item?.icon || '');
   const [localOrder, setLocalOrder] = useState(item?.order || 0);
 
+  // Local state for window dimension inputs - only calls onUpdate on blur
+  const [localWidth, setLocalWidth] = useState(item?.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width);
+  const [localHeight, setLocalHeight] = useState(item?.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height);
+  const [localMinWidth, setLocalMinWidth] = useState(item?.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth);
+  const [localMinHeight, setLocalMinHeight] = useState(item?.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight);
+
+  // Local state for view dimension inputs - only calls onUpdate on blur
+  const [localViewWidth, setLocalViewWidth] = useState(item?.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width);
+  const [localViewHeight, setLocalViewHeight] = useState(item?.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height);
+
   // Sync local state when item changes (different node selected)
   useEffect(() => {
     if (item) {
+      logger.info('[STATE_UPDATE] Syncing local state from item change', { itemId: item.id }, 'PropertiesPanel');
+
       setLocalCaption(item.caption);
       setLocalId(item.id);
       setLocalUrl(item.url || '');
       setLocalIcon(item.icon || '');
       setLocalOrder(item.order);
+
+      // Sync window dimension state
+      setLocalWidth(item.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width);
+      setLocalHeight(item.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height);
+      setLocalMinWidth(item.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth);
+      setLocalMinHeight(item.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight);
+
+      // Sync view dimension state
+      setLocalViewWidth(item.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width);
+      setLocalViewHeight(item.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height);
+
+      logger.info('[STATE_UPDATE] Local state synced', {
+        caption: item.caption,
+        windowOptions: { width: item.windowOptions?.width, height: item.windowOptions?.height },
+        viewOptions: { width: item.viewOptions?.bounds?.width, height: item.viewOptions?.bounds?.height }
+      }, 'PropertiesPanel');
     }
   }, [item?.id]);
 
   // Helper to update item - just calls parent callback
   const updateItem = useCallback((updates: Partial<DockMenuItem>) => {
     if (item) {
+      logger.info('[STATE_UPDATE] Calling parent onUpdate (blur event)', {
+        itemId: item.id,
+        updates
+      }, 'PropertiesPanel');
       onUpdate(item.id, updates);
     }
   }, [item?.id, onUpdate]);
@@ -63,6 +101,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   }, [updateItem]);
 
   // Handle window option changes (immediate update for switches/selects)
+  // PERFORMANCE: Don't depend on item.windowOptions - access via closure
   const handleWindowOptionChange = useCallback((key: string, value: any) => {
     if (item) {
       updateItem({
@@ -72,9 +111,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         }
       });
     }
-  }, [item?.windowOptions, updateItem]);
+  }, [item?.id, updateItem]);
 
   // Handle view option changes (immediate update for switches/selects)
+  // PERFORMANCE: Don't depend on item.viewOptions - access via closure
   const handleViewOptionChange = useCallback((key: string, value: any) => {
     if (item) {
       updateItem({
@@ -84,7 +124,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         }
       });
     }
-  }, [item?.viewOptions, updateItem]);
+  }, [item?.id, updateItem]);
 
   // Memoize full URL construction
   const fullUrl = useMemo(() =>
@@ -248,8 +288,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     <Input
                       id="width"
                       type="number"
-                      value={item.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width}
-                      onChange={(e) => handleWindowOptionChange('width', parseInt(e.target.value))}
+                      value={localWidth}
+                      onChange={(e) => {
+                        const newValue = parseInt(e.target.value) || 0;
+                        logger.info('[STATE_UPDATE] Width onChange (local state only)', { oldValue: localWidth, newValue }, 'PropertiesPanel');
+                        setLocalWidth(newValue);
+                      }}
+                      onBlur={() => {
+                        logger.info('[STATE_UPDATE] Width onBlur (updating parent)', { value: localWidth }, 'PropertiesPanel');
+                        handleWindowOptionChange('width', localWidth);
+                      }}
                       min="100"
                     />
                   </div>
@@ -258,8 +306,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     <Input
                       id="height"
                       type="number"
-                      value={item.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height}
-                      onChange={(e) => handleWindowOptionChange('height', parseInt(e.target.value))}
+                      value={localHeight}
+                      onChange={(e) => setLocalHeight(parseInt(e.target.value) || 0)}
+                      onBlur={() => handleWindowOptionChange('height', localHeight)}
                       min="100"
                     />
                   </div>
@@ -277,8 +326,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     <Input
                       id="minWidth"
                       type="number"
-                      value={item.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth}
-                      onChange={(e) => handleWindowOptionChange('minWidth', parseInt(e.target.value))}
+                      value={localMinWidth}
+                      onChange={(e) => setLocalMinWidth(parseInt(e.target.value) || 0)}
+                      onBlur={() => handleWindowOptionChange('minWidth', localMinWidth)}
                       min="0"
                     />
                   </div>
@@ -287,8 +337,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     <Input
                       id="minHeight"
                       type="number"
-                      value={item.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight}
-                      onChange={(e) => handleWindowOptionChange('minHeight', parseInt(e.target.value))}
+                      value={localMinHeight}
+                      onChange={(e) => setLocalMinHeight(parseInt(e.target.value) || 0)}
+                      onBlur={() => handleWindowOptionChange('minHeight', localMinHeight)}
                       min="0"
                     />
                   </div>
@@ -365,10 +416,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     <Input
                       id="viewWidth"
                       type="number"
-                      value={item.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width}
-                      onChange={(e) => handleViewOptionChange('bounds', {
+                      value={localViewWidth}
+                      onChange={(e) => setLocalViewWidth(parseInt(e.target.value) || 0)}
+                      onBlur={() => handleViewOptionChange('bounds', {
                         ...item.viewOptions?.bounds,
-                        width: parseInt(e.target.value)
+                        width: localViewWidth
                       })}
                       min="100"
                     />
@@ -378,10 +430,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     <Input
                       id="viewHeight"
                       type="number"
-                      value={item.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height}
-                      onChange={(e) => handleViewOptionChange('bounds', {
+                      value={localViewHeight}
+                      onChange={(e) => setLocalViewHeight(parseInt(e.target.value) || 0)}
+                      onBlur={() => handleViewOptionChange('bounds', {
                         ...item.viewOptions?.bounds,
-                        height: parseInt(e.target.value)
+                        height: localViewHeight
                       })}
                       min="100"
                     />
@@ -415,3 +468,23 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     </Card>
   );
 };
+
+// Memoize component to prevent re-renders when item reference changes but data is the same
+// This happens because TreeView finds and returns new object references on every click
+export const PropertiesPanel = React.memo(PropertiesPanelComponent, (prevProps, nextProps) => {
+  // Only re-render if the item ID changes or item becomes null/non-null
+  // Don't compare by reference - TreeView returns new objects from tree traversal
+  const prevId = prevProps.item?.id;
+  const nextId = nextProps.item?.id;
+
+  // If ID is the same, don't re-render (callbacks are stable via useCallback)
+  const isSameItem = prevId === nextId;
+
+  logger.info('[STATE_UPDATE] PropertiesPanel memo comparison', {
+    prevId,
+    nextId,
+    willRerender: !isSameItem
+  }, 'PropertiesPanel');
+
+  return isSameItem;
+});
