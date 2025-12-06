@@ -26,8 +26,8 @@ export interface StompProviderConfig extends ProviderConfig {
 }
 
 // Worker message types
-export type WorkerRequestType = 'subscribe' | 'unsubscribe' | 'getSnapshot' | 'getStatus';
-export type WorkerResponseType = 'snapshot' | 'update' | 'status' | 'error' | 'subscribed' | 'unsubscribed' | 'snapshot-complete';
+export type WorkerRequestType = 'subscribe' | 'unsubscribe' | 'getSnapshot' | 'getStatus' | 'heartbeat';
+export type WorkerResponseType = 'snapshot' | 'update' | 'status' | 'error' | 'subscribed' | 'unsubscribed' | 'snapshot-complete' | 'heartbeat-ack';
 
 export interface WorkerRequest {
   type: WorkerRequestType;

@@ -106,6 +106,10 @@ function addChildToItem(item: DockMenuItem, parentId: string, child: DockMenuIte
 // System userId for admin configurations - shared across all users
 const SYSTEM_USER_ID = 'System';
 
+/**
+ * Dock Configuration Editor - Simplified
+ * Uses simple local state for fast, responsive editing
+ */
 export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
   userId = SYSTEM_USER_ID, // Default to System for admin configs
   appId = 'stern-platform'
@@ -196,37 +200,34 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     try {
       logger.info('Saving configuration...', undefined, 'DockConfigEditor');
+      logger.info('📝 Configuration to save:', {
+        configId: currentConfig.configId,
+        name: currentConfig.name,
+        menuItemCount: currentConfig.config?.menuItems?.length
+      }, 'DockConfigEditor');
+      logger.info('📋 MENU ITEMS TO SAVE:', JSON.stringify(currentConfig.config?.menuItems, null, 2), 'DockConfigEditor');
 
       await saveMutation.mutateAsync({ userId: SYSTEM_USER_ID, config: currentConfig });
 
       logger.info('Save completed successfully', undefined, 'DockConfigEditor');
       setIsDirty(false);
 
-      // Reload the dock to show the updated configuration
+      // Update the dock with the new configuration (fast, no reload!)
       if (window.fin) {
         try {
           logger.info('Updating dock with new configuration...', undefined, 'DockConfigEditor');
           const dock = await import('@/openfin/platform/openfinDock');
 
-          // Use updateConfig for efficient update (no deregister/register cycle)
+          // Use fast updateConfig - no reload needed!
           await dock.updateConfig({
-            menuItems: currentConfig.config.menuItems
+            menuItems: currentConfig.config?.menuItems || []
           });
-          logger.info('Dock updated successfully', undefined, 'DockConfigEditor');
+
+          logger.info('✅ Dock updated successfully', {
+            menuItemCount: currentConfig.config?.menuItems?.length
+          }, 'DockConfigEditor');
         } catch (dockError) {
           logger.error('Failed to update dock', dockError, 'DockConfigEditor');
-          // If update fails, try full reload as fallback (deregister and re-register)
-          try {
-            logger.info('Attempting full dock reload as fallback...', undefined, 'DockConfigEditor');
-            const dock = await import('@/openfin/platform/openfinDock');
-            await dock.deregister();
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await dock.registerFromConfig(currentConfig);
-            await dock.show();
-            logger.info('Dock reloaded successfully', undefined, 'DockConfigEditor');
-          } catch (reloadError) {
-            logger.error('Failed to reload dock', reloadError, 'DockConfigEditor');
-          }
         }
       }
 
@@ -250,13 +251,15 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     if (!config) return;
 
     const newItem = createMenuItem();
+
+    // Update local config
     let newMenuItems = [...(config.config.menuItems || [])];
 
-    const currentSelectedNode = selectedNode;
-    if (currentSelectedNode) {
+    // PERFORMANCE: Access selectedNode directly from closure instead of dependency
+    if (selectedNode) {
       // Add as child
       newMenuItems = newMenuItems.map(menuItem =>
-        addChildToItem(menuItem, currentSelectedNode.id, newItem)
+        addChildToItem(menuItem, selectedNode.id, newItem)
       );
     } else {
       // Add to root
@@ -271,10 +274,14 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       }
     });
     setIsDirty(true);
-  }, [selectedNode]);
+
+    // Select the newly added item
+    setSelectedNode(newItem);
+  }, []);
 
   const handleDeleteMenuItem = useCallback(() => {
     const config = currentConfigRef.current;
+    // PERFORMANCE: Access selectedNode from closure, not dependency
     if (!config || !selectedNode) return;
 
     const newMenuItems = deleteMenuItemRecursive(config.config.menuItems || [], selectedNode.id);
@@ -293,7 +300,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       title: 'Item deleted',
       description: 'Menu item has been removed',
     });
-  }, [selectedNode, toast]);
+  }, [toast]);
 
   const handleDuplicateMenuItem = useCallback(() => {
     const config = currentConfigRef.current;
@@ -406,13 +413,10 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     const newMenuItems = updateMenuItemRecursive(config.config.menuItems || [], id, updates);
 
-    // Update selected node if it's the one being updated
-    setSelectedNode(prev => {
-      if (prev?.id === id) {
-        return { ...prev, ...updates };
-      }
-      return prev;
-    });
+    // PERFORMANCE FIX: Don't update selectedNode on property changes
+    // PropertiesPanel gets the item from the tree directly via findMenuItem
+    // Only the config needs to be updated - selectedNode stays stable
+    // This prevents cascading re-renders in PropertiesPanel
 
     setCurrentConfig({
       ...config,
@@ -659,38 +663,24 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
             <ResizablePanel defaultSize={60} minSize={40}>
               <div className="h-full p-4 overflow-auto">
-                {selectedNode ? (
-                  <Card className="h-full shadow-sm">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center gap-2">
-                        <Settings2 className="h-4 w-4 text-primary" />
-                        <CardTitle className="text-base">Properties</CardTitle>
-                      </div>
-                      <CardDescription className="text-xs">
-                        Configure the selected menu item
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <PropertiesPanel
-                        key={selectedNode.id}
-                        item={selectedNode}
-                        onUpdate={(updates) => handleUpdateMenuItem(selectedNode.id, updates)}
-                        onIconSelect={handleIconSelect}
-                      />
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="h-full flex items-center justify-center shadow-sm">
-                    <CardContent className="text-center">
-                      <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted mb-3">
-                        <Settings2 className="w-6 h-6 text-muted-foreground" />
-                      </div>
-                      <p className="text-muted-foreground">
-                        Select a menu item to edit its properties
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
+                <Card className="h-full shadow-sm">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="h-4 w-4 text-primary" />
+                      <CardTitle className="text-base">Properties</CardTitle>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Configure the selected menu item
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <PropertiesPanel
+                      item={selectedNode}
+                      onUpdate={handleUpdateMenuItem}
+                      onIconSelect={handleIconSelect}
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -710,3 +700,4 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     </div>
   );
 };
+

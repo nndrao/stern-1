@@ -12,7 +12,11 @@ import { EngineRegistry } from './engine/EngineRegistry';
 import { BroadcastManager } from './engine/BroadcastManager';
 import { WorkerRequest, WorkerResponse } from './engine/types';
 
-const WORKER_VERSION = 'v2.2-multi-worker';
+const WORKER_VERSION = 'v2.3-heartbeat';
+
+// Configuration constants
+const HEARTBEAT_INTERVAL = 30000; // 30 seconds
+const HEARTBEAT_TIMEOUT = 60000;  // 60 seconds - port considered dead if no response
 
 // Extract blotter type from worker name (e.g., 'data-provider-worker-positions' -> 'positions')
 const workerName = (self as any).name || 'unknown';
@@ -24,8 +28,13 @@ console.log(`[SharedWorker:${blotterType}] Data provider SharedWorker initializi
 const broadcastManager = new BroadcastManager();
 const engineRegistry = new EngineRegistry(broadcastManager);
 
-// Port tracking
-const ports = new Map<string, MessagePort>();
+// Port tracking with heartbeat state
+interface PortInfo {
+  port: MessagePort;
+  lastHeartbeat: number;
+  isAlive: boolean;
+}
+const ports = new Map<string, PortInfo>();
 let portCounter = 0;
 
 /**
@@ -50,7 +59,14 @@ function sendToPort(port: MessagePort, response: WorkerResponse): void {
  * Handle incoming messages
  */
 async function handleMessage(port: MessagePort, request: WorkerRequest): Promise<void> {
-  const { type, providerId, requestId } = request;
+  const { type, providerId, requestId, portId } = request;
+
+  // Update heartbeat timestamp on any message (client is alive)
+  if (portId && ports.has(portId)) {
+    const portInfo = ports.get(portId)!;
+    portInfo.lastHeartbeat = Date.now();
+    portInfo.isAlive = true;
+  }
 
   try {
     switch (type) {
@@ -68,6 +84,10 @@ async function handleMessage(port: MessagePort, request: WorkerRequest): Promise
 
       case 'getStatus':
         handleGetStatus(port, request);
+        break;
+
+      case 'heartbeat':
+        handleHeartbeat(port, request);
         break;
 
       default:
@@ -339,6 +359,66 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
 }
 
 /**
+ * Handle heartbeat request
+ */
+function handleHeartbeat(port: MessagePort, request: WorkerRequest): void {
+  const { portId, requestId } = request;
+
+  // Heartbeat timestamp already updated in handleMessage
+  // Just send acknowledgment
+  sendToPort(port, {
+    type: 'heartbeat-ack',
+    providerId: '',
+    requestId,
+    timestamp: Date.now()
+  });
+}
+
+/**
+ * Cleanup dead ports
+ * Removes ports that haven't responded to heartbeat in HEARTBEAT_TIMEOUT
+ */
+function cleanupDeadPorts(): void {
+  const now = Date.now();
+  const deadPorts: string[] = [];
+
+  for (const [portId, portInfo] of ports.entries()) {
+    const timeSinceLastHeartbeat = now - portInfo.lastHeartbeat;
+
+    if (timeSinceLastHeartbeat > HEARTBEAT_TIMEOUT) {
+      console.warn(`[SharedWorker:${blotterType}] Port ${portId} is dead (no heartbeat for ${timeSinceLastHeartbeat}ms)`);
+      deadPorts.push(portId);
+    }
+  }
+
+  // Cleanup dead ports
+  for (const portId of deadPorts) {
+    console.log(`[SharedWorker:${blotterType}] Cleaning up dead port: ${portId}`);
+
+    // Remove from ports map
+    ports.delete(portId);
+
+    // Remove from all subscriptions
+    broadcastManager.removePortFromAll(portId);
+
+    // Check if any providers have no more subscribers and stop them
+    const providersToCheck = engineRegistry.getActiveProviders();
+    for (const providerId of providersToCheck) {
+      if (broadcastManager.getSubscriberCount(providerId) === 0) {
+        console.log(`[SharedWorker:${blotterType}] No more subscribers for ${providerId}, stopping engine`);
+        engineRegistry.stop(providerId).catch(err =>
+          console.error(`[SharedWorker:${blotterType}] Error stopping engine:`, err)
+        );
+      }
+    }
+  }
+
+  if (deadPorts.length > 0) {
+    console.log(`[SharedWorker:${blotterType}] Cleaned up ${deadPorts.length} dead ports. Active ports: ${ports.size}`);
+  }
+}
+
+/**
  * SharedWorker connection handler
  */
 (self as any).onconnect = (event: MessageEvent) => {
@@ -367,10 +447,14 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
       }
     }
 
-    // Track port by its ID
+    // Track port by its ID with heartbeat info
     if (!ports.has(connectionPortId)) {
       console.log(`[SharedWorker:${blotterType}] Registering port: ${connectionPortId}`);
-      ports.set(connectionPortId, port);
+      ports.set(connectionPortId, {
+        port,
+        lastHeartbeat: Date.now(),
+        isAlive: true
+      });
     }
 
     await handleMessage(port, request);
@@ -393,7 +477,13 @@ function handleGetStatus(port: MessagePort, request: WorkerRequest): void {
   port.start();
 };
 
+// Start heartbeat cleanup interval
+setInterval(() => {
+  cleanupDeadPorts();
+}, HEARTBEAT_INTERVAL);
+
 // Log worker startup
 console.log(`[SharedWorker:${blotterType}] Data Provider SharedWorker started`);
+console.log(`[SharedWorker:${blotterType}] Heartbeat interval: ${HEARTBEAT_INTERVAL}ms, timeout: ${HEARTBEAT_TIMEOUT}ms`);
 console.log(`[SharedWorker:${blotterType}] Active engines:`, engineRegistry.getEngineCount());
 console.log(`[SharedWorker:${blotterType}] Active providers:`, engineRegistry.getActiveProviders());

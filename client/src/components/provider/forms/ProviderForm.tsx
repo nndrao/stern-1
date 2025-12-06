@@ -137,6 +137,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({ userId = SYSTEM_USER
           onNameChange={(name) => handleFieldChange('name', name)}
           onSave={handleSave}
           onCancel={onClose}
+          onClear={onClose} // Clear form = close form (deselect provider)
           isEditMode={isEditMode}
         />
       ) : (

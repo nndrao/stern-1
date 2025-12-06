@@ -453,6 +453,7 @@ export default function Provider() {
                   name: menuItemsConfig.name,
                   menuItemsCount: menuItemsConfig.config.menuItems.length
                 }, 'Provider');
+                logger.info('📋 MENU ITEMS LOADED FROM DATABASE:', JSON.stringify(menuItemsConfig.config.menuItems, null, 2), 'Provider');
                 logger.info('📋 Using menu items configured via Dock Configuration screen', undefined, 'Provider');
 
                 // Convert DockApplicationsMenuItemsConfig to DockConfiguration for backwards compatibility
@@ -564,23 +565,15 @@ export default function Provider() {
           const providerWindow = fin.Window.getCurrentSync();
           await providerWindow.hide();
 
-          // Register cleanup handler for graceful shutdown
+          // Handle close button - hide window instead of quitting
+          // User can re-open via "Toggle Provider Window" from dock Tools menu
           providerWindow.on('close-requested', async () => {
-            logger.info('Provider window close requested - cleaning up...', undefined, 'Provider');
+            logger.info('Provider window close requested - hiding window', undefined, 'Provider');
             try {
-              // Deregister dock to prevent orphaned instances
-              if (dock.isDockAvailable()) {
-                await dock.deregister();
-                logger.info('Dock deregistered', undefined, 'Provider');
-              }
-
-              // Quit the platform
-              const platform = getCurrentSync();
-              await platform.quit();
+              await providerWindow.hide();
+              logger.info('Provider window hidden (use dock Tools menu to re-open)', undefined, 'Provider');
             } catch (error) {
-              logger.error('Error during cleanup', error, 'Provider');
-              // Force quit if cleanup fails
-              fin.Platform.getCurrentSync().quit();
+              logger.error('Error hiding provider window', error, 'Provider');
             }
           });
 
