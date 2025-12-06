@@ -781,6 +781,52 @@ export function dockGetCustomActions(): CustomActionsMap {
     },
 
     /**
+     * Open data provider configuration window
+     */
+    'open-data-provider-config': async (): Promise<void> => {
+      try {
+        logger.info('Opening data provider configuration', undefined, 'dock');
+
+        // Check if window already exists
+        const windowName = 'data-provider-config';
+        try {
+          const existingWindow = fin.Window.wrapSync({
+            uuid: fin.me.uuid,
+            name: windowName
+          });
+          await existingWindow.setAsForeground();
+          await existingWindow.focus();
+          logger.info('Data provider config window focused', undefined, 'dock');
+          return;
+        } catch {
+          // Window doesn't exist, create it
+        }
+
+        // Create new window
+        const { getCurrentSync } = await import('@openfin/workspace-platform');
+        const platform = getCurrentSync();
+
+        await platform.createWindow({
+          name: windowName,
+          url: 'http://localhost:5173/config/data-providers',
+          defaultWidth: 1200,
+          defaultHeight: 800,
+          defaultCentered: true,
+          autoShow: true,
+          frame: true,
+          resizable: true,
+          maximizable: true,
+          minimizable: true,
+          saveWindowState: false
+        });
+
+        logger.info('Data provider config window opened', undefined, 'dock');
+      } catch (error) {
+        logger.error('Failed to open data provider config', error, 'dock');
+      }
+    },
+
+    /**
      * Show system diagnostics - displays OpenFin version info and warnings
      */
     'show-system-diagnostics': async (): Promise<void> => {
@@ -1044,6 +1090,13 @@ function buildSystemButtons(): DockButton[] {
           iconUrl: getThemedIcon('dev-tools'),
           action: {
             id: 'show-system-diagnostics'
+          }
+        },
+        {
+          tooltip: 'Data Providers',
+          iconUrl: getThemedIcon('data'),
+          action: {
+            id: 'open-data-provider-config'
           }
         },
         {

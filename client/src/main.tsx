@@ -28,6 +28,7 @@ const DemoComponent = lazy(() => import('./components/DemoComponent'));
 const SimpleBlotter = lazy(() => import('./components/widgets/blotters/simpleblotter/SimpleBlotter'));
 const RenameViewDialog = lazy(() => import('./routes/RenameViewDialog'));
 const ManageLayoutsDialog = lazy(() => import('./routes/dialogs/ManageLayoutsDialog'));
+const DataProviderConfigWindow = lazy(() => import('./components/provider/DataProviderConfigWindow'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -66,6 +67,16 @@ createRoot(document.getElementById('root')!).render(
                   element={
                     <Suspense fallback={<LoadingFallback />}>
                       <ManageLayoutsDialog />
+                    </Suspense>
+                  }
+                />
+
+                {/* Configuration routes - standalone config windows */}
+                <Route
+                  path="/config/data-providers"
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <DataProviderConfigWindow />
                     </Suspense>
                   }
                 />
