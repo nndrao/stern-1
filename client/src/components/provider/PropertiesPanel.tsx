@@ -1,7 +1,12 @@
 /**
- * Properties Panel Component
- * Displays and edits properties of selected menu items
- * Uses simple props and local state for fast, responsive editing
+ * Properties Panel Component - Refactored
+ *
+ * Displays and edits properties of selected menu items.
+ * Uses simple props and local state for fast, responsive editing.
+ *
+ * Key improvements:
+ * - Removed verbose logging that ran on every render
+ * - Cleaner memoization without logging overhead
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
@@ -15,7 +20,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildUrl } from '@/openfin/utils';
 import { RefreshCw, Image } from 'lucide-react';
-import { logger } from '@/utils/logger';
 
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
@@ -30,12 +34,6 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   onUpdate,
   onIconSelect
 }) => {
-  // Track component renders
-  logger.info('[STATE_UPDATE] PropertiesPanel rendered', {
-    itemId: item?.id,
-    itemCaption: item?.caption
-  }, 'PropertiesPanel');
-
   // Local state for text inputs - only calls onUpdate on blur
   const [localCaption, setLocalCaption] = useState(item?.caption || '');
   const [localId, setLocalId] = useState(item?.id || '');
@@ -56,8 +54,6 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   // Sync local state when item changes (different node selected)
   useEffect(() => {
     if (item) {
-      logger.info('[STATE_UPDATE] Syncing local state from item change', { itemId: item.id }, 'PropertiesPanel');
-
       setLocalCaption(item.caption);
       setLocalId(item.id);
       setLocalUrl(item.url || '');
@@ -73,22 +69,12 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
       // Sync view dimension state
       setLocalViewWidth(item.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width);
       setLocalViewHeight(item.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height);
-
-      logger.info('[STATE_UPDATE] Local state synced', {
-        caption: item.caption,
-        windowOptions: { width: item.windowOptions?.width, height: item.windowOptions?.height },
-        viewOptions: { width: item.viewOptions?.bounds?.width, height: item.viewOptions?.bounds?.height }
-      }, 'PropertiesPanel');
     }
   }, [item?.id]);
 
   // Helper to update item - just calls parent callback
   const updateItem = useCallback((updates: Partial<DockMenuItem>) => {
     if (item) {
-      logger.info('[STATE_UPDATE] Calling parent onUpdate (blur event)', {
-        itemId: item.id,
-        updates
-      }, 'PropertiesPanel');
       onUpdate(item.id, updates);
     }
   }, [item?.id, onUpdate]);
@@ -101,8 +87,7 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   }, [updateItem]);
 
   // Handle window option changes (immediate update for switches/selects)
-  // PERFORMANCE: Don't depend on item.windowOptions - access via closure
-  const handleWindowOptionChange = useCallback((key: string, value: any) => {
+  const handleWindowOptionChange = useCallback((key: string, value: unknown) => {
     if (item) {
       updateItem({
         windowOptions: {
@@ -111,11 +96,10 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
         }
       });
     }
-  }, [item?.id, updateItem]);
+  }, [item?.id, item?.windowOptions, updateItem]);
 
   // Handle view option changes (immediate update for switches/selects)
-  // PERFORMANCE: Don't depend on item.viewOptions - access via closure
-  const handleViewOptionChange = useCallback((key: string, value: any) => {
+  const handleViewOptionChange = useCallback((key: string, value: unknown) => {
     if (item) {
       updateItem({
         viewOptions: {
@@ -124,7 +108,7 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
         }
       });
     }
-  }, [item?.id, updateItem]);
+  }, [item?.id, item?.viewOptions, updateItem]);
 
   // Memoize full URL construction
   const fullUrl = useMemo(() =>
@@ -144,6 +128,8 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
       </Card>
     );
   }
+
+  const hasChildren = item.children && item.children.length > 0;
 
   return (
     <Card className="h-full">
@@ -211,7 +197,7 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
                 onChange={(e) => setLocalUrl(e.target.value)}
                 onBlur={() => updateItem({ url: localUrl })}
                 placeholder="/data-grid, /watchlist, etc."
-                disabled={item.children && item.children.length > 0}
+                disabled={hasChildren}
               />
               {fullUrl && (
                 <p className="text-xs text-muted-foreground">
@@ -226,7 +212,7 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
               <Select
                 value={item.openMode}
                 onValueChange={(value: 'window' | 'view') => updateItem({ openMode: value })}
-                disabled={item.children && item.children.length > 0}
+                disabled={hasChildren}
               >
                 <SelectTrigger id="openMode">
                   <SelectValue />
@@ -289,15 +275,8 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
                       id="width"
                       type="number"
                       value={localWidth}
-                      onChange={(e) => {
-                        const newValue = parseInt(e.target.value) || 0;
-                        logger.info('[STATE_UPDATE] Width onChange (local state only)', { oldValue: localWidth, newValue }, 'PropertiesPanel');
-                        setLocalWidth(newValue);
-                      }}
-                      onBlur={() => {
-                        logger.info('[STATE_UPDATE] Width onBlur (updating parent)', { value: localWidth }, 'PropertiesPanel');
-                        handleWindowOptionChange('width', localWidth);
-                      }}
+                      onChange={(e) => setLocalWidth(parseInt(e.target.value) || 0)}
+                      onBlur={() => handleWindowOptionChange('width', localWidth)}
                       min="100"
                     />
                   </div>
@@ -448,14 +427,14 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
               <div>
                 <h4 className="text-sm font-medium mb-3">Custom Data (JSON)</h4>
                 <textarea
-                  className="w-full h-32 p-2 text-sm border rounded-md font-mono"
+                  className="w-full h-32 p-2 text-sm border rounded-md font-mono bg-background"
                   value={JSON.stringify(item.viewOptions?.customData || {}, null, 2)}
                   onChange={(e) => {
                     try {
                       const customData = JSON.parse(e.target.value);
                       handleViewOptionChange('customData', customData);
                     } catch {
-                      // Invalid JSON, ignore
+                      // Invalid JSON, ignore until valid
                     }
                   }}
                   placeholder="{}"
@@ -469,22 +448,11 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   );
 };
 
-// Memoize component to prevent re-renders when item reference changes but data is the same
-// This happens because TreeView finds and returns new object references on every click
+/**
+ * Memoize component to prevent re-renders when item reference changes but ID is the same.
+ * TreeView may return new object references from tree traversal on each render.
+ */
 export const PropertiesPanel = React.memo(PropertiesPanelComponent, (prevProps, nextProps) => {
   // Only re-render if the item ID changes or item becomes null/non-null
-  // Don't compare by reference - TreeView returns new objects from tree traversal
-  const prevId = prevProps.item?.id;
-  const nextId = nextProps.item?.id;
-
-  // If ID is the same, don't re-render (callbacks are stable via useCallback)
-  const isSameItem = prevId === nextId;
-
-  logger.info('[STATE_UPDATE] PropertiesPanel memo comparison', {
-    prevId,
-    nextId,
-    willRerender: !isSameItem
-  }, 'PropertiesPanel');
-
-  return isSameItem;
+  return prevProps.item?.id === nextProps.item?.id;
 });

@@ -1,10 +1,14 @@
 /**
- * Dock Configuration Editor Component - Enhanced
- * Main interface for editing dock menu configurations
- * Features: Visual grouping, status indicators, improved toolbar layout
+ * Dock Configuration Editor Component - Refactored
+ *
+ * Key improvements:
+ * - Uses shared tree utilities with Immer for efficient updates
+ * - Stores selectedId (string) instead of selectedNode (object) to prevent stale closures
+ * - Cleaner callback structure with proper dependency management
+ * - Removed duplicate tree traversal code
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -27,91 +31,44 @@ import {
 
 import { TreeView } from '../TreeView';
 import { PropertiesPanel } from '../PropertiesPanel';
-// Lazy load IconPicker to prevent loading hundreds of icons on initial page load
-const IconPicker = React.lazy(() => import('../editors/IconPicker').then(m => ({ default: m.IconPicker })));
-import { DockConfiguration, DockMenuItem, createMenuItem, validateDockConfiguration, createDockConfiguration, useOpenFinDock } from '@stern/openfin-platform';
+import {
+  DockConfiguration,
+  DockMenuItem,
+  createMenuItem,
+  validateDockConfiguration,
+  createDockConfiguration,
+  useOpenFinDock
+} from '@stern/openfin-platform';
 import { useDockConfig, useSaveDockConfig } from '@/hooks/api/useDockConfigQueries';
-import '@/test/helpers/testApi'; // Import test utility for debugging
 import { logger } from '@/utils/logger';
-import { COMPONENT_SUBTYPES } from '@stern/shared-types';
+import {
+  findMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+  addChildToParent,
+  moveMenuItem,
+  duplicateMenuItem as duplicateMenuItemUtil
+} from '@/utils/dock/treeUtils';
+
+// Lazy load IconPicker to prevent loading hundreds of icons on initial page load
+const IconPicker = React.lazy(() =>
+  import('../editors/IconPicker').then(m => ({ default: m.IconPicker }))
+);
 
 interface DockConfigEditorProps {
   userId?: string;
   appId?: string;
 }
 
-// Helper: Find menu item by ID recursively
-function findMenuItem(items: DockMenuItem[], id: string): DockMenuItem | null {
-  for (const item of items) {
-    if (item.id === id) return item;
-    if (item.children) {
-      const found = findMenuItem(item.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-// Helper: Update menu item recursively
-function updateMenuItemRecursive(items: DockMenuItem[], id: string, updates: Partial<DockMenuItem>): DockMenuItem[] {
-  return items.map(item => {
-    if (item.id === id) {
-      return { ...item, ...updates };
-    }
-    if (item.children) {
-      return {
-        ...item,
-        children: updateMenuItemRecursive(item.children, id, updates)
-      };
-    }
-    return item;
-  });
-}
-
-// Helper: Delete menu item recursively
-function deleteMenuItemRecursive(items: DockMenuItem[], id: string): DockMenuItem[] {
-  const result: DockMenuItem[] = [];
-  for (const item of items) {
-    if (item.id !== id) {
-      if (item.children) {
-        result.push({
-          ...item,
-          children: deleteMenuItemRecursive(item.children, id)
-        });
-      } else {
-        result.push(item);
-      }
-    }
-  }
-  return result;
-}
-
-// Helper: Add child to item recursively
-function addChildToItem(item: DockMenuItem, parentId: string, child: DockMenuItem): DockMenuItem {
-  if (item.id === parentId) {
-    return {
-      ...item,
-      children: [...(item.children || []), child]
-    };
-  }
-  if (item.children) {
-    return {
-      ...item,
-      children: item.children.map(childItem => addChildToItem(childItem, parentId, child))
-    };
-  }
-  return item;
-}
-
 // System userId for admin configurations - shared across all users
 const SYSTEM_USER_ID = 'System';
 
 /**
- * Dock Configuration Editor - Simplified
- * Uses simple local state for fast, responsive editing
+ * Dock Configuration Editor
+ * Uses shared tree utilities and proper React patterns
  */
 export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
-  userId = SYSTEM_USER_ID, // Default to System for admin configs
+  userId = SYSTEM_USER_ID,
   appId = 'stern-platform'
 }) => {
   const { toast } = useToast();
@@ -121,26 +78,28 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
   const { data: loadedConfig, isLoading, error: loadError } = useDockConfig(SYSTEM_USER_ID);
   const saveMutation = useSaveDockConfig();
 
-  // UI state
+  // Core state - using selectedId (string) instead of selectedNode (object)
+  // This prevents stale closure issues and makes memoization more effective
   const [currentConfig, setCurrentConfig] = useState<DockConfiguration | null>(null);
-  const [selectedNode, setSelectedNode] = useState<DockMenuItem | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Note: useOpenfinTheme is called at App level, no need to call here
-  // Calling it here causes performance issues on every keystroke
-
+  // Icon picker state
   const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [iconPickerCallback, setIconPickerCallback] = useState<((icon: string) => void) | null>(null);
 
-  // PERFORMANCE FIX: Use ref to get current config without triggering callback recreation
-  const currentConfigRef = useRef<DockConfiguration | null>(null);
-  currentConfigRef.current = currentConfig;
+  // Derive selected item from selectedId (memoized)
+  const selectedItem = useMemo(() => {
+    if (!selectedId || !currentConfig?.config?.menuItems) return null;
+    return findMenuItem(currentConfig.config.menuItems, selectedId);
+  }, [selectedId, currentConfig?.config?.menuItems]);
 
   // Sync loaded config to local state
   useEffect(() => {
     if (loadedConfig) {
       setCurrentConfig(loadedConfig as unknown as DockConfiguration);
       setIsDirty(false);
+      setSelectedId(null);
     } else if (!isLoading && !loadedConfig) {
       // No config found, create new one
       const newConfig = createDockConfiguration(userId, appId) as unknown as DockConfiguration;
@@ -149,30 +108,24 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     }
   }, [loadedConfig, isLoading, userId, appId]);
 
-  // Auto-save draft every 30 seconds
-  // PERFORMANCE FIX: Use ref to avoid recreating callback on every config change
+  // Auto-save draft to localStorage (debounced)
   useEffect(() => {
-    if (!isDirty) return;
+    if (!isDirty || !currentConfig) return;
 
     const timer = setTimeout(() => {
-      const config = currentConfigRef.current;
-      if (config) {
-        localStorage.setItem('dock-config-draft', JSON.stringify(config));
-        toast({
-          title: 'Draft saved',
-          description: 'Your changes have been saved locally',
-        });
-      }
+      localStorage.setItem('dock-config-draft', JSON.stringify(currentConfig));
+      logger.debug('Draft auto-saved to localStorage', undefined, 'DockConfigEditor');
     }, 30000);
 
     return () => clearTimeout(timer);
-  }, [isDirty, toast]);  // Only depends on isDirty and toast, not currentConfig
+  }, [isDirty, currentConfig]);
+
+  // ============================================================================
+  // Handlers - Using shared utilities with proper dependencies
+  // ============================================================================
 
   const handleSave = useCallback(async () => {
-    logger.debug('Save button clicked', undefined, 'DockConfigEditor');
-
     if (!currentConfig) {
-      logger.error('No current config available', undefined, 'DockConfigEditor');
       toast({
         title: 'Error',
         description: 'No configuration loaded',
@@ -183,10 +136,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     // Validate configuration before saving
     const validation = validateDockConfiguration(currentConfig);
-    logger.debug('Validation result', validation, 'DockConfigEditor');
-
     if (!validation.isValid) {
-      logger.warn('Validation failed', validation.errors, 'DockConfigEditor');
       toast({
         title: 'Validation failed',
         description: validation.errors[0]?.message || 'Please fix validation errors',
@@ -199,148 +149,157 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     const configName = currentConfig.name;
 
     try {
-      logger.info('Saving configuration...', undefined, 'DockConfigEditor');
-      logger.info('📝 Configuration to save:', {
-        configId: currentConfig.configId,
-        name: currentConfig.name,
-        menuItemCount: currentConfig.config?.menuItems?.length
-      }, 'DockConfigEditor');
-      logger.info('📋 MENU ITEMS TO SAVE:', JSON.stringify(currentConfig.config?.menuItems, null, 2), 'DockConfigEditor');
+      logger.info('Saving dock configuration', { configId: currentConfig.configId }, 'DockConfigEditor');
 
       await saveMutation.mutateAsync({ userId: SYSTEM_USER_ID, config: currentConfig });
 
-      logger.info('Save completed successfully', undefined, 'DockConfigEditor');
       setIsDirty(false);
+      localStorage.removeItem('dock-config-draft');
 
-      // Update the dock with the new configuration (fast, no reload!)
+      // Update the dock with the new configuration
       if (window.fin) {
         try {
-          logger.info('Updating dock with new configuration...', undefined, 'DockConfigEditor');
           const dock = await import('@/openfin/platform/openfinDock');
-
-          // Use fast updateConfig - no reload needed!
           await dock.updateConfig({
             menuItems: currentConfig.config?.menuItems || []
           });
-
-          logger.info('✅ Dock updated successfully', {
-            menuItemCount: currentConfig.config?.menuItems?.length
-          }, 'DockConfigEditor');
+          logger.info('Dock updated successfully', undefined, 'DockConfigEditor');
         } catch (dockError) {
           logger.error('Failed to update dock', dockError, 'DockConfigEditor');
         }
       }
 
       toast({
-        title: 'Configuration saved successfully',
-        description: `Saved "${configName}" with ${menuItemCount} menu item(s). Dock has been reloaded.`,
+        title: 'Configuration saved',
+        description: `Saved "${configName}" with ${menuItemCount} menu item(s).`,
       });
     } catch (error) {
-      logger.error('Save failed in component', error, 'DockConfigEditor');
       const errorMessage = error instanceof Error ? error.message : 'Failed to save configuration';
       toast({
         title: 'Save failed',
-        description: `Could not save "${configName}": ${errorMessage}`,
+        description: errorMessage,
         variant: 'destructive'
       });
     }
   }, [currentConfig, saveMutation, toast]);
 
   const handleAddMenuItem = useCallback(() => {
-    const config = currentConfigRef.current;
-    if (!config) return;
+    if (!currentConfig) return;
 
     const newItem = createMenuItem();
+    const menuItems = currentConfig.config?.menuItems || [];
 
-    // Update local config
-    let newMenuItems = [...(config.config.menuItems || [])];
-
-    // PERFORMANCE: Access selectedNode directly from closure instead of dependency
-    if (selectedNode) {
-      // Add as child
-      newMenuItems = newMenuItems.map(menuItem =>
-        addChildToItem(menuItem, selectedNode.id, newItem)
-      );
-    } else {
-      // Add to root
-      newMenuItems.push(newItem);
-    }
+    // Add as child of selected item, or to root if nothing selected
+    const newMenuItems = addChildToParent(menuItems, selectedId, newItem);
 
     setCurrentConfig({
-      ...config,
+      ...currentConfig,
       config: {
-        ...config.config,
+        ...currentConfig.config,
         menuItems: newMenuItems
       }
     });
     setIsDirty(true);
-
-    // Select the newly added item
-    setSelectedNode(newItem);
-  }, []);
+    setSelectedId(newItem.id);
+  }, [currentConfig, selectedId]);
 
   const handleDeleteMenuItem = useCallback(() => {
-    const config = currentConfigRef.current;
-    // PERFORMANCE: Access selectedNode from closure, not dependency
-    if (!config || !selectedNode) return;
+    if (!currentConfig || !selectedId) return;
 
-    const newMenuItems = deleteMenuItemRecursive(config.config.menuItems || [], selectedNode.id);
+    const menuItems = currentConfig.config?.menuItems || [];
+    const newMenuItems = deleteMenuItem(menuItems, selectedId);
 
     setCurrentConfig({
-      ...config,
+      ...currentConfig,
       config: {
-        ...config.config,
+        ...currentConfig.config,
         menuItems: newMenuItems
       }
     });
-    setSelectedNode(null);
+    setSelectedId(null);
     setIsDirty(true);
 
     toast({
       title: 'Item deleted',
       description: 'Menu item has been removed',
     });
-  }, [toast]);
+  }, [currentConfig, selectedId, toast]);
 
   const handleDuplicateMenuItem = useCallback(() => {
-    const config = currentConfigRef.current;
-    if (!config || !selectedNode) return;
+    if (!currentConfig || !selectedItem) return;
 
     const duplicate = createMenuItem({
-      ...selectedNode,
+      ...selectedItem,
       id: undefined,
-      caption: `${selectedNode.caption} (Copy)`
+      caption: `${selectedItem.caption} (Copy)`
     });
 
-    const newMenuItems = [...(config.config.menuItems || []), duplicate];
+    const menuItems = currentConfig.config?.menuItems || [];
+    const newMenuItems = duplicateMenuItemUtil(menuItems, duplicate);
 
     setCurrentConfig({
-      ...config,
+      ...currentConfig,
       config: {
-        ...config.config,
+        ...currentConfig.config,
         menuItems: newMenuItems
       }
     });
     setIsDirty(true);
+    setSelectedId(duplicate.id);
 
     toast({
       title: 'Item duplicated',
       description: 'Menu item has been duplicated',
     });
-  }, [selectedNode, toast]);
+  }, [currentConfig, selectedItem, toast]);
+
+  const handleUpdateMenuItem = useCallback((id: string, updates: Partial<DockMenuItem>) => {
+    if (!currentConfig) return;
+
+    const menuItems = currentConfig.config?.menuItems || [];
+    const newMenuItems = updateMenuItem(menuItems, id, updates);
+
+    setCurrentConfig({
+      ...currentConfig,
+      config: {
+        ...currentConfig.config,
+        menuItems: newMenuItems
+      }
+    });
+    setIsDirty(true);
+  }, [currentConfig]);
+
+  const handleReorderItems = useCallback((
+    sourceId: string,
+    targetId: string,
+    position: 'before' | 'after' | 'inside'
+  ) => {
+    if (!currentConfig) return;
+
+    const menuItems = currentConfig.config?.menuItems || [];
+    const newMenuItems = moveMenuItem(menuItems, sourceId, targetId, position);
+
+    setCurrentConfig({
+      ...currentConfig,
+      config: {
+        ...currentConfig.config,
+        menuItems: newMenuItems
+      }
+    });
+    setIsDirty(true);
+  }, [currentConfig]);
 
   const handlePreview = useCallback(async () => {
     if (!currentConfig) return;
 
     try {
-      // Update dock with current configuration
       await openFinDock.updateDock(currentConfig.config);
       await openFinDock.showDock();
       toast({
         title: 'Preview updated',
         description: 'Dock has been updated with your changes',
       });
-    } catch (error) {
+    } catch {
       toast({
         title: 'Preview failed',
         description: 'Failed to update dock preview',
@@ -354,12 +313,11 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     const dataStr = JSON.stringify(currentConfig, null, 2);
     const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-
-    const exportFileDefaultName = `dock-config-${new Date().toISOString().split('T')[0]}.json`;
+    const exportFileName = `dock-config-${new Date().toISOString().split('T')[0]}.json`;
 
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.setAttribute('download', exportFileName);
     linkElement.click();
 
     toast({
@@ -378,12 +336,12 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
         const config = JSON.parse(e.target?.result as string);
         setCurrentConfig(config);
         setIsDirty(true);
-        setSelectedNode(null);
+        setSelectedId(null);
         toast({
           title: 'Configuration imported',
           description: 'Configuration has been loaded successfully',
         });
-      } catch (error) {
+      } catch {
         toast({
           title: 'Import failed',
           description: 'Invalid configuration file',
@@ -392,7 +350,17 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       }
     };
     reader.readAsText(file);
+
+    // Reset input so same file can be imported again
+    event.target.value = '';
   }, [toast]);
+
+  const handleCreateNewConfig = useCallback(() => {
+    const newConfig = createDockConfiguration(userId, appId) as unknown as DockConfiguration;
+    setCurrentConfig(newConfig);
+    setIsDirty(true);
+    setSelectedId(null);
+  }, [userId, appId]);
 
   const handleIconSelect = useCallback((callback: (icon: string) => void) => {
     setIconPickerCallback(() => callback);
@@ -407,69 +375,16 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     setIconPickerCallback(null);
   }, [iconPickerCallback]);
 
-  const handleUpdateMenuItem = useCallback((id: string, updates: Partial<DockMenuItem>) => {
-    const config = currentConfigRef.current;
-    if (!config) return;
-
-    const newMenuItems = updateMenuItemRecursive(config.config.menuItems || [], id, updates);
-
-    // PERFORMANCE FIX: Don't update selectedNode on property changes
-    // PropertiesPanel gets the item from the tree directly via findMenuItem
-    // Only the config needs to be updated - selectedNode stays stable
-    // This prevents cascading re-renders in PropertiesPanel
-
-    setCurrentConfig({
-      ...config,
-      config: {
-        ...config.config,
-        menuItems: newMenuItems
-      }
-    });
-    setIsDirty(true);
-  }, []);  // NO DEPENDENCIES - stable function reference!
-
-  const handleReorderItems = useCallback((sourceId: string, targetId: string, position: 'before' | 'after' | 'inside') => {
-    const config = currentConfigRef.current;
-    if (!config) return;
-
-    let newMenuItems = [...(config.config.menuItems || [])];
-
-    // Find and remove source item
-    const sourceItem = findMenuItem(newMenuItems, sourceId);
-    if (!sourceItem) return;
-
-    newMenuItems = deleteMenuItemRecursive(newMenuItems, sourceId);
-
-    // Insert at new position (simplified - just add to root for now)
-    if (position === 'inside') {
-      newMenuItems = newMenuItems.map(item => addChildToItem(item, targetId, sourceItem));
-    } else {
-      const targetIndex = newMenuItems.findIndex(item => item.id === targetId);
-      if (targetIndex !== -1) {
-        const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-        newMenuItems.splice(insertIndex, 0, sourceItem);
-      }
-    }
-
-    setCurrentConfig({
-      ...config,
-      config: {
-        ...config.config,
-        menuItems: newMenuItems
-      }
-    });
-    setIsDirty(true);
+  // Selection handler - just sets the ID, not the object
+  const handleSelectItem = useCallback((item: DockMenuItem | null) => {
+    setSelectedId(item?.id || null);
   }, []);
 
-  const handleCreateNewConfig = useCallback(() => {
-    const newConfig = createDockConfiguration(userId, appId) as unknown as DockConfiguration;
-    setCurrentConfig(newConfig);
-    setIsDirty(true);
-    setSelectedNode(null);
-  }, [userId, appId]);
+  // ============================================================================
+  // Render
+  // ============================================================================
 
   const error = loadError instanceof Error ? loadError.message : loadError ? String(loadError) : null;
-
   const menuItemCount = currentConfig?.config?.menuItems?.length || 0;
 
   return (
@@ -491,7 +406,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
           <div className="flex items-center gap-2">
             {isLoading && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-500/10 border border-blue-500/20">
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" />
                 <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Loading...</span>
               </div>
             )}
@@ -509,12 +424,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
           {/* Edit Actions */}
           <div className="flex items-center gap-1">
             <span className="text-xs font-medium text-muted-foreground mr-2">Edit:</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddMenuItem}
-              className="h-8"
-            >
+            <Button variant="outline" size="sm" onClick={handleAddMenuItem} className="h-8">
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               Add
             </Button>
@@ -522,7 +432,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
               variant="outline"
               size="sm"
               onClick={handleDeleteMenuItem}
-              disabled={!selectedNode}
+              disabled={!selectedId}
               className="h-8"
             >
               <Trash2 className="h-3.5 w-3.5 mr-1.5" />
@@ -532,7 +442,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
               variant="outline"
               size="sm"
               onClick={handleDuplicateMenuItem}
-              disabled={!selectedNode}
+              disabled={!selectedId}
               className="h-8"
             >
               <Copy className="h-3.5 w-3.5 mr-1.5" />
@@ -543,12 +453,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
           {/* File & Save Actions */}
           <div className="flex items-center gap-1">
             <span className="text-xs font-medium text-muted-foreground mr-2">Actions:</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePreview}
-              className="h-8"
-            >
+            <Button variant="outline" size="sm" onClick={handlePreview} className="h-8">
               <Eye className="h-3.5 w-3.5 mr-1.5" />
               Preview
             </Button>
@@ -556,12 +461,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
             <Separator orientation="vertical" className="mx-1 h-5" />
 
             <label htmlFor="import-file">
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-                className="h-8"
-              >
+              <Button variant="outline" size="sm" asChild className="h-8">
                 <span>
                   <Upload className="h-3.5 w-3.5 mr-1.5" />
                   Import
@@ -576,12 +476,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
               onChange={handleImport}
             />
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              className="h-8"
-            >
+            <Button variant="outline" size="sm" onClick={handleExport} className="h-8">
               <Download className="h-3.5 w-3.5 mr-1.5" />
               Export
             </Button>
@@ -621,7 +516,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
                 </div>
                 <CardTitle className="text-xl">No Configuration Found</CardTitle>
                 <CardDescription className="text-sm">
-                  Create a new dock configuration to get started with customizing your dock menu
+                  Create a new dock configuration to get started
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-center">
@@ -649,8 +544,8 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
                   <CardContent className="pt-0">
                     <TreeView
                       items={currentConfig.config.menuItems}
-                      selectedId={selectedNode?.id}
-                      onSelect={setSelectedNode}
+                      selectedId={selectedId}
+                      onSelect={handleSelectItem}
                       onReorder={handleReorderItems}
                       onUpdate={handleUpdateMenuItem}
                     />
@@ -675,7 +570,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
                   </CardHeader>
                   <CardContent className="pt-0">
                     <PropertiesPanel
-                      item={selectedNode}
+                      item={selectedItem}
                       onUpdate={handleUpdateMenuItem}
                       onIconSelect={handleIconSelect}
                     />
@@ -689,7 +584,7 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
       {/* Icon Picker Dialog - Lazy loaded */}
       {isIconPickerOpen && (
-        <React.Suspense fallback={<div>Loading icons...</div>}>
+        <React.Suspense fallback={<div className="p-4">Loading icons...</div>}>
           <IconPicker
             open={isIconPickerOpen}
             onOpenChange={setIsIconPickerOpen}
@@ -700,4 +595,3 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     </div>
   );
 };
-

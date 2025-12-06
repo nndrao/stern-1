@@ -1,10 +1,14 @@
 /**
- * Tree View Component
- * Displays menu items in a hierarchical tree structure
- * PERFORMANCE OPTIMIZED: Uses React.memo to prevent unnecessary re-renders
+ * Tree View Component - Refactored
+ *
+ * Key improvements:
+ * - Simplified callback pattern - parent provides handlers, we just call them with IDs
+ * - Removed unnecessary Map-based caching that was recreated on every render
+ * - TreeNode callbacks are now stable via useCallback with ID closure
+ * - Replaced window.prompt() with onRename callback pattern
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,10 +33,15 @@ import {
 } from 'lucide-react';
 
 import { DockMenuItem } from '@stern/openfin-platform';
+import { RenameDialog } from './editors/RenameDialog';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface TreeViewProps {
   items: DockMenuItem[];
-  selectedId?: string;
+  selectedId?: string | null;
   onSelect?: (item: DockMenuItem | null) => void;
   onReorder?: (sourceId: string, targetId: string, position: 'before' | 'after' | 'inside') => void;
   onUpdate?: (id: string, updates: Partial<DockMenuItem>) => void;
@@ -49,14 +58,17 @@ interface TreeNodeProps {
   onToggle: () => void;
   onSelect: () => void;
   onReorder: (sourceId: string, targetId: string, position: 'before' | 'after' | 'inside') => void;
-  onUpdate: (updates: Partial<DockMenuItem>) => void;
-  onAdd: () => void;
+  onRename: () => void;
+  onAddChild: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
 }
 
-// PERFORMANCE FIX: Memoize TreeNode to prevent re-renders when props haven't changed
-const TreeNode = React.memo<TreeNodeProps>(({
+// ============================================================================
+// TreeNode Component (memoized)
+// ============================================================================
+
+const TreeNode = memo<TreeNodeProps>(function TreeNode({
   item,
   level,
   isSelected,
@@ -64,20 +76,20 @@ const TreeNode = React.memo<TreeNodeProps>(({
   onToggle,
   onSelect,
   onReorder,
-  onUpdate,
-  onAdd,
+  onRename,
+  onAddChild,
   onDelete,
   onDuplicate
-}) => {
+}) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragPosition, setDragPosition] = useState<'before' | 'after' | 'inside' | null>(null);
 
-  const handleDragStart = (e: React.DragEvent) => {
+  const handleDragStart = useCallback((e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', item.id);
-  };
+  }, [item.id]);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
@@ -94,14 +106,14 @@ const TreeNode = React.memo<TreeNodeProps>(({
     }
 
     setIsDragOver(true);
-  };
+  }, []);
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setIsDragOver(false);
     setDragPosition(null);
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const sourceId = e.dataTransfer.getData('text/plain');
 
@@ -111,18 +123,24 @@ const TreeNode = React.memo<TreeNodeProps>(({
 
     setIsDragOver(false);
     setDragPosition(null);
-  };
+  }, [item.id, dragPosition, onReorder]);
+
+  const handleToggleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggle();
+  }, [onToggle]);
 
   const hasChildren = item.children && item.children.length > 0;
-  const icon = hasChildren
+
+  const chevronIcon = hasChildren
     ? (isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)
     : <div className="w-4" />;
 
   const itemIcon = hasChildren
-    ? <Folder className="h-4 w-4" />
+    ? <Folder className="h-4 w-4 text-muted-foreground" />
     : item.openMode === 'window'
-    ? <ExternalLink className="h-4 w-4" />
-    : <Maximize2 className="h-4 w-4" />;
+      ? <ExternalLink className="h-4 w-4 text-muted-foreground" />
+      : <Maximize2 className="h-4 w-4 text-muted-foreground" />;
 
   return (
     <div>
@@ -150,23 +168,22 @@ const TreeNode = React.memo<TreeNodeProps>(({
               variant="ghost"
               size="icon"
               className="h-6 w-6 p-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (hasChildren) onToggle();
-              }}
+              onClick={handleToggleClick}
+              disabled={!hasChildren}
             >
-              {icon}
+              {chevronIcon}
             </Button>
-            <span className="flex-1 truncate">{item.caption}</span>
-            {item.children && item.children.length > 0 && (
+            {itemIcon}
+            <span className="flex-1 truncate ml-1">{item.caption}</span>
+            {hasChildren && (
               <span className="text-xs text-muted-foreground">
-                ({item.children.length})
+                ({item.children!.length})
               </span>
             )}
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onClick={onAdd}>
+          <ContextMenuItem onClick={onAddChild}>
             <Plus className="h-4 w-4 mr-2" />
             Add Child Item
           </ContextMenuItem>
@@ -174,12 +191,7 @@ const TreeNode = React.memo<TreeNodeProps>(({
             <Copy className="h-4 w-4 mr-2" />
             Duplicate
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => {
-            const newCaption = prompt('Rename item:', item.caption);
-            if (newCaption) {
-              onUpdate({ caption: newCaption });
-            }
-          }}>
+          <ContextMenuItem onClick={onRename}>
             <Edit2 className="h-4 w-4 mr-2" />
             Rename
           </ContextMenuItem>
@@ -194,6 +206,10 @@ const TreeNode = React.memo<TreeNodeProps>(({
   );
 });
 
+// ============================================================================
+// TreeView Component
+// ============================================================================
+
 export const TreeView: React.FC<TreeViewProps> = ({
   items,
   selectedId,
@@ -205,7 +221,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
   onDuplicate
 }) => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [renameDialog, setRenameDialog] = useState<{ id: string; caption: string } | null>(null);
 
+  // Toggle expanded state for a node
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
@@ -218,57 +236,57 @@ export const TreeView: React.FC<TreeViewProps> = ({
     });
   }, []);
 
-  // PERFORMANCE FIX: Create stable callbacks using a Map to avoid recreating on every render
-  const nodeCallbacks = useMemo(() => {
-    const callbacks = new Map<string, {
-      onToggle: () => void;
-      onSelect: () => void;
-      onUpdate: (updates: Partial<DockMenuItem>) => void;
-      onAdd: () => void;
-      onDelete: () => void;
-      onDuplicate: () => void;
-    }>();
+  // Handle item selection - find item and pass to parent
+  const handleSelectItem = useCallback((id: string) => {
+    if (!onSelect) return;
 
-    const createCallbacks = (itemId: string) => {
-      if (!callbacks.has(itemId)) {
-        callbacks.set(itemId, {
-          onToggle: () => toggleExpanded(itemId),
-          onSelect: () => {
-            if (selectedId === itemId) {
-              onSelect?.(null);
-            } else {
-              // Find the item to pass to onSelect
-              const findItem = (items: DockMenuItem[]): DockMenuItem | null => {
-                for (const item of items) {
-                  if (item.id === itemId) return item;
-                  if (item.children) {
-                    const found = findItem(item.children);
-                    if (found) return found;
-                  }
-                }
-                return null;
-              };
-              const item = findItem(items);
-              if (item) onSelect?.(item);
-            }
-          },
-          onUpdate: (updates) => onUpdate?.(itemId, updates),
-          onAdd: () => onAdd?.(itemId),
-          onDelete: () => onDelete?.(itemId),
-          onDuplicate: () => onDuplicate?.(itemId),
-        });
+    if (selectedId === id) {
+      onSelect(null);
+      return;
+    }
+
+    // Find item in tree
+    const findItem = (menuItems: DockMenuItem[]): DockMenuItem | null => {
+      for (const item of menuItems) {
+        if (item.id === id) return item;
+        if (item.children) {
+          const found = findItem(item.children);
+          if (found) return found;
+        }
       }
-      return callbacks.get(itemId)!;
+      return null;
     };
 
-    return createCallbacks;
-  }, [items, selectedId, onSelect, onUpdate, onAdd, onDelete, onDuplicate, toggleExpanded]);
+    const item = findItem(items);
+    onSelect(item);
+  }, [items, selectedId, onSelect]);
 
-  const renderTree = useCallback((items: DockMenuItem[], level = 0): React.ReactNode[] => {
-    return items.map(item => {
+  // Handle rename via dialog
+  const handleOpenRename = useCallback((id: string, caption: string) => {
+    setRenameDialog({ id, caption });
+  }, []);
+
+  const handleRename = useCallback((newCaption: string) => {
+    if (renameDialog && onUpdate) {
+      onUpdate(renameDialog.id, { caption: newCaption });
+    }
+    setRenameDialog(null);
+  }, [renameDialog, onUpdate]);
+
+  // Reorder handler (stable reference)
+  const handleReorder = useCallback((
+    sourceId: string,
+    targetId: string,
+    position: 'before' | 'after' | 'inside'
+  ) => {
+    onReorder?.(sourceId, targetId, position);
+  }, [onReorder]);
+
+  // Render tree recursively
+  const renderTree = (menuItems: DockMenuItem[], level = 0): React.ReactNode[] => {
+    return menuItems.map(item => {
       const isExpanded = expandedIds.has(item.id);
       const isSelected = selectedId === item.id;
-      const callbacks = nodeCallbacks(item.id);
 
       return (
         <React.Fragment key={item.id}>
@@ -277,50 +295,61 @@ export const TreeView: React.FC<TreeViewProps> = ({
             level={level}
             isSelected={isSelected}
             isExpanded={isExpanded}
-            onToggle={callbacks.onToggle}
-            onSelect={callbacks.onSelect}
-            onReorder={onReorder || (() => {})}
-            onUpdate={callbacks.onUpdate}
-            onAdd={callbacks.onAdd}
-            onDelete={callbacks.onDelete}
-            onDuplicate={callbacks.onDuplicate}
+            onToggle={() => toggleExpanded(item.id)}
+            onSelect={() => handleSelectItem(item.id)}
+            onReorder={handleReorder}
+            onRename={() => handleOpenRename(item.id, item.caption)}
+            onAddChild={() => onAdd?.(item.id)}
+            onDelete={() => onDelete?.(item.id)}
+            onDuplicate={() => onDuplicate?.(item.id)}
           />
           {isExpanded && item.children && renderTree(item.children, level + 1)}
         </React.Fragment>
       );
     });
-  }, [expandedIds, selectedId, nodeCallbacks, onReorder]);
+  };
 
   // Handle click on empty area to deselect
   const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
-    // Only deselect if clicking directly on the background, not on a child element
     if (e.target === e.currentTarget) {
       onSelect?.(null);
     }
   }, [onSelect]);
 
   return (
-    <ScrollArea className="h-full">
-      <div
-        className="p-2 min-h-full"
-        onClick={handleBackgroundClick}
-      >
-        {!items || items.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
-            <p>No menu items</p>
-            <p className="text-sm mt-2">Click "Add Item" to create your first menu item</p>
-          </div>
-        ) : (
-          <>
-            {renderTree(items)}
-            {/* Clickable area below items to deselect */}
-            <div
-              className="min-h-[40px] mt-2"
-              onClick={() => onSelect?.(null)}
-            />
-          </>
-        )}
-      </div>
-    </ScrollArea>
+    <>
+      <ScrollArea className="h-full">
+        <div className="p-2 min-h-full" onClick={handleBackgroundClick}>
+          {!items || items.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <p>No menu items</p>
+              <p className="text-sm mt-2">Click "Add" to create your first menu item</p>
+            </div>
+          ) : (
+            <>
+              {renderTree(items)}
+              {/* Clickable area below items to deselect */}
+              <div
+                className="min-h-[40px] mt-2"
+                onClick={() => onSelect?.(null)}
+                role="button"
+                tabIndex={-1}
+                aria-label="Deselect item"
+              />
+            </>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Rename Dialog */}
+      <RenameDialog
+        open={renameDialog !== null}
+        onOpenChange={(open) => !open && setRenameDialog(null)}
+        currentName={renameDialog?.caption || ''}
+        onRename={handleRename}
+        title="Rename Menu Item"
+        description="Enter a new name for this menu item."
+      />
+    </>
   );
 };
