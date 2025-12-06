@@ -6,9 +6,11 @@
  * - Removed unnecessary Map-based caching that was recreated on every render
  * - TreeNode callbacks are now stable via useCallback with ID closure
  * - Replaced window.prompt() with onRename callback pattern
+ * - TreeView is memoized to prevent unnecessary re-renders
+ * - Uses refs to keep callbacks stable without recreating on every items change
  */
 
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -207,10 +209,10 @@ const TreeNode = memo<TreeNodeProps>(function TreeNode({
 });
 
 // ============================================================================
-// TreeView Component
+// TreeView Component (Memoized)
 // ============================================================================
 
-export const TreeView: React.FC<TreeViewProps> = ({
+const TreeViewComponent: React.FC<TreeViewProps> = ({
   items,
   selectedId,
   onSelect,
@@ -223,7 +225,27 @@ export const TreeView: React.FC<TreeViewProps> = ({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [renameDialog, setRenameDialog] = useState<{ id: string; caption: string } | null>(null);
 
-  // Toggle expanded state for a node
+  // Refs for stable callbacks - prevents recreating callbacks when items/selectedId change
+  const itemsRef = useRef(items);
+  const selectedIdRef = useRef(selectedId);
+  const onSelectRef = useRef(onSelect);
+  const onReorderRef = useRef(onReorder);
+  const onUpdateRef = useRef(onUpdate);
+  const onAddRef = useRef(onAdd);
+  const onDeleteRef = useRef(onDelete);
+  const onDuplicateRef = useRef(onDuplicate);
+
+  // Keep refs updated
+  itemsRef.current = items;
+  selectedIdRef.current = selectedId;
+  onSelectRef.current = onSelect;
+  onReorderRef.current = onReorder;
+  onUpdateRef.current = onUpdate;
+  onAddRef.current = onAdd;
+  onDeleteRef.current = onDelete;
+  onDuplicateRef.current = onDuplicate;
+
+  // Toggle expanded state for a node - STABLE (no deps)
   const toggleExpanded = useCallback((id: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
@@ -236,12 +258,13 @@ export const TreeView: React.FC<TreeViewProps> = ({
     });
   }, []);
 
-  // Handle item selection - find item and pass to parent
+  // Handle item selection - STABLE (uses refs)
   const handleSelectItem = useCallback((id: string) => {
-    if (!onSelect) return;
+    const onSelectFn = onSelectRef.current;
+    if (!onSelectFn) return;
 
-    if (selectedId === id) {
-      onSelect(null);
+    if (selectedIdRef.current === id) {
+      onSelectFn(null);
       return;
     }
 
@@ -257,30 +280,56 @@ export const TreeView: React.FC<TreeViewProps> = ({
       return null;
     };
 
-    const item = findItem(items);
-    onSelect(item);
-  }, [items, selectedId, onSelect]);
+    const item = findItem(itemsRef.current);
+    onSelectFn(item);
+  }, []);
 
-  // Handle rename via dialog
+  // Handle rename via dialog - STABLE
   const handleOpenRename = useCallback((id: string, caption: string) => {
     setRenameDialog({ id, caption });
   }, []);
 
   const handleRename = useCallback((newCaption: string) => {
-    if (renameDialog && onUpdate) {
-      onUpdate(renameDialog.id, { caption: newCaption });
-    }
-    setRenameDialog(null);
-  }, [renameDialog, onUpdate]);
+    setRenameDialog(prev => {
+      if (prev && onUpdateRef.current) {
+        onUpdateRef.current(prev.id, { caption: newCaption });
+      }
+      return null;
+    });
+  }, []);
 
-  // Reorder handler (stable reference)
+  // Reorder handler - STABLE (uses ref)
   const handleReorder = useCallback((
     sourceId: string,
     targetId: string,
     position: 'before' | 'after' | 'inside'
   ) => {
-    onReorder?.(sourceId, targetId, position);
-  }, [onReorder]);
+    onReorderRef.current?.(sourceId, targetId, position);
+  }, []);
+
+  // STABLE callbacks for TreeNode actions - use refs
+  const handleAddChild = useCallback((id: string) => {
+    onAddRef.current?.(id);
+  }, []);
+
+  const handleDelete = useCallback((id: string) => {
+    onDeleteRef.current?.(id);
+  }, []);
+
+  const handleDuplicate = useCallback((id: string) => {
+    onDuplicateRef.current?.(id);
+  }, []);
+
+  // Handle click on empty area to deselect - STABLE
+  const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onSelectRef.current?.(null);
+    }
+  }, []);
+
+  const handleDeselectClick = useCallback(() => {
+    onSelectRef.current?.(null);
+  }, []);
 
   // Render tree recursively
   const renderTree = (menuItems: DockMenuItem[], level = 0): React.ReactNode[] => {
@@ -299,22 +348,15 @@ export const TreeView: React.FC<TreeViewProps> = ({
             onSelect={() => handleSelectItem(item.id)}
             onReorder={handleReorder}
             onRename={() => handleOpenRename(item.id, item.caption)}
-            onAddChild={() => onAdd?.(item.id)}
-            onDelete={() => onDelete?.(item.id)}
-            onDuplicate={() => onDuplicate?.(item.id)}
+            onAddChild={() => handleAddChild(item.id)}
+            onDelete={() => handleDelete(item.id)}
+            onDuplicate={() => handleDuplicate(item.id)}
           />
           {isExpanded && item.children && renderTree(item.children, level + 1)}
         </React.Fragment>
       );
     });
   };
-
-  // Handle click on empty area to deselect
-  const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onSelect?.(null);
-    }
-  }, [onSelect]);
 
   return (
     <>
@@ -331,7 +373,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
               {/* Clickable area below items to deselect */}
               <div
                 className="min-h-[40px] mt-2"
-                onClick={() => onSelect?.(null)}
+                onClick={handleDeselectClick}
                 role="button"
                 tabIndex={-1}
                 aria-label="Deselect item"
@@ -353,3 +395,6 @@ export const TreeView: React.FC<TreeViewProps> = ({
     </>
   );
 };
+
+// Memoize TreeView to prevent re-renders when parent re-renders
+export const TreeView = memo(TreeViewComponent);

@@ -6,10 +6,11 @@
  *
  * Key improvements:
  * - Removed verbose logging that ran on every render
- * - Cleaner memoization without logging overhead
+ * - Uses ref pattern for stable callbacks (prevents re-renders)
+ * - Local state for text inputs means typing doesn't trigger parent updates
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,12 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   onUpdate,
   onIconSelect
 }) => {
+  // Refs for stable callbacks - prevents callback recreation
+  const itemRef = useRef(item);
+  const onUpdateRef = useRef(onUpdate);
+  itemRef.current = item;
+  onUpdateRef.current = onUpdate;
+
   // Local state for text inputs - only calls onUpdate on blur
   const [localCaption, setLocalCaption] = useState(item?.caption || '');
   const [localId, setLocalId] = useState(item?.id || '');
@@ -72,43 +79,46 @@ const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
     }
   }, [item?.id]);
 
-  // Helper to update item - just calls parent callback
+  // Helper to update item - STABLE callback using refs
   const updateItem = useCallback((updates: Partial<DockMenuItem>) => {
-    if (item) {
-      onUpdate(item.id, updates);
+    const currentItem = itemRef.current;
+    if (currentItem) {
+      onUpdateRef.current(currentItem.id, updates);
     }
-  }, [item?.id, onUpdate]);
+  }, []);
 
-  // Generate unique ID
+  // Generate unique ID - STABLE
   const generateId = useCallback(() => {
     const id = `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     setLocalId(id);
-    updateItem({ id });
-  }, [updateItem]);
+    onUpdateRef.current(itemRef.current?.id || '', { id });
+  }, []);
 
-  // Handle window option changes (immediate update for switches/selects)
+  // Handle window option changes - STABLE using refs
   const handleWindowOptionChange = useCallback((key: string, value: unknown) => {
-    if (item) {
-      updateItem({
+    const currentItem = itemRef.current;
+    if (currentItem) {
+      onUpdateRef.current(currentItem.id, {
         windowOptions: {
-          ...item.windowOptions,
+          ...currentItem.windowOptions,
           [key]: value
         }
       });
     }
-  }, [item?.id, item?.windowOptions, updateItem]);
+  }, []);
 
-  // Handle view option changes (immediate update for switches/selects)
+  // Handle view option changes - STABLE using refs
   const handleViewOptionChange = useCallback((key: string, value: unknown) => {
-    if (item) {
-      updateItem({
+    const currentItem = itemRef.current;
+    if (currentItem) {
+      onUpdateRef.current(currentItem.id, {
         viewOptions: {
-          ...item.viewOptions,
+          ...currentItem.viewOptions,
           [key]: value
         }
       });
     }
-  }, [item?.id, item?.viewOptions, updateItem]);
+  }, []);
 
   // Memoize full URL construction
   const fullUrl = useMemo(() =>
