@@ -29,7 +29,7 @@ interface PropertiesPanelProps {
   onIconSelect: (callback: (icon: string) => void) => void;
 }
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
+const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
   item,
   onUpdate,
   onIconSelect
@@ -532,3 +532,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     </div>
   );
 };
+
+// Memoize the component to prevent re-renders when parent updates
+// Only re-render when item.id changes (not when parent config changes)
+export const PropertiesPanel = React.memo(PropertiesPanelComponent, (prevProps, nextProps) => {
+  // Only re-render if the item ID changes or callbacks change
+  return prevProps.item?.id === nextProps.item?.id &&
+         prevProps.onUpdate === nextProps.onUpdate &&
+         prevProps.onIconSelect === nextProps.onIconSelect;
+});
