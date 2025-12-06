@@ -107,7 +107,12 @@ export const DataProviderEditor: React.FC<DataProviderEditorProps> = ({
 
         {/* New Provider Button */}
         <div className="p-3 border-t border-border bg-card">
-          <Button onClick={handleCreate} className="w-full" size="sm">
+          <Button
+            onClick={handleCreate}
+            className="w-full"
+            size="sm"
+            disabled={currentProvider !== null}
+          >
             <Plus className="w-4 h-4 mr-2" />
             New Dataprovider
           </Button>

@@ -196,6 +196,12 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
 
     try {
       logger.info('Saving configuration...', undefined, 'DockConfigEditor');
+      logger.info('📝 Configuration to save:', {
+        configId: currentConfig.configId,
+        name: currentConfig.name,
+        menuItemCount: currentConfig.config?.menuItems?.length
+      }, 'DockConfigEditor');
+      logger.info('📋 MENU ITEMS TO SAVE:', JSON.stringify(currentConfig.config?.menuItems, null, 2), 'DockConfigEditor');
 
       await saveMutation.mutateAsync({ userId: SYSTEM_USER_ID, config: currentConfig });
 
@@ -205,28 +211,33 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
       // Reload the dock to show the updated configuration
       if (window.fin) {
         try {
-          logger.info('Updating dock with new configuration...', undefined, 'DockConfigEditor');
+          logger.info('Reloading dock with updated configuration...', undefined, 'DockConfigEditor');
           const dock = await import('@/openfin/platform/openfinDock');
 
-          // Use updateConfig for efficient update (no deregister/register cycle)
-          await dock.updateConfig({
-            menuItems: currentConfig.config.menuItems
-          });
-          logger.info('Dock updated successfully', undefined, 'DockConfigEditor');
+          // Do full reload (deregister and re-register) to ensure menu items update properly
+          // Note: updateConfig() doesn't work reliably when called via dynamic import due to module state issues
+          logger.info('🔄 Deregistering dock to clear OpenFin cache...', undefined, 'DockConfigEditor');
+          await dock.deregister();
+
+          // Wait longer to ensure OpenFin fully clears the cache
+          logger.info('⏳ Waiting for OpenFin to clear cache...', undefined, 'DockConfigEditor');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          logger.info('🔄 Registering dock with config:', {
+            configId: currentConfig.configId,
+            menuItemCount: currentConfig.config?.menuItems?.length
+          }, 'DockConfigEditor');
+          logger.info('📋 MENU ITEMS TO REGISTER:', JSON.stringify(currentConfig.config?.menuItems, null, 2), 'DockConfigEditor');
+
+          await dock.registerFromConfig(currentConfig);
+
+          // Wait a bit longer before showing to ensure registration is complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await dock.show();
+
+          logger.info('✅ Dock registration complete - cache should be refreshed', undefined, 'DockConfigEditor');
         } catch (dockError) {
-          logger.error('Failed to update dock', dockError, 'DockConfigEditor');
-          // If update fails, try full reload as fallback (deregister and re-register)
-          try {
-            logger.info('Attempting full dock reload as fallback...', undefined, 'DockConfigEditor');
-            const dock = await import('@/openfin/platform/openfinDock');
-            await dock.deregister();
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await dock.registerFromConfig(currentConfig);
-            await dock.show();
-            logger.info('Dock reloaded successfully', undefined, 'DockConfigEditor');
-          } catch (reloadError) {
-            logger.error('Failed to reload dock', reloadError, 'DockConfigEditor');
-          }
+          logger.error('Failed to reload dock', dockError, 'DockConfigEditor');
         }
       }
 

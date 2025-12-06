@@ -1,41 +1,32 @@
 /**
- * SternPlatformProvider
+ * SternPlatformProvider - Refactored (Phase 3 Architecture Refinement)
  *
- * Top-level platform provider that wraps the entire application
- * Provides unified access to:
- * - AppData variables (auto-loaded from database)
- * - OpenFin IAB events
- * - Configuration services
- * - API base URL
- * - Platform utilities
+ * Composition-based platform provider that wraps focused sub-providers.
+ * Provides unified access to all platform services while maintaining
+ * backward compatibility with the original API.
  *
- * Usage:
+ * ARCHITECTURE IMPROVEMENTS:
+ * - Composed from focused providers (AppDataProvider, ApiConfigProvider)
+ * - Uses OpenFinBridge abstraction layer
+ * - Better separation of concerns
+ * - Easier to test and maintain
+ * - Fully backward compatible
+ *
+ * Usage remains unchanged:
  * ```tsx
  * function MyComponent() {
  *   const platform = useSternPlatform();
- *
- *   // Access AppData
  *   const token = platform.appData.get('AppData.Tokens.rest-token');
- *
- *   // Subscribe to events
- *   platform.subscribeToEvent(OpenFinCustomEvents.THEME_CHANGE, (data) => {
- *     console.log('Theme changed:', data);
- *   });
- *
- *   // Use config services
- *   const config = await platform.configService.get(configId);
+ *   platform.subscribeToEvent(OpenFinCustomEvents.THEME_CHANGE, handler);
  * }
  * ```
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
-import { appDataService } from '@/services/appDataService';
-import { configService } from '@/services/api/configurationService';
-import { dataProviderConfigService } from '@/services/api/dataProviderConfigService';
-import { getApiUrl } from '@/openfin/utils/platformContext';
-import { OpenFinCustomEvents, OpenFinEventMap } from '@stern/openfin-platform';
-import { logger } from '@/utils/logger';
-import { UnifiedConfig } from '@stern/shared-types';
+import React, { createContext, useContext, useMemo, ReactNode } from 'react';
+import { AppDataProvider, useAppData } from './AppDataProvider';
+import { ApiConfigProvider, useApiConfig } from './ApiConfigProvider';
+import { openFinBridge } from '@/services/openfin/OpenFinBridge';
+import { OpenFinEventMap } from '@stern/openfin-platform';
 
 // ============================================================================
 // Types & Interfaces
@@ -51,8 +42,8 @@ export interface SternPlatformContextValue {
   };
 
   // Config Services
-  configService: typeof configService;
-  dataProviderConfigService: typeof dataProviderConfigService;
+  configService: ReturnType<typeof useApiConfig>['configService'];
+  dataProviderConfigService: ReturnType<typeof useApiConfig>['dataProviderConfigService'];
 
   // API Configuration
   apiBaseUrl: string;
@@ -77,226 +68,86 @@ export interface SternPlatformContextValue {
 const SternPlatformContext = createContext<SternPlatformContextValue | null>(null);
 
 // ============================================================================
-// Provider Component
+// Inner Provider (has access to composed providers)
 // ============================================================================
 
-export interface SternPlatformProviderProps {
+interface SternPlatformInnerProps {
   children: ReactNode;
 }
 
-export const SternPlatformProvider: React.FC<SternPlatformProviderProps> = ({ children }) => {
-  // Use ref for AppData variables to prevent re-renders when they change
-  const appDataVariablesRef = useRef<Record<string, any>>({});
-  const [isAppDataReady, setIsAppDataReady] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const [apiBaseUrl, setApiBaseUrl] = useState('http://localhost:3001');
+const SternPlatformInner: React.FC<SternPlatformInnerProps> = ({ children }) => {
+  // Access composed providers
+  const appData = useAppData();
+  const apiConfig = useApiConfig();
 
-  const isOpenFin = typeof window !== 'undefined' && !!window.fin;
+  // Compute overall ready state
+  const isReady = appData.isReady && apiConfig.isReady;
+  const error = appData.error || apiConfig.error;
 
-  // Initialize platform on mount
-  useEffect(() => {
-    const initializePlatform = async () => {
-      try {
-        logger.info('SternPlatformProvider initializing...', undefined, 'SternPlatformProvider');
-
-        // Get API base URL
-        const baseUrl = await getApiUrl();
-        setApiBaseUrl(baseUrl);
-        logger.info('API Base URL set', { baseUrl }, 'SternPlatformProvider');
-
-        // Load AppData if in OpenFin environment
-        if (isOpenFin) {
-          logger.info('Loading AppData providers...', undefined, 'SternPlatformProvider');
-
-          const userId = 'default-user'; // TODO: Get from auth service
-          await appDataService.loadAllProviders(userId);
-
-          const allVars = appDataService.getAllVariables();
-          appDataVariablesRef.current = allVars;
-          setIsAppDataReady(true);
-
-          logger.info('AppData loaded', {
-            variableCount: Object.keys(allVars).length,
-            variables: Object.keys(allVars)
-          }, 'SternPlatformProvider');
-        } else {
-          // Browser mode - no AppData
-          logger.info('Browser mode - AppData not available', undefined, 'SternPlatformProvider');
-          setIsAppDataReady(true);
-        }
-
-        setIsReady(true);
-        logger.info('SternPlatformProvider initialized successfully', undefined, 'SternPlatformProvider');
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error('Failed to initialize platform');
-        logger.error('SternPlatformProvider initialization failed', error, 'SternPlatformProvider');
-        setError(error);
-        setIsReady(true); // Mark as ready even on error to allow app to render
-      }
-    };
-
-    initializePlatform();
-  }, [isOpenFin]);
-
-  // Subscribe to AppData updates via IAB
-  useEffect(() => {
-    if (!isOpenFin) return;
-
-    let isSubscribed = true;
-
-    const subscribeToAppDataUpdates = async () => {
-      try {
-        logger.debug('Subscribing to AppData updates...', undefined, 'SternPlatformProvider');
-
-        const listener = (data: any) => {
-          if (!isSubscribed) return;
-
-          logger.info('AppData update received', {
-            providerId: data.providerId,
-            providerName: data.providerName,
-            updatedKeys: data.updatedKeys
-          }, 'SternPlatformProvider');
-
-          // Merge updated variables into ref (no re-render)
-          for (const key of data.updatedKeys) {
-            const fullKey = `AppData.${data.providerName}.${key}`;
-            appDataVariablesRef.current[fullKey] = data.variables[key];
-          }
-        };
-
-        // Subscribe to IAB event
-        await fin.InterApplicationBus.subscribe(
-          { uuid: '*' },
-          OpenFinCustomEvents.APPDATA_UPDATED,
-          listener
-        );
-
-        logger.debug('Subscribed to AppData updates', undefined, 'SternPlatformProvider');
-
-        // Cleanup
-        return async () => {
-          isSubscribed = false;
-          try {
-            await fin.InterApplicationBus.unsubscribe(
-              { uuid: '*' },
-              OpenFinCustomEvents.APPDATA_UPDATED,
-              listener
-            );
-            logger.debug('Unsubscribed from AppData updates', undefined, 'SternPlatformProvider');
-          } catch (error) {
-            logger.warn('Error unsubscribing from AppData updates', error, 'SternPlatformProvider');
-          }
-        };
-      } catch (error) {
-        logger.error('Failed to subscribe to AppData updates', error, 'SternPlatformProvider');
-      }
-    };
-
-    subscribeToAppDataUpdates();
-
-    return () => {
-      isSubscribed = false;
-    };
-  }, [isOpenFin]);
-
-  // Get AppData variable by key
-  // Use ref to avoid re-renders when AppData changes
-  const getAppDataVariable = useCallback((key: string): any => {
-    return appDataVariablesRef.current[key];
-  }, []); // No dependencies - stable reference
-
-  // Check if AppData variable exists
-  const hasAppDataVariable = useCallback((key: string): boolean => {
-    return key in appDataVariablesRef.current;
-  }, []); // No dependencies - stable reference
-
-  // Subscribe to OpenFin IAB event
-  const subscribeToEvent = useCallback(<K extends keyof OpenFinEventMap>(
+  // OpenFin event subscription (uses abstraction layer)
+  const subscribeToEvent = <K extends keyof OpenFinEventMap>(
     topic: K,
     handler: (data: OpenFinEventMap[K]) => void
   ): (() => void) => {
-    if (!isOpenFin) {
-      logger.warn('subscribeToEvent called in browser mode - no-op', { topic }, 'SternPlatformProvider');
-      return () => {};
-    }
+    let cleanup: (() => void) | null = null;
 
-    logger.debug('Subscribing to event', { topic }, 'SternPlatformProvider');
-
-    const listener = (data: any) => {
-      handler(data as OpenFinEventMap[K]);
-    };
-
-    fin.InterApplicationBus.subscribe(
-      { uuid: '*' },
-      topic as string,
-      listener
-    ).catch(error => {
-      logger.error('Failed to subscribe to event', error, 'SternPlatformProvider');
+    // Subscribe asynchronously
+    openFinBridge.subscribe(topic, handler).then((unsubscribe) => {
+      cleanup = unsubscribe;
     });
 
-    // Return cleanup function
+    // Return synchronous cleanup that calls async cleanup when available
     return () => {
-      fin.InterApplicationBus.unsubscribe(
-        { uuid: '*' },
-        topic as string,
-        listener
-      ).catch(error => {
-        logger.warn('Failed to unsubscribe from event', error, 'SternPlatformProvider');
-      });
+      if (cleanup) {
+        cleanup();
+      }
     };
-  }, [isOpenFin]);
+  };
 
-  // Broadcast OpenFin IAB event
-  const broadcastEvent = useCallback(async <K extends keyof OpenFinEventMap>(
+  // OpenFin event broadcast (uses abstraction layer)
+  const broadcastEvent = async <K extends keyof OpenFinEventMap>(
     topic: K,
     data: OpenFinEventMap[K]
   ): Promise<void> => {
-    if (!isOpenFin) {
-      logger.warn('broadcastEvent called in browser mode - no-op', { topic }, 'SternPlatformProvider');
-      return;
-    }
+    await openFinBridge.publish(topic, data);
+  };
 
-    logger.debug('Broadcasting event', { topic, data }, 'SternPlatformProvider');
-
-    try {
-      await fin.InterApplicationBus.publish(topic as string, data);
-      logger.debug('Event broadcasted successfully', { topic }, 'SternPlatformProvider');
-    } catch (error) {
-      logger.error('Failed to broadcast event', error, 'SternPlatformProvider');
-      throw error;
-    }
-  }, [isOpenFin]);
-
-  // Context value - memoized to prevent unnecessary re-renders
-  // NOTE: getAppDataVariable and hasAppDataVariable are now stable (no deps)
-  // so they won't cause context changes. appData.variables uses ref for reads.
+  // Context value - memoized
   const contextValue: SternPlatformContextValue = useMemo(() => ({
+    // AppData from AppDataProvider
     appData: {
       get variables() {
-        // Return ref value on access - no re-renders
-        return appDataVariablesRef.current;
+        return appData.variables;
       },
-      get: getAppDataVariable,
-      has: hasAppDataVariable,
-      isReady: isAppDataReady,
+      get: appData.get,
+      has: appData.has,
+      isReady: appData.isReady,
     },
-    configService,
-    dataProviderConfigService,
-    apiBaseUrl,
-    environment: isOpenFin ? 'openfin' : 'browser',
-    isOpenFin,
+
+    // API Config from ApiConfigProvider
+    configService: apiConfig.configService,
+    dataProviderConfigService: apiConfig.dataProviderConfigService,
+    apiBaseUrl: apiConfig.apiBaseUrl,
+    environment: apiConfig.environment,
+    isOpenFin: apiConfig.isOpenFin,
+
+    // OpenFin methods (using abstraction)
     subscribeToEvent,
     broadcastEvent,
+
+    // Platform state
     isReady,
     error,
   }), [
-    // Removed appDataVariables, getAppDataVariable, hasAppDataVariable
-    isAppDataReady,
-    apiBaseUrl,
-    isOpenFin,
-    subscribeToEvent,
-    broadcastEvent,
+    appData.variables,
+    appData.get,
+    appData.has,
+    appData.isReady,
+    apiConfig.configService,
+    apiConfig.dataProviderConfigService,
+    apiConfig.apiBaseUrl,
+    apiConfig.environment,
+    apiConfig.isOpenFin,
     isReady,
     error,
   ]);
@@ -307,7 +158,7 @@ export const SternPlatformProvider: React.FC<SternPlatformProviderProps> = ({ ch
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Initializing STAR Platform...</p>
+          <p className="mt-4 text-muted-foreground">Initializing STERN Platform...</p>
         </div>
       </div>
     );
@@ -317,6 +168,26 @@ export const SternPlatformProvider: React.FC<SternPlatformProviderProps> = ({ ch
     <SternPlatformContext.Provider value={contextValue}>
       {children}
     </SternPlatformContext.Provider>
+  );
+};
+
+// ============================================================================
+// Outer Provider (composes focused providers)
+// ============================================================================
+
+export interface SternPlatformProviderProps {
+  children: ReactNode;
+}
+
+export const SternPlatformProvider: React.FC<SternPlatformProviderProps> = ({ children }) => {
+  return (
+    <ApiConfigProvider>
+      <AppDataProvider>
+        <SternPlatformInner>
+          {children}
+        </SternPlatformInner>
+      </AppDataProvider>
+    </ApiConfigProvider>
   );
 };
 

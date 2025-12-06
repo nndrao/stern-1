@@ -34,12 +34,16 @@ export function useDataProviderAdapter(
   const workerPortRef = useRef<MessagePort | null>(null);
   const workerRef = useRef<SharedWorker | null>(null);
   const portIdRef = useRef<string>(`port-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Event handler refs
   const onSnapshotRef = useRef<((rows: any[]) => void) | undefined>();
   const onUpdateRef = useRef<((rows: any[]) => void) | undefined>();
   const onSnapshotCompleteRef = useRef<(() => void) | undefined>();
   const onErrorRef = useRef<((error: Error) => void) | undefined>();
+
+  // Heartbeat configuration (matches worker settings)
+  const HEARTBEAT_INTERVAL = 30000; // 30 seconds
 
   // getRowId function for AG-Grid (stable reference)
   const getRowId = useCallback((params: GetRowIdParams) => {
@@ -155,6 +159,10 @@ export function useDataProviderAdapter(
             console.log(`[useDataProviderAdapter] Unsubscribed from ${providerId}`);
             break;
 
+          case 'heartbeat-ack':
+            // Heartbeat acknowledged - port is alive
+            break;
+
           default:
             console.warn('[useDataProviderAdapter] Unknown message type:', type, response);
         }
@@ -170,6 +178,18 @@ export function useDataProviderAdapter(
 
       // Start the port
       worker.port.start();
+
+      // Start heartbeat to keep connection alive
+      heartbeatIntervalRef.current = setInterval(() => {
+        if (worker.port) {
+          worker.port.postMessage({
+            type: 'heartbeat',
+            providerId,
+            portId: portIdRef.current,
+            requestId: `heartbeat-${Date.now()}`
+          });
+        }
+      }, HEARTBEAT_INTERVAL);
 
       // Send subscribe message (worker expects 'subscribe', not 'connect')
       const providerConfig = {
@@ -200,6 +220,12 @@ export function useDataProviderAdapter(
 
   // Disconnect from provider
   const disconnect = useCallback(() => {
+    // Stop heartbeat
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+
     if (workerPortRef.current) {
       console.log(`[useDataProviderAdapter] Disconnecting from ${providerId} (portId: ${portIdRef.current})`);
 
@@ -236,6 +262,13 @@ export function useDataProviderAdapter(
   useEffect(() => {
     return () => {
       console.log(`[useDataProviderAdapter] Cleanup: disconnecting from ${providerId} (portId: ${portIdRef.current})`);
+
+      // Stop heartbeat
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+
       if (workerPortRef.current) {
         workerPortRef.current.postMessage({
           type: 'unsubscribe',

@@ -296,7 +296,16 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
 
   // ============================================================================
   // OpenFin Events Effect
+  // FIXED: Use refs to stabilize dependencies and prevent unnecessary resubscriptions
   // ============================================================================
+
+  const dataConnectionRef = useRef(dataConnection);
+  const selectedProviderIdRef = useRef(selectedProviderId);
+
+  useEffect(() => {
+    dataConnectionRef.current = dataConnection;
+    selectedProviderIdRef.current = selectedProviderId;
+  }, [dataConnection, selectedProviderId]);
 
   useEffect(() => {
     if (!platform.isOpenFin) return;
@@ -304,9 +313,10 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
     const unsubRefresh = platform.subscribeToEvent(
       OpenFinCustomEvents.DATA_REFRESH,
       () => {
-        if (dataConnection.isConnected) {
-          dataConnection.disconnect();
-          setTimeout(() => dataConnection.connect(), 100);
+        const conn = dataConnectionRef.current;
+        if (conn.isConnected) {
+          conn.disconnect();
+          setTimeout(() => conn.connect(), 100);
         }
       }
     );
@@ -314,13 +324,17 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
     const unsubConfig = platform.subscribeToEvent(
       OpenFinCustomEvents.CONFIG_UPDATED,
       (data) => {
-        if (data.componentType === COMPONENT_TYPES.DATA_PROVIDER && data.configId === selectedProviderId) {
-          platform.configService.getById(selectedProviderId)
+        const currentProviderId = selectedProviderIdRef.current;
+        if (data.componentType === COMPONENT_TYPES.DATA_PROVIDER && data.configId === currentProviderId) {
+          platform.configService.getById(currentProviderId)
             .then((config) => {
               const columnsData = config?.config?.columnDefinitions;
               if (columnsData && Array.isArray(columnsData)) {
                 setColumns(createColumnDefs(columnsData));
               }
+            })
+            .catch((error) => {
+              logger.error('Failed to reload columns on config update', error, 'SimpleBlotter');
             });
         }
       }
@@ -330,7 +344,7 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
       unsubRefresh();
       unsubConfig();
     };
-  }, [platform, selectedProviderId, dataConnection]);
+  }, [platform]);
 
   // ============================================================================
   // Handlers

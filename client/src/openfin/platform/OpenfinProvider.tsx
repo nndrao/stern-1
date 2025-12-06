@@ -453,6 +453,7 @@ export default function Provider() {
                   name: menuItemsConfig.name,
                   menuItemsCount: menuItemsConfig.config.menuItems.length
                 }, 'Provider');
+                logger.info('📋 MENU ITEMS LOADED FROM DATABASE:', JSON.stringify(menuItemsConfig.config.menuItems, null, 2), 'Provider');
                 logger.info('📋 Using menu items configured via Dock Configuration screen', undefined, 'Provider');
 
                 // Convert DockApplicationsMenuItemsConfig to DockConfiguration for backwards compatibility

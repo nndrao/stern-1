@@ -33,6 +33,7 @@ import {
 import { buildUrl, DockConfiguration, DockMenuItem, OpenFinCustomEvents } from '@stern/openfin-platform';
 import { launchMenuItem } from './openfinMenuLauncher';
 import { logger } from '@/utils/logger';
+import { getDefaultMenuIcon } from '@/utils/dock/defaultIcons';
 
 // ============================================================================
 // Module State
@@ -272,6 +273,7 @@ export async function deregister(): Promise<void> {
       await Dock.deregister();
       registration = undefined;
       currentConfig = undefined;
+      currentDockId = undefined; // Clear dock ID to prevent OpenFin from caching
       logger.info('Dock deregistered', undefined, 'dock');
     }
   } catch (error) {
@@ -283,8 +285,9 @@ export async function deregister(): Promise<void> {
 /**
  * Update dock configuration dynamically
  *
- * Uses updateDockProviderConfig() which is more efficient than deregister/register.
- * This follows workspace-starter patterns for dynamic updates.
+ * NOTE: When menu items are updated, we MUST do a full reload (deregister + register)
+ * because OpenFin's updateDockProviderConfig() doesn't properly update dropdown button
+ * options (nested menu structure). It only works reliably for top-level button properties.
  *
  * @param config - New configuration to apply
  * @returns Promise that resolves when update is complete
@@ -294,19 +297,50 @@ export async function updateConfig(config: {
   workspaceComponents?: WorkspaceButtonsConfig;
 }): Promise<void> {
   try {
-    if (!registration || !currentConfig) {
+    if (!registration || !currentConfig || !currentDockId) {
       throw new Error('Dock not registered - call register() first');
     }
 
     logger.info('Updating dock configuration', undefined, 'dock');
 
-    // Build new buttons
-    const buttons: DockButton[] = [];
+    // If menu items are being updated, we need to do a full reload
+    // because updateDockProviderConfig() doesn't properly update dropdown options
+    if (config.menuItems) {
+      logger.info('Menu items changed - performing full dock reload for reliable update', undefined, 'dock');
 
-    // Add Applications dropdown with all menu items
-    if (config.menuItems && config.menuItems.length > 0) {
-      buttons.push(buildApplicationsButton(config.menuItems));
+      // Deregister current dock
+      await deregister();
+
+      // Wait for deregistration to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Re-register with updated menu items
+      // Extract icon URL (currentConfig.icon can be string or TaskbarIcon)
+      const iconUrl = typeof currentConfig.icon === 'string'
+        ? currentConfig.icon
+        : ((currentConfig.icon as any)?.image || '');
+
+      await register({
+        id: currentDockId,
+        title: currentConfig.title || 'Stern Platform',
+        icon: iconUrl || '',
+        menuItems: config.menuItems,
+        workspaceComponents: config.workspaceComponents as WorkspaceButtonsConfig | undefined || currentConfig.workspaceComponents as WorkspaceButtonsConfig | undefined,
+        disableUserRearrangement: currentConfig.disableUserRearrangement
+      });
+
+      // Show the dock
+      await show();
+
+      logger.info('Dock reloaded successfully with updated menu items', {
+        menuItemCount: config.menuItems.length
+      }, 'dock');
+
+      return;
     }
+
+    // For non-menu updates (like workspace components), use efficient update
+    const buttons: DockButton[] = [];
 
     // Add system buttons
     buttons.push(...buildSystemButtons());
@@ -887,40 +921,66 @@ function getThemedIcon(baseName: string): string {
  * @returns Applications dropdown button
  */
 function buildApplicationsButton(items: DockMenuItem[]): DockButton {
-  logger.info('🔨 Building Applications button', {
+  logger.info('[APPLICATIONS_MENU] 🔨 Building Applications button', {
     itemCount: items.length,
     items: items.map(i => ({ caption: i.caption, hasChildren: !!i.children, childrenCount: i.children?.length || 0 }))
   }, 'dock');
+  logger.info('[APPLICATIONS_MENU] 📋 MENU ITEMS RECEIVED BY DOCK BUILDER:', JSON.stringify(items, null, 2), 'dock');
 
   /**
    * Recursively convert menu items to dropdown options
    * This preserves the nested structure for items with children
+   *
+   * ENHANCED: Now uses intelligent default icon selection based on menu item caption
+   * when no custom icon is specified via the dock configurator
    */
   function convertToDropdownOptions(menuItems: DockMenuItem[], level: number = 0): any[] {
     return menuItems.map((item) => {
       logger.debug(`${'  '.repeat(level)}📋 Processing menu item: ${item.caption}`, {
         hasChildren: !!item.children,
         childrenCount: item.children?.length || 0,
-        level
+        level,
+        hasCustomIcon: !!item.icon
+      }, 'dock');
+
+      // Smart icon selection:
+      // 1. Check if item has a valid custom icon (not OpenFin default CDN icons)
+      // 2. If custom icon is valid, use it
+      // 3. Otherwise, intelligently select icon based on caption keywords
+      const hasValidCustomIcon = item.icon &&
+        !item.icon.includes('cdn.openfin.co') &&
+        !item.icon.includes('defaultFavorite');
+
+      const iconUrl = hasValidCustomIcon && item.icon
+        ? buildUrl(item.icon)
+        : getDefaultMenuIcon(item, currentTheme, level);
+
+      logger.info(`[APPLICATIONS_MENU] ${'  '.repeat(level)}🎨 Icon for "${item.caption}": ${iconUrl}`, {
+        level,
+        hasCustomIcon: !!item.icon,
+        hasValidCustomIcon,
+        usingSmartDefault: !hasValidCustomIcon,
+        theme: currentTheme,
+        iconUrl
       }, 'dock');
 
       const option: any = {
         tooltip: item.caption,
-        iconUrl: item.icon ? buildUrl(item.icon) : getThemedIcon('default')
+        iconUrl
       };
 
       // If item has children, create nested options (submenu)
       if (item.children && item.children.length > 0) {
         logger.info(
-          `${'  '.repeat(level)}📁 Creating submenu for "${item.caption}"`,
-          { childCount: item.children.length },
+          `[APPLICATIONS_MENU] ${'  '.repeat(level)}📁 Creating submenu for "${item.caption}"`,
+          { childCount: item.children.length, icon: iconUrl },
           'dock'
         );
         option.options = convertToDropdownOptions(item.children, level + 1);
       } else {
         // Leaf item - add action to launch
         logger.debug(
-          `${'  '.repeat(level)}📄 Creating leaf item "${item.caption}" with launch action`,
+          `${'  '.repeat(level)}📄 Creating leaf item "${item.caption}" with icon: ${iconUrl}`,
           undefined,
           'dock'
         );
@@ -935,10 +995,22 @@ function buildApplicationsButton(items: DockMenuItem[]): DockButton {
   }
 
   const dropdownOptions = convertToDropdownOptions(items);
-  logger.info('✅ Applications button built successfully', {
+
+  // Log the actual dropdown structure being sent to OpenFin
+  logger.info('[APPLICATIONS_MENU] ✅ Applications button built successfully', {
     totalTopLevelItems: items.length,
-    dropdownOptionsCount: dropdownOptions.length
+    dropdownOptionsCount: dropdownOptions.length,
+    firstOptionStructure: dropdownOptions[0] ? {
+      tooltip: dropdownOptions[0].tooltip,
+      iconUrl: dropdownOptions[0].iconUrl,
+      hasOptions: !!dropdownOptions[0].options,
+      hasAction: !!dropdownOptions[0].action
+    } : null
   }, 'dock');
+
+  // Log complete dropdown structure for debugging
+  logger.debug('[APPLICATIONS_MENU] 📋 Complete dropdown structure:', dropdownOptions, 'dock');
+  logger.info('[APPLICATIONS_MENU] 📋 FINAL DROPDOWN OPTIONS JSON:', JSON.stringify(dropdownOptions, null, 2), 'dock');
 
   // Build the Applications dropdown button
   return {
