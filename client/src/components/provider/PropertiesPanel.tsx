@@ -23,11 +23,6 @@ import { RefreshCw, Image, Save, RotateCcw } from 'lucide-react';
 
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
-// Logging helper for state updates
-const logStateUpdate = (action: string, data?: Record<string, unknown>) => {
-  console.log(`[STATE_UPDATE] ${action}`, data ? JSON.stringify(data, null, 2) : '');
-};
-
 interface PropertiesPanelProps {
   item: DockMenuItem | null;
   onUpdate: (id: string, updates: Partial<DockMenuItem>) => void;
@@ -77,11 +72,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   useEffect(() => {
     if (item) {
-      logStateUpdate('ITEM_SELECTED - Syncing local state from item', {
-        itemId: item.id,
-        caption: item.caption
-      });
-
       setLocalCaption(item.caption || '');
       setLocalId(item.id || '');
       setLocalUrl(item.url || '');
@@ -107,7 +97,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       setLocalCustomData(JSON.stringify(item.viewOptions?.customData || {}, null, 2));
 
       setHasChanges(false);
-      logStateUpdate('ITEM_SELECTED - Local state sync complete');
     }
   }, [item?.id]);
 
@@ -115,8 +104,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // Change handlers - only update local state, mark as changed
   // ============================================================================
 
-  const handleFieldChange = useCallback(<T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T, fieldName?: string) => {
-    logStateUpdate('LOCAL_FIELD_CHANGE', { field: fieldName, value: typeof value === 'string' ? value : String(value) });
+  const handleFieldChange = useCallback(<T,>(setter: React.Dispatch<React.SetStateAction<T>>, value: T) => {
     setter(value);
     setHasChanges(true);
   }, []);
@@ -124,7 +112,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // Generate unique ID
   const generateId = useCallback(() => {
     const id = `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    logStateUpdate('GENERATE_ID', { newId: id });
     setLocalId(id);
     setHasChanges(true);
   }, []);
@@ -132,7 +119,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // Handle icon selection
   const handleIconClick = useCallback(() => {
     onIconSelect((icon) => {
-      logStateUpdate('ICON_SELECTED', { icon });
       setLocalIcon(icon);
       setHasChanges(true);
     });
@@ -144,8 +130,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   const applyChanges = useCallback(() => {
     if (!item) return;
-
-    logStateUpdate('APPLY_CHANGES - Starting', { itemId: item.id });
 
     // Parse custom data JSON
     let customData = {};
@@ -184,17 +168,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       },
     };
 
-    logStateUpdate('APPLY_CHANGES - Calling onUpdate', {
-      itemId: item.id,
-      caption: localCaption,
-      url: localUrl,
-      openMode: localOpenMode
-    });
-
     onUpdate(item.id, updates);
     setHasChanges(false);
-
-    logStateUpdate('APPLY_CHANGES - Complete');
   }, [
     item, localCaption, localId, localUrl, localIcon, localOrder, localOpenMode,
     localWidth, localHeight, localMinWidth, localMinHeight,
@@ -205,11 +180,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   // Reset to original values
   const resetChanges = useCallback(() => {
     if (item) {
-      logStateUpdate('RESET_CHANGES - Resetting to original values', {
-        itemId: item.id,
-        caption: item.caption
-      });
-
       setLocalCaption(item.caption || '');
       setLocalId(item.id || '');
       setLocalUrl(item.url || '');
@@ -230,8 +200,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       setLocalViewHeight(item.viewOptions?.bounds?.height ?? DEFAULT_VIEW_OPTIONS.bounds.height);
       setLocalCustomData(JSON.stringify(item.viewOptions?.customData || {}, null, 2));
       setHasChanges(false);
-
-      logStateUpdate('RESET_CHANGES - Complete');
     }
   }, [item]);
 
@@ -308,7 +276,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <Input
                 id="caption"
                 value={localCaption}
-                onChange={(e) => handleFieldChange(setLocalCaption, e.target.value, 'caption')}
+                onChange={(e) => handleFieldChange(setLocalCaption, e.target.value)}
                 placeholder="Menu item text"
               />
             </div>
@@ -320,7 +288,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 <Input
                   id="id"
                   value={localId}
-                  onChange={(e) => handleFieldChange(setLocalId, e.target.value, 'id')}
+                  onChange={(e) => handleFieldChange(setLocalId, e.target.value)}
                   placeholder="Unique identifier"
                 />
                 <Button
@@ -340,7 +308,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <Input
                 id="url"
                 value={localUrl}
-                onChange={(e) => handleFieldChange(setLocalUrl, e.target.value, 'url')}
+                onChange={(e) => handleFieldChange(setLocalUrl, e.target.value)}
                 placeholder="/data-grid, /watchlist, etc."
                 disabled={hasChildren}
               />
@@ -356,7 +324,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <Label htmlFor="openMode">Open Mode</Label>
               <Select
                 value={localOpenMode}
-                onValueChange={(value: 'window' | 'view') => handleFieldChange(setLocalOpenMode, value, 'openMode')}
+                onValueChange={(value: 'window' | 'view') => handleFieldChange(setLocalOpenMode, value)}
                 disabled={hasChildren}
               >
                 <SelectTrigger id="openMode">
@@ -376,7 +344,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 <Input
                   id="icon"
                   value={localIcon}
-                  onChange={(e) => handleFieldChange(setLocalIcon, e.target.value, 'icon')}
+                  onChange={(e) => handleFieldChange(setLocalIcon, e.target.value)}
                   placeholder="/icons/app.svg"
                 />
                 <Button
@@ -397,7 +365,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 id="order"
                 type="number"
                 value={localOrder}
-                onChange={(e) => handleFieldChange(setLocalOrder, parseInt(e.target.value) || 0, 'order')}
+                onChange={(e) => handleFieldChange(setLocalOrder, parseInt(e.target.value) || 0)}
                 min="0"
               />
             </div>
@@ -414,7 +382,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     id="width"
                     type="number"
                     value={localWidth}
-                    onChange={(e) => handleFieldChange(setLocalWidth, parseInt(e.target.value) || 0, 'width')}
+                    onChange={(e) => handleFieldChange(setLocalWidth, parseInt(e.target.value) || 0)}
                     min="100"
                   />
                 </div>
@@ -424,7 +392,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     id="height"
                     type="number"
                     value={localHeight}
-                    onChange={(e) => handleFieldChange(setLocalHeight, parseInt(e.target.value) || 0, 'height')}
+                    onChange={(e) => handleFieldChange(setLocalHeight, parseInt(e.target.value) || 0)}
                     min="100"
                   />
                 </div>
@@ -443,7 +411,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     id="minWidth"
                     type="number"
                     value={localMinWidth}
-                    onChange={(e) => handleFieldChange(setLocalMinWidth, parseInt(e.target.value) || 0, 'minWidth')}
+                    onChange={(e) => handleFieldChange(setLocalMinWidth, parseInt(e.target.value) || 0)}
                     min="0"
                   />
                 </div>
@@ -453,7 +421,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     id="minHeight"
                     type="number"
                     value={localMinHeight}
-                    onChange={(e) => handleFieldChange(setLocalMinHeight, parseInt(e.target.value) || 0, 'minHeight')}
+                    onChange={(e) => handleFieldChange(setLocalMinHeight, parseInt(e.target.value) || 0)}
                     min="0"
                   />
                 </div>
@@ -471,7 +439,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <Switch
                     id="resizable"
                     checked={localResizable}
-                    onCheckedChange={(checked) => handleFieldChange(setLocalResizable, checked, 'resizable')}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalResizable, checked)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -479,7 +447,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <Switch
                     id="maximizable"
                     checked={localMaximizable}
-                    onCheckedChange={(checked) => handleFieldChange(setLocalMaximizable, checked, 'maximizable')}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalMaximizable, checked)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -487,7 +455,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <Switch
                     id="minimizable"
                     checked={localMinimizable}
-                    onCheckedChange={(checked) => handleFieldChange(setLocalMinimizable, checked, 'minimizable')}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalMinimizable, checked)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -495,7 +463,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <Switch
                     id="center"
                     checked={localCenter}
-                    onCheckedChange={(checked) => handleFieldChange(setLocalCenter, checked, 'center')}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalCenter, checked)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -503,7 +471,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <Switch
                     id="frame"
                     checked={localFrame}
-                    onCheckedChange={(checked) => handleFieldChange(setLocalFrame, checked, 'frame')}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalFrame, checked)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
@@ -511,7 +479,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <Switch
                     id="alwaysOnTop"
                     checked={localAlwaysOnTop}
-                    onCheckedChange={(checked) => handleFieldChange(setLocalAlwaysOnTop, checked, 'alwaysOnTop')}
+                    onCheckedChange={(checked) => handleFieldChange(setLocalAlwaysOnTop, checked)}
                   />
                 </div>
               </div>
@@ -529,7 +497,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     id="viewWidth"
                     type="number"
                     value={localViewWidth}
-                    onChange={(e) => handleFieldChange(setLocalViewWidth, parseInt(e.target.value) || 0, 'viewWidth')}
+                    onChange={(e) => handleFieldChange(setLocalViewWidth, parseInt(e.target.value) || 0)}
                     min="100"
                   />
                 </div>
@@ -539,7 +507,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     id="viewHeight"
                     type="number"
                     value={localViewHeight}
-                    onChange={(e) => handleFieldChange(setLocalViewHeight, parseInt(e.target.value) || 0, 'viewHeight')}
+                    onChange={(e) => handleFieldChange(setLocalViewHeight, parseInt(e.target.value) || 0)}
                     min="100"
                   />
                 </div>
@@ -554,7 +522,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               <textarea
                 className="w-full h-32 p-2 text-sm border rounded-md font-mono bg-background"
                 value={localCustomData}
-                onChange={(e) => handleFieldChange(setLocalCustomData, e.target.value, 'customData')}
+                onChange={(e) => handleFieldChange(setLocalCustomData, e.target.value)}
                 placeholder="{}"
               />
             </div>
