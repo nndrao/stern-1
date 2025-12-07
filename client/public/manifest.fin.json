@@ -14,7 +14,7 @@
     "providerUrl": "http://localhost:5173/platform/provider",
     "preventQuitOnLastWindowClosed": true,
     "defaultWindowOptions": {
-      "title": "STAR Platform",
+      "title": "Dock Configurator",
       "customData": {
         "platformContext": {
           "apiUrl": "http://localhost:3001",
