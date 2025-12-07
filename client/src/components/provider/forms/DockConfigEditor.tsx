@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/ui/use-toast';
 import { useDockConfig, useSaveDockConfig } from '@/hooks/api/useDockConfigQueries';
-import { DockMenuItem, DockApplicationsMenuItemsConfig } from '@stern/openfin-platform';
+import { DockMenuItem, DockApplicationsMenuItemsConfig, useOpenfinTheme } from '@stern/openfin-platform';
 import { TreeView } from '@/components/provider/TreeView';
 import { PropertiesPanel } from '@/components/provider/PropertiesPanel';
 import { IconPicker } from '@/components/provider/editors/IconPicker';
@@ -40,6 +40,9 @@ import { findMenuItem, updateMenuItem, deleteMenuItem, addChildToParent, duplica
 const SYSTEM_USER_ID = 'System';
 
 export default function DockConfigEditor() {
+  // Apply OpenFin theme (dark/light mode)
+  useOpenfinTheme();
+
   const { toast } = useToast();
 
   // Refs for stable callbacks

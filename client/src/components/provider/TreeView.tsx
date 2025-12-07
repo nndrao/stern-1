@@ -35,6 +35,7 @@ import {
   ChevronDown,
   GripVertical,
   Folder,
+  FolderTree,
   Plus,
   Trash2,
   Copy,
