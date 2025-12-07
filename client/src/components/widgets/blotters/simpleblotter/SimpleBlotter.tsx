@@ -34,6 +34,23 @@ import { isOpenFin } from '@stern/openfin-platform';
 import { DIALOG_TYPES, DIALOG_CONFIGS } from '@/config/dialogConfig';
 import { logger } from '@/utils/logger';
 import { BlotterType, BLOTTER_TYPES } from '@/types/blotter';
+import { useActionExecutor } from '@/hooks/useActionRegistry';
+import {
+  ToolbarButton,
+  DynamicToolbar,
+  BlotterToolbarConfig,
+  ToolbarColor,
+} from '@/components/wizards/ToolbarCustomizationWizard';
+
+import { ToolbarCustomizationWizard } from '@/components/wizards';
+
+// Type for toolbar state map
+interface ToolbarStatesMap {
+  [toolbarId: string]: {
+    isCollapsed: boolean;
+    isPinned: boolean;
+  };
+}
 
 // ============================================================================
 // Types
@@ -116,6 +133,11 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
   const [loadTimeMs, setLoadTimeMs] = useState<number | null>(null);
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(true);
   const [isToolbarPinned, setIsToolbarPinned] = useState(false);
+  const [customButtons, setCustomButtons] = useState<ToolbarButton[]>([]);
+  const [additionalToolbars, setAdditionalToolbars] = useState<DynamicToolbar[]>([]);
+  const [toolbarStates, setToolbarStates] = useState<ToolbarStatesMap>({});
+  const [isToolbarWizardOpen, setIsToolbarWizardOpen] = useState(false);
+  const [updateCount, setUpdateCount] = useState(0);
 
   // ============================================================================
   // Refs
@@ -161,8 +183,39 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
       onProviderChange: (providerId) => {
         setSelectedProviderId(providerId);
       },
+      onToolbarConfigChange: (config) => {
+        if (config?.customButtons) {
+          setCustomButtons(config.customButtons);
+        }
+        if (config?.additionalToolbars) {
+          setAdditionalToolbars(config.additionalToolbars);
+        }
+        if (config?.toolbarStates) {
+          setToolbarStates(config.toolbarStates);
+        }
+      },
     });
   }, [layoutManager.registerApplyCallbacks]);
+
+  // ============================================================================
+  // Action Executor
+  // ============================================================================
+
+  const actionExecutor = useActionExecutor({
+    gridApi: gridApiRef.current,
+    selectedRows: [],
+    rowData: [],
+    providerId: selectedProviderId,
+    layoutId: layoutManager.selectedLayoutId,
+    refreshData: () => {
+      if (dataConnection.isConnected) {
+        dataConnection.disconnect();
+        setTimeout(() => dataConnection.connect(), 100);
+      }
+    },
+    isOpenFin: platform.isOpenFin,
+    platform,
+  });
 
   // ============================================================================
   // Data Connection
@@ -325,7 +378,7 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
       OpenFinCustomEvents.CONFIG_UPDATED,
       (data) => {
         const currentProviderId = selectedProviderIdRef.current;
-        if (data.componentType === COMPONENT_TYPES.DATA_PROVIDER && data.configId === currentProviderId) {
+        if (currentProviderId && data.componentType === COMPONENT_TYPES.DATA_PROVIDER && data.configId === currentProviderId) {
           platform.configService.getById(currentProviderId)
             .then((config) => {
               const columnsData = config?.config?.columnDefinitions;
@@ -453,6 +506,44 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
     }
   }, [layoutManager]);
 
+  // Handle custom toolbar button actions
+  const handleAction = useCallback(
+    async (actionId: string, actionData?: Record<string, unknown>) => {
+      try {
+        await actionExecutor.execute(actionId, actionData);
+        setUpdateCount((prev) => prev + 1);
+      } catch (error) {
+        logger.error(`Failed to execute action: ${actionId}`, error, 'SimpleBlotter');
+      }
+    },
+    [actionExecutor]
+  );
+
+  // Handle toolbar customization save
+  const handleSaveToolbarConfig = useCallback(
+    (buttons: ToolbarButton[]) => {
+      setCustomButtons(buttons);
+      // Save to layout config
+      layoutManager.updateToolbarConfig({
+        customButtons: buttons,
+        additionalToolbars,
+        toolbarStates,
+      });
+    },
+    [layoutManager, additionalToolbars, toolbarStates]
+  );
+
+  // Handle additional toolbar state changes
+  const handleToolbarStateChange = useCallback(
+    (toolbarId: string, state: { isCollapsed: boolean; isPinned: boolean }) => {
+      setToolbarStates((prev) => ({
+        ...prev,
+        [toolbarId]: state,
+      }));
+    },
+    []
+  );
+
   // ============================================================================
   // Render
   // ============================================================================
@@ -483,8 +574,50 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
           onSaveLayout={layoutManager.saveCurrentLayout}
           onSaveAsNew={() => layoutManager.setIsSaveDialogOpen(true)}
           onManageLayouts={handleManageLayouts}
+          customButtons={customButtons}
+          onAction={handleAction}
+          onCustomizeToolbar={() => setIsToolbarWizardOpen(true)}
+          updateCount={updateCount}
         />
       </CollapsibleToolbar>
+
+      {/* Additional Toolbars (above grid) */}
+      {additionalToolbars
+        .filter((tb) => tb.position === 'above')
+        .sort((a, b) => (a.order ?? 50) - (b.order ?? 50))
+        .map((toolbar) => {
+          const state = toolbarStates[toolbar.id] ?? {
+            isCollapsed: toolbar.defaultCollapsed ?? true,
+            isPinned: toolbar.defaultPinned ?? false,
+          };
+          return (
+            <CollapsibleToolbar
+              key={toolbar.id}
+              id={toolbar.id}
+              color={toolbar.color ?? 'green'}
+              isCollapsed={state.isCollapsed}
+              isPinned={state.isPinned}
+              onCollapsedChange={(collapsed) =>
+                handleToolbarStateChange(toolbar.id, { ...state, isCollapsed: collapsed })
+              }
+              onPinnedChange={(pinned) =>
+                handleToolbarStateChange(toolbar.id, { ...state, isPinned: pinned })
+              }
+            >
+              <BlotterToolbar
+                selectedProviderId={selectedProviderId}
+                availableProviders={[]}
+                isLoading={isLoading}
+                adapter={dataConnection}
+                rowCount={rowCount}
+                loadTimeMs={null}
+                onProviderSelect={() => {}}
+                customButtons={toolbar.buttons ?? []}
+                onAction={handleAction}
+              />
+            </CollapsibleToolbar>
+          );
+        })}
 
       <LayoutSaveDialog
         open={layoutManager.isSaveDialogOpen}
@@ -524,6 +657,52 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
           emptyStateMessage={selectedProviderId ? 'Loading columns...' : 'Select a provider to begin'}
         />
       </div>
+
+      {/* Additional Toolbars (below grid) */}
+      {additionalToolbars
+        .filter((tb) => tb.position === 'below')
+        .sort((a, b) => (a.order ?? 50) - (b.order ?? 50))
+        .map((toolbar) => {
+          const state = toolbarStates[toolbar.id] ?? {
+            isCollapsed: toolbar.defaultCollapsed ?? true,
+            isPinned: toolbar.defaultPinned ?? false,
+          };
+          return (
+            <CollapsibleToolbar
+              key={toolbar.id}
+              id={toolbar.id}
+              color={toolbar.color ?? 'purple'}
+              isCollapsed={state.isCollapsed}
+              isPinned={state.isPinned}
+              onCollapsedChange={(collapsed) =>
+                handleToolbarStateChange(toolbar.id, { ...state, isCollapsed: collapsed })
+              }
+              onPinnedChange={(pinned) =>
+                handleToolbarStateChange(toolbar.id, { ...state, isPinned: pinned })
+              }
+            >
+              <BlotterToolbar
+                selectedProviderId={selectedProviderId}
+                availableProviders={[]}
+                isLoading={isLoading}
+                adapter={dataConnection}
+                rowCount={rowCount}
+                loadTimeMs={null}
+                onProviderSelect={() => {}}
+                customButtons={toolbar.buttons ?? []}
+                onAction={handleAction}
+              />
+            </CollapsibleToolbar>
+          );
+        })}
+
+      {/* Toolbar Customization Wizard */}
+      <ToolbarCustomizationWizard
+        open={isToolbarWizardOpen}
+        onClose={() => setIsToolbarWizardOpen(false)}
+        buttons={customButtons}
+        onSave={handleSaveToolbarConfig}
+      />
     </div>
   );
 };

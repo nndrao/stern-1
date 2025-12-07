@@ -10,6 +10,7 @@ import { GridApi } from 'ag-grid-community';
 import {
   SimpleBlotterLayoutConfig,
   BlotterToolbarState,
+  BlotterToolbarConfig,
   createDefaultLayoutConfig,
 } from '@stern/shared-types';
 import {
@@ -68,6 +69,7 @@ export interface LayoutManagerResult {
   duplicateLayout: (layoutId: string, newName: string) => Promise<void>;
   setDefaultLayout: (layoutId: string) => Promise<void>;
   updateComponentSubType: (subType: string) => Promise<void>;
+  updateToolbarConfig: (config: BlotterToolbarConfig) => Promise<void>;
 
   // Grid helpers
   captureGridState: () => Partial<SimpleBlotterLayoutConfig>;
@@ -352,6 +354,20 @@ export function useLayoutManager({
     });
   }, [updateComponentSubTypeMutation, blotterConfigId, userId]);
 
+  const handleUpdateToolbarConfig = useCallback(async (config: BlotterToolbarConfig) => {
+    if (!selectedLayoutId) {
+      logger.warn('No layout selected for saving toolbar config', {}, 'useLayoutManager');
+      return;
+    }
+
+    await updateLayoutMutation.mutateAsync({
+      layoutId: selectedLayoutId,
+      updates: { toolbarConfig: config },
+      userId,
+      blotterConfigId,
+    });
+  }, [selectedLayoutId, updateLayoutMutation, userId, blotterConfigId]);
+
   // Wrapper for applyLayoutToGrid that uses stored callbacks
   const applyLayoutToGrid = useCallback((config: SimpleBlotterLayoutConfig, resetFirst: boolean = false) => {
     gridStateManager.applyLayoutToGrid(config, applyCallbacksRef.current, resetFirst);
@@ -388,6 +404,7 @@ export function useLayoutManager({
     duplicateLayout: handleDuplicateLayout,
     setDefaultLayout: handleSetDefaultLayout,
     updateComponentSubType: handleUpdateComponentSubType,
+    updateToolbarConfig: handleUpdateToolbarConfig,
 
     // Grid helpers
     captureGridState: gridStateManager.captureGridState,

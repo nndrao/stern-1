@@ -12,6 +12,7 @@ import {
   ColumnState,
   BlotterToolbarState,
   SideBarState,
+  BlotterToolbarConfig,
 } from '@stern/shared-types';
 import { logger } from '@/utils/logger';
 
@@ -41,6 +42,7 @@ export interface GridStateManagerResult {
 export interface LayoutApplyCallbacks {
   onProviderChange?: (providerId: string) => void;
   onToolbarStateChange?: (state: BlotterToolbarState) => void;
+  onToolbarConfigChange?: (config: BlotterToolbarConfig) => void;
 }
 
 export interface ApplyLayoutResult {
@@ -221,6 +223,11 @@ export function useGridStateManager({
     if (layoutConfig.toolbarState) {
       result.toolbarState = layoutConfig.toolbarState;
       callbacks?.onToolbarStateChange?.(layoutConfig.toolbarState);
+    }
+
+    // Apply toolbar config (custom buttons, additional toolbars) via callback
+    if (layoutConfig.toolbarConfig) {
+      callbacks?.onToolbarConfigChange?.(layoutConfig.toolbarConfig);
     }
 
     // Apply grid state if API available
