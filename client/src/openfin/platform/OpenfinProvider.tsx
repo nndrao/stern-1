@@ -10,7 +10,7 @@ import {
   DockConfiguration
 } from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
-import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
+import DockConfigEditor from '@/components/provider/forms/DockConfigEditor';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/ui/use-toast';
 import * as dock from './openfinDock';

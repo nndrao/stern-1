@@ -1,277 +1,96 @@
 /**
- * Dock Configuration Editor Component - Refactored
+ * DockConfigEditor - Professional UI Redesign
  *
- * Key improvements:
- * - Uses shared tree utilities with Immer for efficient updates
- * - Stores selectedId (string) instead of selectedNode (object) to prevent stale closures
- * - Uses ref pattern (currentConfigRef) to keep callbacks stable
- *   This prevents callback recreation on every config change, which was causing
- *   sluggish typing in text inputs due to cascading re-renders
- * - Removed duplicate tree traversal code
+ * Design principles:
+ * - Clean, modern interface with consistent spacing
+ * - Clear visual hierarchy with proper typography
+ * - Intuitive layout with contextual actions
+ * - Professional color scheme and hover states
+ * - Responsive feedback and loading states
  */
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { useToast } from '@/hooks/ui/use-toast';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Save,
   Download,
   Upload,
-  Plus,
-  Trash2,
-  Copy,
   Eye,
+  Plus,
+  FolderTree,
+  FileText,
+  Loader2,
   AlertCircle,
-  Menu,
-  Settings2
+  CheckCircle2
 } from 'lucide-react';
-
-import { TreeView } from '../TreeView';
-import { PropertiesPanel } from '../PropertiesPanel';
-import {
-  DockConfiguration,
-  DockMenuItem,
-  createMenuItem,
-  validateDockConfiguration,
-  createDockConfiguration,
-  useOpenFinDock
-} from '@stern/openfin-platform';
+import { useToast } from '@/hooks/ui/use-toast';
 import { useDockConfig, useSaveDockConfig } from '@/hooks/api/useDockConfigQueries';
-import { logger } from '@/utils/logger';
-import {
-  findMenuItem,
-  updateMenuItem,
-  deleteMenuItem,
-  addChildToParent,
-  moveMenuItem,
-  duplicateMenuItem as duplicateMenuItemUtil
-} from '@/utils/dock/treeUtils';
+import { DockMenuItem, DockApplicationsMenuItemsConfig } from '@stern/openfin-platform';
+import { TreeView } from '@/components/provider/TreeView';
+import { PropertiesPanel } from '@/components/provider/PropertiesPanel';
+import { IconPicker } from '@/components/provider/editors/IconPicker';
+import { findMenuItem, updateMenuItem, deleteMenuItem, addChildToParent, duplicateMenuItem } from '@/utils/dock/treeUtils';
 
-// Lazy load IconPicker to prevent loading hundreds of icons on initial page load
-const IconPicker = React.lazy(() =>
-  import('../editors/IconPicker').then(m => ({ default: m.IconPicker }))
-);
-
-interface DockConfigEditorProps {
-  userId?: string;
-  appId?: string;
-}
-
-// System userId for admin configurations - shared across all users
 const SYSTEM_USER_ID = 'System';
 
-/**
- * Dock Configuration Editor
- * Uses shared tree utilities and proper React patterns
- */
-export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
-  userId = SYSTEM_USER_ID,
-  appId = 'stern-platform'
-}) => {
+export default function DockConfigEditor() {
   const { toast } = useToast();
-  const openFinDock = useOpenFinDock();
 
-  // React Query hooks - always use System userId for dock configs
-  const { data: loadedConfig, isLoading, error: loadError } = useDockConfig(SYSTEM_USER_ID);
-  const saveMutation = useSaveDockConfig();
+  // Refs for stable callbacks
+  const currentConfigRef = useRef<DockApplicationsMenuItemsConfig | null>(null);
 
-  // Core state - using selectedId (string) instead of selectedNode (object)
-  // This prevents stale closure issues and makes memoization more effective
-  const [currentConfig, setCurrentConfig] = useState<DockConfiguration | null>(null);
+  // State
+  const [currentConfig, setCurrentConfig] = useState<DockApplicationsMenuItemsConfig | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
-
-  // Ref to hold current config for stable callbacks
-  // This prevents callback recreation on every config change
-  const currentConfigRef = useRef<DockConfiguration | null>(null);
-  currentConfigRef.current = currentConfig;
-
-  // Icon picker state
-  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false);
   const [iconPickerCallback, setIconPickerCallback] = useState<((icon: string) => void) | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Derive selected item from selectedId (memoized)
+  // Queries
+  const { data: loadedConfig, isLoading, error } = useDockConfig(SYSTEM_USER_ID);
+  const saveMutation = useSaveDockConfig();
+
+  // Sync loaded config
+  useEffect(() => {
+    if (loadedConfig) {
+      setCurrentConfig(loadedConfig);
+      currentConfigRef.current = loadedConfig;
+      setIsDirty(false);
+      setValidationErrors([]);
+    }
+  }, [loadedConfig]);
+
+  // Update ref when config changes
+  useEffect(() => {
+    currentConfigRef.current = currentConfig;
+  }, [currentConfig]);
+
+  // Get selected item
   const selectedItem = useMemo(() => {
     if (!selectedId || !currentConfig?.config?.menuItems) return null;
     return findMenuItem(currentConfig.config.menuItems, selectedId);
-  }, [selectedId, currentConfig?.config?.menuItems]);
+  }, [selectedId, currentConfig]);
 
-  // Sync loaded config to local state
-  useEffect(() => {
-    if (loadedConfig) {
-      setCurrentConfig(loadedConfig as unknown as DockConfiguration);
-      setIsDirty(false);
-      setSelectedId(null);
-    } else if (!isLoading && !loadedConfig) {
-      // No config found, create new one
-      const newConfig = createDockConfiguration(userId, appId) as unknown as DockConfiguration;
-      setCurrentConfig(newConfig);
-      setIsDirty(true);
-    }
-  }, [loadedConfig, isLoading, userId, appId]);
+  // Validation
+  const validateConfig = useCallback(() => {
+    if (!currentConfig) return false;
 
-  // Auto-save draft to localStorage (debounced)
-  useEffect(() => {
-    if (!isDirty || !currentConfig) return;
+    const errors: string[] = [];
 
-    const timer = setTimeout(() => {
-      localStorage.setItem('dock-config-draft', JSON.stringify(currentConfig));
-      logger.debug('Draft auto-saved to localStorage', undefined, 'DockConfigEditor');
-    }, 30000);
-
-    return () => clearTimeout(timer);
-  }, [isDirty, currentConfig]);
-
-  // ============================================================================
-  // Handlers - Using shared utilities with proper dependencies
-  // ============================================================================
-
-  const handleSave = useCallback(async () => {
-    const config = currentConfigRef.current;
-    if (!config) {
-      toast({
-        title: 'Error',
-        description: 'No configuration loaded',
-        variant: 'destructive'
-      });
-      return;
+    // Simple validation - check required fields
+    if (!currentConfig.config?.menuItems) {
+      errors.push('No menu items configured');
     }
 
-    // Validate configuration before saving
-    const validation = validateDockConfiguration(config);
-    if (!validation.isValid) {
-      toast({
-        title: 'Validation failed',
-        description: validation.errors[0]?.message || 'Please fix validation errors',
-        variant: 'destructive'
-      });
-      return;
-    }
+    setValidationErrors(errors);
+    return errors.length === 0;
+  }, [currentConfig]);
 
-    const menuItemCount = config.config?.menuItems?.length || 0;
-    const configName = config.name;
-
-    try {
-      logger.info('Saving dock configuration', { configId: config.configId }, 'DockConfigEditor');
-
-      await saveMutation.mutateAsync({ userId: SYSTEM_USER_ID, config: config });
-
-      setIsDirty(false);
-      localStorage.removeItem('dock-config-draft');
-
-      // Update the dock with the new configuration
-      if (window.fin) {
-        try {
-          const dock = await import('@/openfin/platform/openfinDock');
-          await dock.updateConfig({
-            menuItems: config.config?.menuItems || []
-          });
-          logger.info('Dock updated successfully', undefined, 'DockConfigEditor');
-        } catch (dockError) {
-          logger.error('Failed to update dock', dockError, 'DockConfigEditor');
-        }
-      }
-
-      toast({
-        title: 'Configuration saved',
-        description: `Saved "${configName}" with ${menuItemCount} menu item(s).`,
-      });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to save configuration';
-      toast({
-        title: 'Save failed',
-        description: errorMessage,
-        variant: 'destructive'
-      });
-    }
-  }, [saveMutation, toast]);
-
-  const handleAddMenuItem = useCallback((parentId?: string) => {
-    const config = currentConfigRef.current;
-    if (!config) return;
-
-    const newItem = createMenuItem();
-    const menuItems = config.config?.menuItems || [];
-
-    // Add as child of specified parent, selected item, or to root
-    const targetParentId = parentId !== undefined ? parentId : selectedId;
-    const newMenuItems = addChildToParent(menuItems, targetParentId, newItem);
-
-    setCurrentConfig({
-      ...config,
-      config: {
-        ...config.config,
-        menuItems: newMenuItems
-      }
-    });
-    setIsDirty(true);
-    setSelectedId(newItem.id);
-  }, [selectedId]);
-
-  const handleDeleteMenuItem = useCallback((id?: string) => {
-    const config = currentConfigRef.current;
-    const targetId = id || selectedId;
-    if (!config || !targetId) return;
-
-    const menuItems = config.config?.menuItems || [];
-    const newMenuItems = deleteMenuItem(menuItems, targetId);
-
-    setCurrentConfig({
-      ...config,
-      config: {
-        ...config.config,
-        menuItems: newMenuItems
-      }
-    });
-    setSelectedId(null);
-    setIsDirty(true);
-
-    toast({
-      title: 'Item deleted',
-      description: 'Menu item has been removed',
-    });
-  }, [selectedId, toast]);
-
-  const handleDuplicateMenuItem = useCallback((id?: string) => {
-    const config = currentConfigRef.current;
-    if (!config) return;
-
-    const targetId = id || selectedId;
-    if (!targetId) return;
-
-    const menuItems = config.config?.menuItems || [];
-    const itemToDuplicate = findMenuItem(menuItems, targetId);
-    if (!itemToDuplicate) return;
-
-    const duplicate = createMenuItem({
-      ...itemToDuplicate,
-      id: undefined,
-      caption: `${itemToDuplicate.caption} (Copy)`
-    });
-
-    const newMenuItems = duplicateMenuItemUtil(menuItems, duplicate);
-
-    setCurrentConfig({
-      ...config,
-      config: {
-        ...config.config,
-        menuItems: newMenuItems
-      }
-    });
-    setIsDirty(true);
-    setSelectedId(duplicate.id);
-
-    toast({
-      title: 'Item duplicated',
-      description: 'Menu item has been duplicated',
-    });
-  }, [selectedId, toast]);
-
+  // Handlers
   const handleUpdateMenuItem = useCallback((id: string, updates: Partial<DockMenuItem>) => {
     const config = currentConfigRef.current;
     if (!config) return;
@@ -289,16 +108,23 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
     setIsDirty(true);
   }, []);
 
-  const handleReorderItems = useCallback((
-    sourceId: string,
-    targetId: string,
-    position: 'before' | 'after' | 'inside'
-  ) => {
+  const handleAddMenuItem = useCallback((parentId?: string) => {
     const config = currentConfigRef.current;
     if (!config) return;
 
+    const newItem: DockMenuItem = {
+      id: `menu-${Date.now()}`,
+      caption: 'New Menu Item',
+      url: '',
+      icon: '/icons/app.svg',
+      order: 0,
+      openMode: 'window'
+    };
+
     const menuItems = config.config?.menuItems || [];
-    const newMenuItems = moveMenuItem(menuItems, sourceId, targetId, position);
+    const newMenuItems = parentId
+      ? addChildToParent(menuItems, parentId, newItem)
+      : [...menuItems, newItem];
 
     setCurrentConfig({
       ...config,
@@ -307,317 +133,351 @@ export const DockConfigEditor: React.FC<DockConfigEditorProps> = ({
         menuItems: newMenuItems
       }
     });
+    setSelectedId(newItem.id);
     setIsDirty(true);
   }, []);
 
-  const handlePreview = useCallback(async () => {
+  const handleDeleteMenuItem = useCallback((id?: string) => {
+    const config = currentConfigRef.current;
+    const targetId = id || selectedId;
+    if (!config || !targetId) return;
+
+    const menuItems = config.config?.menuItems || [];
+    const newMenuItems = deleteMenuItem(menuItems, targetId);
+
+    setCurrentConfig({
+      ...config,
+      config: {
+        ...config.config,
+        menuItems: newMenuItems
+      }
+    });
+    if (selectedId === targetId) {
+      setSelectedId(null);
+    }
+    setIsDirty(true);
+  }, [selectedId]);
+
+  const handleDuplicateMenuItem = useCallback((id?: string) => {
     const config = currentConfigRef.current;
     if (!config) return;
 
-    try {
-      await openFinDock.updateDock(config.config);
-      await openFinDock.showDock();
+    const targetId = id || selectedId;
+    if (!targetId) return;
+
+    const menuItems = config.config?.menuItems || [];
+    const itemToDuplicate = findMenuItem(menuItems, targetId);
+    if (!itemToDuplicate) return;
+
+    // Create a copy with a new ID
+    const newItem: DockMenuItem = {
+      ...itemToDuplicate,
+      id: `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      caption: `${itemToDuplicate.caption} (Copy)`
+    };
+
+    const newMenuItems = duplicateMenuItem(menuItems, newItem);
+
+    setCurrentConfig({
+      ...config,
+      config: {
+        ...config.config,
+        menuItems: newMenuItems
+      }
+    });
+    setSelectedId(newItem.id);
+    setIsDirty(true);
+  }, [selectedId]);
+
+  const handleSave = useCallback(async () => {
+    if (!currentConfig) return;
+
+    // Validate first
+    if (!validateConfig()) {
       toast({
-        title: 'Preview updated',
-        description: 'Dock has been updated with your changes',
-      });
-    } catch {
-      toast({
-        title: 'Preview failed',
-        description: 'Failed to update dock preview',
+        title: 'Validation Failed',
+        description: 'Please fix the errors before saving',
         variant: 'destructive'
       });
+      return;
     }
-  }, [openFinDock, toast]);
+
+    try {
+      await saveMutation.mutateAsync({
+        userId: SYSTEM_USER_ID,
+        config: currentConfig as any
+      });
+      setIsDirty(false);
+      setValidationErrors([]);
+    } catch (error) {
+      // Error toast handled by mutation
+    }
+  }, [currentConfig, saveMutation, validateConfig, toast]);
 
   const handleExport = useCallback(() => {
-    const config = currentConfigRef.current;
-    if (!config) return;
+    if (!currentConfig) return;
 
-    const dataStr = JSON.stringify(config, null, 2);
-    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-    const exportFileName = `dock-config-${new Date().toISOString().split('T')[0]}.json`;
-
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileName);
-    linkElement.click();
+    const dataStr = JSON.stringify(currentConfig, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dock-config-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
 
     toast({
-      title: 'Configuration exported',
-      description: 'Configuration has been downloaded',
+      title: 'Configuration Exported',
+      description: 'Configuration saved to file'
     });
-  }, [toast]);
+  }, [currentConfig, toast]);
 
-  const handleImport = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleImport = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
       try {
-        const config = JSON.parse(e.target?.result as string);
-        setCurrentConfig(config);
+        const text = await file.text();
+        const imported = JSON.parse(text);
+        setCurrentConfig(imported);
         setIsDirty(true);
-        setSelectedId(null);
         toast({
-          title: 'Configuration imported',
-          description: 'Configuration has been loaded successfully',
+          title: 'Configuration Imported',
+          description: 'Configuration loaded from file'
         });
-      } catch {
+      } catch (error) {
         toast({
-          title: 'Import failed',
+          title: 'Import Failed',
           description: 'Invalid configuration file',
           variant: 'destructive'
         });
       }
     };
-    reader.readAsText(file);
-
-    // Reset input so same file can be imported again
-    event.target.value = '';
+    input.click();
   }, [toast]);
-
-  const handleCreateNewConfig = useCallback(() => {
-    const newConfig = createDockConfiguration(userId, appId) as unknown as DockConfiguration;
-    setCurrentConfig(newConfig);
-    setIsDirty(true);
-    setSelectedId(null);
-  }, [userId, appId]);
 
   const handleIconSelect = useCallback((callback: (icon: string) => void) => {
     setIconPickerCallback(() => callback);
-    setIsIconPickerOpen(true);
   }, []);
 
-  const handleIconPicked = useCallback((icon: string) => {
-    if (iconPickerCallback) {
-      iconPickerCallback(icon);
-    }
-    setIsIconPickerOpen(false);
-    setIconPickerCallback(null);
-  }, [iconPickerCallback]);
-
-  // Selection handler - just sets the ID, not the object
-  const handleSelectItem = useCallback((item: DockMenuItem | null) => {
-    setSelectedId(item?.id || null);
-  }, []);
-
-  // ============================================================================
-  // Render
-  // ============================================================================
-
-  const error = loadError instanceof Error ? loadError.message : loadError ? String(loadError) : null;
-  const menuItemCount = currentConfig?.config?.menuItems?.length || 0;
-
-  return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b bg-card shadow-sm">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-sm">
-              <Menu className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold">Dock Configuration</h1>
-              <p className="text-sm text-muted-foreground">
-                {menuItemCount} menu item{menuItemCount !== 1 ? 's' : ''} configured
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {isLoading && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-500/10 border border-blue-500/20">
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" />
-                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Loading...</span>
-              </div>
-            )}
-            {isDirty && (
-              <Badge variant="outline" className="gap-1.5 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                <AlertCircle className="h-3 w-3" />
-                Unsaved changes
-              </Badge>
-            )}
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-background to-muted/20">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <div>
+            <h3 className="text-lg font-semibold">Loading Configuration</h3>
+            <p className="text-sm text-muted-foreground">Please wait...</p>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-6 py-3 border-t bg-muted/30">
-          {/* Edit Actions */}
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-muted-foreground mr-2">Edit:</span>
-            <Button variant="outline" size="sm" onClick={() => handleAddMenuItem()} className="h-8">
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Add
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleDeleteMenuItem()}
-              disabled={!selectedId}
-              className="h-8"
-            >
-              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-              Delete
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleDuplicateMenuItem()}
-              disabled={!selectedId}
-              className="h-8"
-            >
-              <Copy className="h-3.5 w-3.5 mr-1.5" />
-              Duplicate
-            </Button>
-          </div>
-
-          {/* File & Save Actions */}
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-muted-foreground mr-2">Actions:</span>
-            <Button variant="outline" size="sm" onClick={handlePreview} className="h-8">
-              <Eye className="h-3.5 w-3.5 mr-1.5" />
-              Preview
-            </Button>
-
-            <Separator orientation="vertical" className="mx-1 h-5" />
-
-            <label htmlFor="import-file">
-              <Button variant="outline" size="sm" asChild className="h-8">
-                <span>
-                  <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  Import
-                </span>
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-background to-muted/20">
+        <Card className="w-[400px]">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+              <div>
+                <h3 className="text-lg font-semibold">Failed to Load Configuration</h3>
+                <p className="text-sm text-muted-foreground mt-2">{(error as Error).message}</p>
+              </div>
+              <Button onClick={() => window.location.reload()}>
+                Retry
               </Button>
-            </label>
-            <input
-              id="import-file"
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImport}
-            />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-            <Button variant="outline" size="sm" onClick={handleExport} className="h-8">
-              <Download className="h-3.5 w-3.5 mr-1.5" />
-              Export
-            </Button>
+  const menuItems = currentConfig?.config?.menuItems || [];
+  const itemCount = menuItems.length;
 
-            <Separator orientation="vertical" className="mx-1 h-5" />
+  return (
+    <div className="flex flex-col h-full bg-gradient-to-br from-background via-background to-muted/10">
+      {/* Header */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <FolderTree className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold tracking-tight">Dock Configuration</h1>
+                <p className="text-sm text-muted-foreground flex items-center gap-2 mt-0.5">
+                  <Badge variant="outline" className="h-5 px-1.5 text-xs">
+                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                  </Badge>
+                  {isDirty && (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                      Unsaved changes
+                    </Badge>
+                  )}
+                  {validationErrors.length > 0 && (
+                    <Badge variant="destructive" className="h-5 px-1.5 text-xs">
+                      {validationErrors.length} {validationErrors.length === 1 ? 'error' : 'errors'}
+                    </Badge>
+                  )}
+                </p>
+              </div>
+            </div>
 
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleSave}
-              disabled={!isDirty || isLoading || saveMutation.isPending}
-              className="h-8 min-w-[80px]"
-            >
-              <Save className="h-3.5 w-3.5 mr-1.5" />
-              {saveMutation.isPending ? 'Saving...' : 'Save'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImport}
+                className="h-9"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                disabled={!currentConfig}
+                className="h-9"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+              <Separator orientation="vertical" className="h-6" />
+              <Button
+                onClick={handleSave}
+                disabled={!isDirty || saveMutation.isPending}
+                size="sm"
+                className="h-9 min-w-[100px]"
+              >
+                {saveMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden bg-muted/20">
-        {error && (
-          <Alert variant="destructive" className="m-4 shadow-sm">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {!currentConfig ? (
-          <div className="flex items-center justify-center h-full p-8">
-            <Card className="max-w-md shadow-lg border-2">
-              <CardHeader className="text-center pb-3">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted mx-auto mb-3">
-                  <Settings2 className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-xl">No Configuration Found</CardTitle>
-                <CardDescription className="text-sm">
-                  Create a new dock configuration to get started
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <Button onClick={handleCreateNewConfig} size="lg" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Create New Configuration
-                </Button>
-              </CardContent>
-            </Card>
+      <div className="flex flex-1 overflow-hidden p-6 gap-6">
+        {/* Left Panel - Tree */}
+        <Card className="w-[380px] flex flex-col shadow-lg border-muted/40">
+          <CardHeader className="pb-3 space-y-1">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <FolderTree className="h-4 w-4 text-muted-foreground" />
+              Menu Structure
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Drag and drop to reorder menu items
+            </CardDescription>
+          </CardHeader>
+          <Separator />
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <ScrollArea className="h-full">
+              <div className="p-4">
+                <TreeView
+                  items={menuItems}
+                  selectedId={selectedId}
+                  onSelect={(item) => setSelectedId(item?.id || null)}
+                  onUpdate={handleUpdateMenuItem}
+                  onAdd={handleAddMenuItem}
+                  onDelete={handleDeleteMenuItem}
+                  onDuplicate={handleDuplicateMenuItem}
+                />
+              </div>
+            </ScrollArea>
+          </CardContent>
+          <Separator />
+          <div className="p-4">
+            <Button
+              onClick={() => handleAddMenuItem()}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Menu Item
+            </Button>
           </div>
-        ) : (
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={40} minSize={30}>
-              <div className="h-full p-4 overflow-auto">
-                <Card className="h-full shadow-sm">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <Menu className="h-4 w-4 text-primary" />
-                      <CardTitle className="text-base">Menu Structure</CardTitle>
-                    </div>
-                    <CardDescription className="text-xs">
-                      Drag and drop to reorder menu items
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <TreeView
-                      items={currentConfig.config.menuItems}
-                      selectedId={selectedId}
-                      onSelect={handleSelectItem}
-                      onReorder={handleReorderItems}
-                      onUpdate={handleUpdateMenuItem}
-                      onAdd={handleAddMenuItem}
-                      onDelete={handleDeleteMenuItem}
-                      onDuplicate={handleDuplicateMenuItem}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            </ResizablePanel>
+        </Card>
 
-            <ResizableHandle withHandle />
-
-            <ResizablePanel defaultSize={60} minSize={40}>
-              <div className="h-full p-4 overflow-auto">
-                <Card className="h-full shadow-sm">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center gap-2">
-                      <Settings2 className="h-4 w-4 text-primary" />
-                      <CardTitle className="text-base">Properties</CardTitle>
-                    </div>
-                    <CardDescription className="text-xs">
-                      Configure the selected menu item
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <PropertiesPanel
-                      item={selectedItem}
-                      onUpdate={handleUpdateMenuItem}
-                      onIconSelect={handleIconSelect}
-                    />
-                  </CardContent>
-                </Card>
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
+        {/* Right Panel - Properties */}
+        <Card className="flex-1 flex flex-col shadow-lg border-muted/40">
+          <CardHeader className="pb-3 space-y-1">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              {selectedItem ? 'Properties' : 'No Selection'}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {selectedItem
+                ? `Editing: ${selectedItem.caption || 'Unnamed Item'}`
+                : 'Select a menu item to edit its properties'
+              }
+            </CardDescription>
+          </CardHeader>
+          <Separator />
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <ScrollArea className="h-full">
+              <PropertiesPanel
+                item={selectedItem}
+                onUpdate={handleUpdateMenuItem}
+                onIconSelect={handleIconSelect}
+              />
+            </ScrollArea>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Icon Picker Dialog - Lazy loaded */}
-      {isIconPickerOpen && (
-        <React.Suspense fallback={<div className="p-4">Loading icons...</div>}>
-          <IconPicker
-            open={isIconPickerOpen}
-            onOpenChange={setIsIconPickerOpen}
-            onSelect={handleIconPicked}
-          />
-        </React.Suspense>
+      {/* Validation Errors */}
+      {validationErrors.length > 0 && (
+        <div className="border-t bg-destructive/5 px-6 py-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-destructive">Validation Errors</h4>
+              <ul className="text-xs text-destructive/80 mt-1 space-y-0.5 list-disc list-inside">
+                {validationErrors.map((error, i) => (
+                  <li key={i}>{error}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* Icon Picker Dialog */}
+      <IconPicker
+        open={!!iconPickerCallback}
+        onOpenChange={(open) => {
+          if (!open) setIconPickerCallback(null);
+        }}
+        onSelect={(icon: string) => {
+          if (iconPickerCallback) {
+            iconPickerCallback(icon);
+            setIconPickerCallback(null);
+          }
+        }}
+      />
     </div>
   );
-};
+}
