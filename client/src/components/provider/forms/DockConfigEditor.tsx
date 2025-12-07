@@ -209,6 +209,33 @@ export default function DockConfigEditor() {
       });
       setIsDirty(false);
       setValidationErrors([]);
+
+      // Reload the dock from database to apply changes
+      if (window.fin) {
+        try {
+          // Dynamically import the dock module to call the custom action
+          const { dockGetCustomActions } = await import('@/openfin/platform/openfinDock');
+          const customActions = dockGetCustomActions();
+          const reloadAction = customActions['reload-dock-from-db'];
+
+          if (reloadAction) {
+            await reloadAction({} as any);
+            toast({
+              title: 'Dock Updated',
+              description: 'Menu changes have been applied to the dock',
+            });
+          } else {
+            throw new Error('Reload action not found');
+          }
+        } catch (error) {
+          console.error('Failed to reload dock:', error);
+          toast({
+            title: 'Dock Reload Failed',
+            description: 'Changes saved but dock menu not updated. Try restarting OpenFin.',
+            variant: 'destructive'
+          });
+        }
+      }
     } catch (error) {
       // Error toast handled by mutation
     }
