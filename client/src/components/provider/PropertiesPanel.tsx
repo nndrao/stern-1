@@ -1,16 +1,14 @@
 /**
- * Properties Panel - Compact Professional Design
+ * Properties Panel - 2-Column Layout
  *
- * Improvements:
- * - Reduced whitespace for better space utilization
- * - More compact sections with cleaner separators
- * - Better field grouping and alignment
- * - Tighter spacing while maintaining readability
- * - Streamlined section headers
+ * Optimizations:
+ * - 2-column grid layout for better horizontal space usage
+ * - Related fields grouped side-by-side
+ * - More content visible without scrolling
+ * - Maintains compact spacing
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,7 +31,8 @@ import {
   Grid3x3,
   AlertCircle,
   Maximize2,
-  Square
+  Square,
+  Minimize2
 } from 'lucide-react';
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
@@ -47,7 +46,7 @@ interface FormState extends Partial<DockMenuItem> {
   hasChanges: boolean;
 }
 
-function PropertiesPanelCompact({ item, onUpdate, onIconSelect }: PropertiesPanelProps) {
+function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPanelProps) {
   const [formState, setFormState] = useState<FormState>({ hasChanges: false });
   const [activeTab, setActiveTab] = useState('general');
 
@@ -150,19 +149,10 @@ function PropertiesPanelCompact({ item, onUpdate, onIconSelect }: PropertiesPane
             </TabsList>
           </div>
 
-          {/* General Tab - Compact Layout */}
-          <TabsContent value="general" className="m-0 p-4 space-y-4">
-            {/* Basic Info - Tighter spacing */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2">
-                  Basic Info
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              {/* Caption */}
+          {/* General Tab - 2-Column Layout */}
+          <TabsContent value="general" className="m-0 p-4 space-y-3">
+            {/* Caption & ID - Side by Side */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="caption" className="text-xs font-medium flex items-center gap-1.5">
@@ -180,7 +170,6 @@ function PropertiesPanelCompact({ item, onUpdate, onIconSelect }: PropertiesPane
                 />
               </div>
 
-              {/* ID */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="id" className="text-xs font-medium flex items-center gap-1.5">
@@ -197,26 +186,17 @@ function PropertiesPanelCompact({ item, onUpdate, onIconSelect }: PropertiesPane
                     placeholder="menu-item-id"
                     className="flex-1 h-8 font-mono text-xs"
                   />
-                  <Button variant="outline" size="icon" onClick={generateId} className="h-8 w-8">
+                  <Button variant="outline" size="icon" onClick={generateId} className="h-8 w-8 flex-shrink-0">
                     <RefreshCw className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             </div>
 
-            <Separator className="my-3" />
+            <Separator />
 
-            {/* Display - Compact */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2">
-                  Display
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              {/* Icon */}
+            {/* Icon & Sort Order - Side by Side */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="icon" className="text-xs font-medium flex items-center gap-1.5">
                   <Image className="h-3 w-3 text-muted-foreground" />
@@ -230,242 +210,258 @@ function PropertiesPanelCompact({ item, onUpdate, onIconSelect }: PropertiesPane
                     placeholder="/icons/app.svg"
                     className="flex-1 h-8 font-mono text-xs"
                   />
-                  <Button variant="outline" size="icon" onClick={handleIconClick} className="h-8 w-8">
+                  <Button variant="outline" size="icon" onClick={handleIconClick} className="h-8 w-8 flex-shrink-0">
                     <Image className="h-3.5 w-3.5" />
                   </Button>
                 </div>
                 {formState.icon && (
-                  <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 border text-xs">
+                  <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 border">
                     <img src={formState.icon} alt="" className="h-4 w-4" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
                     <span className="text-[10px] text-muted-foreground font-mono truncate">{formState.icon}</span>
                   </div>
                 )}
               </div>
 
-              {/* Order - Inline */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="order" className="text-xs font-medium flex items-center gap-1.5">
-                    <Grid3x3 className="h-3 w-3 text-muted-foreground" />
-                    Sort Order
-                  </Label>
-                  <Input
-                    id="order"
-                    type="number"
-                    value={formState.order || 0}
-                    onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
-                    min="0"
-                    className="h-8"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Separator className="my-3" />
-
-            {/* Navigation - Compact */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2">
-                  Navigation
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              {/* URL */}
               <div className="space-y-1.5">
-                <Label htmlFor="url" className="text-xs font-medium flex items-center gap-1.5">
-                  <Link2 className="h-3 w-3 text-muted-foreground" />
-                  Component URL
+                <Label htmlFor="order" className="text-xs font-medium flex items-center gap-1.5">
+                  <Grid3x3 className="h-3 w-3 text-muted-foreground" />
+                  Sort Order
                 </Label>
                 <Input
-                  id="url"
-                  value={formState.url || ''}
-                  onChange={(e) => updateField('url', e.target.value)}
-                  placeholder="/blotters/simple"
-                  disabled={hasChildren}
-                  className="h-8 font-mono text-xs"
+                  id="order"
+                  type="number"
+                  value={formState.order || 0}
+                  onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                  min="0"
+                  className="h-8"
                 />
-                {fullUrl && !hasChildren && (
-                  <div className="px-2 py-1.5 rounded bg-muted/50 border">
-                    <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Full URL:</p>
-                    <code className="text-[10px] text-foreground break-all">{fullUrl}?id={formState.id}</code>
-                  </div>
-                )}
-                {hasChildren && (
-                  <p className="text-[10px] text-amber-600">Parent items cannot have a URL</p>
-                )}
+                <p className="text-[10px] text-muted-foreground">Lower numbers appear first</p>
               </div>
+            </div>
 
-              {/* Open Mode */}
+            <Separator />
+
+            {/* URL - Full Width */}
+            <div className="space-y-1.5">
+              <Label htmlFor="url" className="text-xs font-medium flex items-center gap-1.5">
+                <Link2 className="h-3 w-3 text-muted-foreground" />
+                Component URL
+              </Label>
+              <Input
+                id="url"
+                value={formState.url || ''}
+                onChange={(e) => updateField('url', e.target.value)}
+                placeholder="/blotters/simple"
+                disabled={hasChildren}
+                className="h-8 font-mono text-xs"
+              />
+              {fullUrl && !hasChildren && (
+                <div className="px-2 py-1.5 rounded bg-muted/50 border">
+                  <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Full URL:</p>
+                  <code className="text-[10px] text-foreground break-all">{fullUrl}?id={formState.id}</code>
+                </div>
+              )}
+              {hasChildren && (
+                <p className="text-[10px] text-amber-600">Parent items cannot have a URL</p>
+              )}
+            </div>
+
+            {/* Open Mode - Full Width */}
+            <div className="space-y-1.5">
+              <Label htmlFor="openMode" className="text-xs font-medium flex items-center gap-1.5">
+                <Monitor className="h-3 w-3 text-muted-foreground" />
+                Open Mode
+              </Label>
+              <Select
+                value={formState.openMode || 'window'}
+                onValueChange={(value: 'window' | 'view') => {
+                  updateField('openMode', value);
+                  setActiveTab(value === 'window' ? 'window' : 'view');
+                }}
+                disabled={hasChildren}
+              >
+                <SelectTrigger id="openMode" className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="window">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Monitor className="h-3 w-3" />
+                      New Window
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="view">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Eye className="h-3 w-3" />
+                      New View (Tab)
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </TabsContent>
+
+          {/* Window Tab - 2-Column Grid */}
+          <TabsContent value="window" className="m-0 p-4 space-y-3">
+            {/* Dimensions - 2 Columns */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="openMode" className="text-xs font-medium flex items-center gap-1.5">
-                  <Monitor className="h-3 w-3 text-muted-foreground" />
-                  Open Mode
+                <Label className="text-xs font-medium">Width (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    width: parseInt(e.target.value) || 0
+                  })}
+                  min="100"
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Height (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    height: parseInt(e.target.value) || 0
+                  })}
+                  min="100"
+                  className="h-8"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Min Width (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    minWidth: parseInt(e.target.value) || 0
+                  })}
+                  min="0"
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Min Height (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    minHeight: parseInt(e.target.value) || 0
+                  })}
+                  min="0"
+                  className="h-8"
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Options - 2 Columns */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                  <Maximize2 className="h-3 w-3 text-muted-foreground" />
+                  Resizable
                 </Label>
-                <Select
-                  value={formState.openMode || 'window'}
-                  onValueChange={(value: 'window' | 'view') => {
-                    updateField('openMode', value);
-                    setActiveTab(value === 'window' ? 'window' : 'view');
-                  }}
-                  disabled={hasChildren}
-                >
-                  <SelectTrigger id="openMode" className="h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="window">
-                      <div className="flex items-center gap-2 text-xs">
-                        <Monitor className="h-3 w-3" />
-                        New Window
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="view">
-                      <div className="flex items-center gap-2 text-xs">
-                        <Eye className="h-3 w-3" />
-                        New View (Tab)
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <Switch
+                  checked={formState.windowOptions?.resizable ?? DEFAULT_WINDOW_OPTIONS.resizable}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    resizable: checked
+                  })}
+                  className="scale-75"
+                />
+              </div>
+
+              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                  <Square className="h-3 w-3 text-muted-foreground" />
+                  Maximizable
+                </Label>
+                <Switch
+                  checked={formState.windowOptions?.maximizable ?? DEFAULT_WINDOW_OPTIONS.maximizable}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    maximizable: checked
+                  })}
+                  className="scale-75"
+                />
+              </div>
+
+              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                  <Minimize2 className="h-3 w-3 text-muted-foreground" />
+                  Minimizable
+                </Label>
+                <Switch
+                  checked={formState.windowOptions?.minimizable ?? DEFAULT_WINDOW_OPTIONS.minimizable}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    minimizable: checked
+                  })}
+                  className="scale-75"
+                />
+              </div>
+
+              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                  <Monitor className="h-3 w-3 text-muted-foreground" />
+                  Center
+                </Label>
+                <Switch
+                  checked={formState.windowOptions?.center ?? DEFAULT_WINDOW_OPTIONS.center}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    center: checked
+                  })}
+                  className="scale-75"
+                />
               </div>
             </div>
           </TabsContent>
 
-          {/* Window Tab - Compact Grid */}
-          <TabsContent value="window" className="m-0 p-4 space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2">
-                  Dimensions
-                </span>
-                <div className="h-px flex-1 bg-border" />
+          {/* View Tab - 2 Column */}
+          <TabsContent value="view" className="m-0 p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Width (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width}
+                  onChange={(e) => updateField('viewOptions', {
+                    ...formState.viewOptions,
+                    bounds: {
+                      ...formState.viewOptions?.bounds,
+                      width: parseInt(e.target.value) || 0,
+                      height: formState.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height
+                    }
+                  })}
+                  min="100"
+                  className="h-8"
+                />
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Width (px)</Label>
-                  <Input
-                    type="number"
-                    value={formState.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width}
-                    onChange={(e) => updateField('windowOptions', {
-                      ...formState.windowOptions,
-                      width: parseInt(e.target.value) || 0
-                    })}
-                    min="100"
-                    className="h-8"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Height (px)</Label>
-                  <Input
-                    type="number"
-                    value={formState.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height}
-                    onChange={(e) => updateField('windowOptions', {
-                      ...formState.windowOptions,
-                      height: parseInt(e.target.value) || 0
-                    })}
-                    min="100"
-                    className="h-8"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Separator className="my-3" />
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2">
-                  Options
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Maximize2 className="h-3 w-3 text-muted-foreground" />
-                    <Label className="text-xs font-medium cursor-pointer">Resizable</Label>
-                  </div>
-                  <Switch
-                    checked={formState.windowOptions?.resizable ?? DEFAULT_WINDOW_OPTIONS.resizable}
-                    onCheckedChange={(checked) => updateField('windowOptions', {
-                      ...formState.windowOptions,
-                      resizable: checked
-                    })}
-                    className="scale-75"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
-                  <div className="flex items-center gap-2">
-                    <Square className="h-3 w-3 text-muted-foreground" />
-                    <Label className="text-xs font-medium cursor-pointer">Maximizable</Label>
-                  </div>
-                  <Switch
-                    checked={formState.windowOptions?.maximizable ?? DEFAULT_WINDOW_OPTIONS.maximizable}
-                    onCheckedChange={(checked) => updateField('windowOptions', {
-                      ...formState.windowOptions,
-                      maximizable: checked
-                    })}
-                    className="scale-75"
-                  />
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* View Tab - Compact */}
-          <TabsContent value="view" className="m-0 p-4 space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-border" />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2">
-                  View Bounds
-                </span>
-                <div className="h-px flex-1 bg-border" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Width (px)</Label>
-                  <Input
-                    type="number"
-                    value={formState.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width}
-                    onChange={(e) => updateField('viewOptions', {
-                      ...formState.viewOptions,
-                      bounds: {
-                        ...formState.viewOptions?.bounds,
-                        width: parseInt(e.target.value) || 0,
-                        height: formState.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height
-                      }
-                    })}
-                    min="100"
-                    className="h-8"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Height (px)</Label>
-                  <Input
-                    type="number"
-                    value={formState.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height}
-                    onChange={(e) => updateField('viewOptions', {
-                      ...formState.viewOptions,
-                      bounds: {
-                        ...formState.viewOptions?.bounds,
-                        height: parseInt(e.target.value) || 0,
-                        width: formState.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width
-                      }
-                    })}
-                    min="100"
-                    className="h-8"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Height (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height}
+                  onChange={(e) => updateField('viewOptions', {
+                    ...formState.viewOptions,
+                    bounds: {
+                      ...formState.viewOptions?.bounds,
+                      height: parseInt(e.target.value) || 0,
+                      width: formState.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width
+                    }
+                  })}
+                  min="100"
+                  className="h-8"
+                />
               </div>
             </div>
           </TabsContent>
@@ -475,4 +471,4 @@ function PropertiesPanelCompact({ item, onUpdate, onIconSelect }: PropertiesPane
   );
 }
 
-export const PropertiesPanel = PropertiesPanelCompact;
+export const PropertiesPanel = PropertiesPanelTwoColumn;
