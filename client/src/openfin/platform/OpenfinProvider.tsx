@@ -295,7 +295,7 @@ export default function Provider() {
             enableDuplicateWithLayouts: true,
             enableRenameView: true,
             enableWindowTitleUpdates: true,
-            defaultWindowTitle: 'STAR Platform'
+            defaultWindowTitle: 'Dock Configurator'
           }
         );
 
