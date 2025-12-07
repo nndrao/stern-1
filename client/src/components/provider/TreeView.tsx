@@ -138,11 +138,24 @@ const TreeNode = memo<TreeNodeProps>(function TreeNode({
     ? (isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />)
     : <div className="w-4" />;
 
-  const itemIcon = hasChildren
-    ? <Folder className="h-4 w-4 text-muted-foreground" />
-    : item.openMode === 'window'
-      ? <ExternalLink className="h-4 w-4 text-muted-foreground" />
-      : <Maximize2 className="h-4 w-4 text-muted-foreground" />;
+  // Use the configured icon if available, otherwise use generic icons
+  const itemIcon = item.icon ? (
+    <img
+      src={item.icon.startsWith('http') ? item.icon : `http://localhost:5173${item.icon}`}
+      alt={item.caption}
+      className="h-4 w-4 object-contain"
+      onError={(e) => {
+        // Fallback to generic icon if image fails to load
+        e.currentTarget.style.display = 'none';
+      }}
+    />
+  ) : hasChildren ? (
+    <Folder className="h-4 w-4 text-muted-foreground" />
+  ) : item.openMode === 'window' ? (
+    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+  ) : (
+    <Maximize2 className="h-4 w-4 text-muted-foreground" />
+  );
 
   return (
     <div>
