@@ -7,10 +7,14 @@ import App from './App.tsx';
 import { ThemeProvider } from './components/shared/theme-provider';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { SternPlatformProvider } from './providers/SternPlatformProvider';
+import { registerBuiltInActions } from './registry/builtInActions';
 import './index.css';
 
 // Register AG-Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+// Register built-in toolbar actions
+registerBuiltInActions();
 
 // Create a QueryClient instance
 const queryClient = new QueryClient({

@@ -546,6 +546,29 @@ export const ToolbarCustomizationWizard: React.FC<ToolbarCustomizationWizardProp
   const [editingButtonId, setEditingButtonId] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
 
+  // Track previous open state to detect open transitions
+  const prevOpenRef = React.useRef(open);
+
+  // Sync internal state when dialog opens (not while it's open)
+  React.useEffect(() => {
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = open;
+
+    // Only reset when transitioning from closed to open
+    if (open && !wasOpen) {
+      setButtons(
+        buttonsProp?.map((b: ToolbarButton) => ({ ...b })) ??
+        config?.customButtons?.map((b: ToolbarButton) => ({ ...b })) ??
+        []
+      );
+      setAdditionalToolbars(
+        config?.additionalToolbars?.map((t: DynamicToolbar) => ({ ...t })) ?? []
+      );
+      setEditingButtonId(null);
+      setHasChanges(false);
+    }
+  }, [open, buttonsProp, config]);
+
   // Get editing button
   const editingButton = editingButtonId
     ? buttons.find((b) => b.id === editingButtonId) ?? null
