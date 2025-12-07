@@ -439,12 +439,12 @@ export default function DockConfigEditor() {
                   {saveMutation.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-xs font-medium">Saving...</span>
+                      <span className="text-xs font-medium">Updating...</span>
                     </>
                   ) : (
                     <>
                       <Save className="h-4 w-4" />
-                      <span className="text-xs font-medium">Save Changes</span>
+                      <span className="text-xs font-medium">Update Dock</span>
                     </>
                   )}
                 </Button>

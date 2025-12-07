@@ -121,38 +121,6 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
 
   return (
     <div className="h-full flex flex-col">
-      {/* Enhanced Action Bar */}
-      {formState.hasChanges && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/20 shadow-sm">
-          <div className="flex items-center gap-2 flex-1">
-            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-500/20 border border-amber-500/30">
-              <AlertCircle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
-            </div>
-            <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
-              You have unsaved changes
-            </span>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={resetChanges}
-            className="h-8 px-3 hover:bg-amber-500/20 border border-transparent hover:border-amber-500/30 transition-all"
-          >
-            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-            <span className="text-xs font-medium">Discard</span>
-          </Button>
-          <Button
-            size="sm"
-            onClick={applyChanges}
-            disabled={errors.length > 0}
-            className="h-8 px-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-sm"
-          >
-            <Save className="h-3.5 w-3.5 mr-1.5" />
-            <span className="text-xs font-medium">Apply Changes</span>
-          </Button>
-        </div>
-      )}
-
       <div className="flex-1 overflow-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Enhanced Tab Bar */}
@@ -189,13 +157,11 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
             {/* Caption & ID - Side by Side */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="caption" className="text-sm font-medium flex items-center gap-1.5">
-                    <Tag className="h-3 w-3 text-muted-foreground" />
-                    Display Name
-                  </Label>
-                  <Badge variant="secondary" className="h-4 px-1.5 text-xs">Required</Badge>
-                </div>
+                <Label htmlFor="caption" className="text-sm font-medium flex items-center gap-1.5">
+                  <Tag className="h-3 w-3 text-muted-foreground" />
+                  Display Name
+                  <span className="text-red-600 dark:text-red-500 ml-0.5">*</span>
+                </Label>
                 <Input
                   id="caption"
                   value={formState.caption || ''}
@@ -206,13 +172,11 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="id" className="text-sm font-medium flex items-center gap-1.5">
-                    <Hash className="h-3 w-3 text-muted-foreground" />
-                    Unique ID
-                  </Label>
-                  <Badge variant="secondary" className="h-4 px-1.5 text-xs">Required</Badge>
-                </div>
+                <Label htmlFor="id" className="text-sm font-medium flex items-center gap-1.5">
+                  <Hash className="h-3 w-3 text-muted-foreground" />
+                  Unique ID
+                  <span className="text-red-600 dark:text-red-500 ml-0.5">*</span>
+                </Label>
                 <div className="flex gap-2">
                   <Input
                     id="id"
@@ -502,6 +466,38 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Enhanced Action Bar - Moved to Bottom */}
+      {formState.hasChanges && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-t border-border/50 shadow-sm">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 border border-primary/20">
+              <AlertCircle className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              You have unsaved changes
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetChanges}
+            className="h-8 px-3 hover:bg-accent transition-all"
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+            <span className="text-xs font-medium">Discard</span>
+          </Button>
+          <Button
+            size="sm"
+            onClick={applyChanges}
+            disabled={errors.length > 0}
+            className="h-8 px-4 shadow-sm"
+          >
+            <Save className="h-3.5 w-3.5 mr-1.5" />
+            <span className="text-xs font-medium">Apply Changes</span>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
