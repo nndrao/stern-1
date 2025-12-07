@@ -5,6 +5,7 @@
  * Launched from the dock's Tools dropdown menu.
  */
 
+import { useEffect } from 'react';
 import { DataProviderEditor } from '@/components/provider/editors/DataProviderEditor';
 import { useOpenfinTheme } from '@stern/openfin-platform';
 
@@ -17,6 +18,11 @@ import { useOpenfinTheme } from '@stern/openfin-platform';
 export default function DataProviderConfigWindow() {
   // Apply OpenFin theme (dark/light mode)
   useOpenfinTheme();
+
+  // Set window title
+  useEffect(() => {
+    document.title = 'Data Providers';
+  }, []);
 
   return (
     <div className="h-screen w-screen bg-background overflow-hidden">

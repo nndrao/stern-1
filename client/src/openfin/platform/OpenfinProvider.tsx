@@ -53,6 +53,11 @@ const DashboardContent: React.FC<DashboardContentProps> = ({ activeTab, onTabCha
   // Note: useOpenfinTheme is called at App level, no need to call here
   // Calling it here causes performance issues and excessive re-subscriptions
 
+  // Set window title
+  useEffect(() => {
+    document.title = 'Dock Configurator';
+  }, []);
+
   // Log on mount (for debugging only)
   useEffect(() => {
     logger.info('[PROVIDER WINDOW] DashboardContent mounted', {
@@ -295,7 +300,7 @@ export default function Provider() {
             enableDuplicateWithLayouts: true,
             enableRenameView: true,
             enableWindowTitleUpdates: true,
-            defaultWindowTitle: 'Dock Configurator'
+            defaultWindowTitle: 'STAR Platform'
           }
         );
 
@@ -561,11 +566,6 @@ export default function Provider() {
 
           // Hide provider window after initialization
           const providerWindow = fin.Window.getCurrentSync();
-
-          // Set window title explicitly
-          await providerWindow.updateOptions({ title: 'Dock Configurator' });
-          logger.info('Provider window title set to "Dock Configurator"', undefined, 'Provider');
-
           await providerWindow.hide();
 
           // Handle close button - hide window instead of quitting

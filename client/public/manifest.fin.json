@@ -14,16 +14,7 @@
     "providerUrl": "http://localhost:5173/platform/provider",
     "preventQuitOnLastWindowClosed": true,
     "defaultWindowOptions": {
-      "title": "Dock Configurator",
-      "customData": {
-        "platformContext": {
-          "apiUrl": "http://localhost:3001",
-          "environment": "local",
-          "description": "REST API endpoint for configuration service"
-        }
-      }
-    },
-    "defaultViewOptions": {
+      "title": "STAR Platform",
       "customData": {
         "platformContext": {
           "apiUrl": "http://localhost:3001",
@@ -32,6 +23,7 @@
         }
       }
     }
+    
   },
   "desktopSettings": {
     "systemApps": {
@@ -54,19 +46,6 @@
     "product": "STAR Trading Platform",
     "email": "support@sterntrading.com",
     "forwardErrorReports": false
-  },
-  "customSettings": {
-    "apps": [
-      {
-        "appId": "stern-blotter",
-        "name": "stern-blotter",
-        "title": "STAR Blotter",
-        "description": "Main trading blotter",
-        "url": "http://localhost:5173/",
-        "manifestType": "view",
-        "icons": [{ "src": "http://localhost:5173/star.png" }],
-        "tags": ["trading", "blotter"]
-      }
-    ]
   }
+  
 }
