@@ -155,11 +155,11 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="caption" className="text-xs font-medium flex items-center gap-1.5">
+                  <Label htmlFor="caption" className="text-sm font-medium flex items-center gap-1.5">
                     <Tag className="h-3 w-3 text-muted-foreground" />
                     Display Name
                   </Label>
-                  <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">Required</Badge>
+                  <Badge variant="secondary" className="h-4 px-1.5 text-xs">Required</Badge>
                 </div>
                 <Input
                   id="caption"
@@ -172,11 +172,11 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="id" className="text-xs font-medium flex items-center gap-1.5">
+                  <Label htmlFor="id" className="text-sm font-medium flex items-center gap-1.5">
                     <Hash className="h-3 w-3 text-muted-foreground" />
                     Unique ID
                   </Label>
-                  <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">Required</Badge>
+                  <Badge variant="secondary" className="h-4 px-1.5 text-xs">Required</Badge>
                 </div>
                 <div className="flex gap-2">
                   <Input
@@ -198,7 +198,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
             {/* Icon & Sort Order - Side by Side */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="icon" className="text-xs font-medium flex items-center gap-1.5">
+                <Label htmlFor="icon" className="text-sm font-medium flex items-center gap-1.5">
                   <Image className="h-3 w-3 text-muted-foreground" />
                   Icon
                 </Label>
@@ -217,13 +217,13 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                 {formState.icon && (
                   <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 border">
                     <img src={formState.icon} alt="" className="h-4 w-4" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
-                    <span className="text-[10px] text-muted-foreground font-mono truncate">{formState.icon}</span>
+                    <span className="text-xs text-muted-foreground font-mono truncate">{formState.icon}</span>
                   </div>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="order" className="text-xs font-medium flex items-center gap-1.5">
+                <Label htmlFor="order" className="text-sm font-medium flex items-center gap-1.5">
                   <Grid3x3 className="h-3 w-3 text-muted-foreground" />
                   Sort Order
                 </Label>
@@ -235,7 +235,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                   min="0"
                   className="h-8"
                 />
-                <p className="text-[10px] text-muted-foreground">Lower numbers appear first</p>
+                <p className="text-xs text-muted-foreground">Lower numbers appear first</p>
               </div>
             </div>
 
@@ -243,7 +243,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
 
             {/* URL - Full Width */}
             <div className="space-y-1.5">
-              <Label htmlFor="url" className="text-xs font-medium flex items-center gap-1.5">
+              <Label htmlFor="url" className="text-sm font-medium flex items-center gap-1.5">
                 <Link2 className="h-3 w-3 text-muted-foreground" />
                 Component URL
               </Label>
@@ -257,18 +257,18 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               />
               {fullUrl && !hasChildren && (
                 <div className="px-2 py-1.5 rounded bg-muted/50 border">
-                  <p className="text-[10px] font-medium text-muted-foreground mb-0.5">Full URL:</p>
-                  <code className="text-[10px] text-foreground break-all">{fullUrl}?id={formState.id}</code>
+                  <p className="text-xs font-medium text-muted-foreground mb-0.5">Full URL:</p>
+                  <code className="text-xs text-foreground break-all">{fullUrl}?id={formState.id}</code>
                 </div>
               )}
               {hasChildren && (
-                <p className="text-[10px] text-amber-600">Parent items cannot have a URL</p>
+                <p className="text-xs text-amber-600">Parent items cannot have a URL</p>
               )}
             </div>
 
             {/* Open Mode - Full Width */}
             <div className="space-y-1.5">
-              <Label htmlFor="openMode" className="text-xs font-medium flex items-center gap-1.5">
+              <Label htmlFor="openMode" className="text-sm font-medium flex items-center gap-1.5">
                 <Monitor className="h-3 w-3 text-muted-foreground" />
                 Open Mode
               </Label>
@@ -306,7 +306,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
             {/* Dimensions - 2 Columns */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Width (px)</Label>
+                <Label className="text-sm font-medium">Width (px)</Label>
                 <Input
                   type="number"
                   value={formState.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width}
@@ -319,7 +319,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Height (px)</Label>
+                <Label className="text-sm font-medium">Height (px)</Label>
                 <Input
                   type="number"
                   value={formState.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height}
@@ -333,7 +333,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Min Width (px)</Label>
+                <Label className="text-sm font-medium">Min Width (px)</Label>
                 <Input
                   type="number"
                   value={formState.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth}
@@ -346,7 +346,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Min Height (px)</Label>
+                <Label className="text-sm font-medium">Min Height (px)</Label>
                 <Input
                   type="number"
                   value={formState.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight}
@@ -365,7 +365,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
             {/* Options - 2 Columns */}
             <div className="grid grid-cols-2 gap-2">
               <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
-                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Maximize2 className="h-3 w-3 text-muted-foreground" />
                   Resizable
                 </Label>
@@ -380,7 +380,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
 
               <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
-                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Square className="h-3 w-3 text-muted-foreground" />
                   Maximizable
                 </Label>
@@ -395,7 +395,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
 
               <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
-                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Minimize2 className="h-3 w-3 text-muted-foreground" />
                   Minimizable
                 </Label>
@@ -410,7 +410,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
 
               <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
-                <Label className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Monitor className="h-3 w-3 text-muted-foreground" />
                   Center
                 </Label>
@@ -430,7 +430,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
           <TabsContent value="view" className="m-0 p-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Width (px)</Label>
+                <Label className="text-sm font-medium">Width (px)</Label>
                 <Input
                   type="number"
                   value={formState.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width}
@@ -447,7 +447,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Height (px)</Label>
+                <Label className="text-sm font-medium">Height (px)</Label>
                 <Input
                   type="number"
                   value={formState.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height}

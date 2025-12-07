@@ -561,6 +561,11 @@ export default function Provider() {
 
           // Hide provider window after initialization
           const providerWindow = fin.Window.getCurrentSync();
+
+          // Set window title explicitly
+          await providerWindow.updateOptions({ title: 'Dock Configurator' });
+          logger.info('Provider window title set to "Dock Configurator"', undefined, 'Provider');
+
           await providerWindow.hide();
 
           // Handle close button - hide window instead of quitting
