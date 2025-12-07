@@ -1,12 +1,14 @@
 /**
- * DockConfigEditor - Professional UI Redesign
+ * DockConfigEditor - Modern & Sophisticated Design
  *
  * Design principles:
- * - Clean, modern interface with consistent spacing
- * - Clear visual hierarchy with proper typography
- * - Intuitive layout with contextual actions
- * - Professional color scheme and hover states
- * - Responsive feedback and loading states
+ * - Clean, modern interface with refined spacing and visual hierarchy
+ * - Professional gradient accents and subtle shadows
+ * - Smooth transitions and micro-interactions
+ * - Enhanced visual feedback for all states (loading, error, dirty, validation)
+ * - Card-based layout with proper depth and elevation
+ * - Intuitive iconography and color coding
+ * - Responsive design with contextual actions
  */
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
@@ -332,34 +334,41 @@ export default function DockConfigEditor() {
   const itemCount = menuItems.length;
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-gradient-to-br from-background via-background to-muted/5">
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden p-4 gap-4">
+      <div className="flex flex-1 overflow-hidden p-5 gap-5">
         {/* Left Panel - Tree */}
-        <Card className="w-[380px] flex flex-col shadow-sm">
-          <CardHeader className="pb-3 space-y-2">
+        <Card className="w-[400px] flex flex-col shadow-lg border-border/50 bg-card/95 backdrop-blur-sm">
+          <CardHeader className="pb-3.5 space-y-2 bg-gradient-to-b from-muted/30 to-transparent">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <FolderTree className="h-4 w-4 text-muted-foreground" />
-                Menu Structure
-                <Badge variant="outline" className="h-5 px-1.5 text-xs font-normal ml-1">
-                  {itemCount}
-                </Badge>
-              </CardTitle>
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 border border-primary/20">
+                  <FolderTree className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-semibold">
+                    Menu Structure
+                  </CardTitle>
+                  <Badge variant="secondary" className="h-5 px-2 text-xs font-medium border-border/50 shadow-sm">
+                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                  </Badge>
+                </div>
+              </div>
               <Button
                 onClick={() => handleAddMenuItem()}
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="h-7 px-2"
+                className="h-8 px-3 shadow-sm hover:shadow-md transition-all border-primary/20 hover:border-primary/40 hover:bg-primary/5"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4 mr-1" />
+                <span className="text-xs font-medium">Add</span>
               </Button>
             </div>
           </CardHeader>
-          <Separator />
+          <Separator className="bg-border/50" />
           <CardContent className="flex-1 overflow-hidden p-0">
             <ScrollArea className="h-full">
-              <div className="p-4">
+              <div className="p-3">
                 <TreeView
                   items={menuItems}
                   selectedId={selectedId}
@@ -375,68 +384,74 @@ export default function DockConfigEditor() {
         </Card>
 
         {/* Right Panel - Properties */}
-        <Card className="flex-1 flex flex-col shadow-sm">
-          <CardHeader className="pb-3 space-y-2">
+        <Card className="flex-1 flex flex-col shadow-lg border-border/50 bg-card/95 backdrop-blur-sm">
+          <CardHeader className="pb-3.5 space-y-2 bg-gradient-to-b from-muted/30 to-transparent">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  {selectedItem ? selectedItem.caption || 'Unnamed Item' : 'Properties'}
-                </CardTitle>
-                {isDirty && (
-                  <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
-                    Unsaved
-                  </Badge>
-                )}
-                {validationErrors.length > 0 && (
-                  <Badge variant="destructive" className="h-5 px-1.5 text-xs">
-                    {validationErrors.length}
-                  </Badge>
-                )}
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 border border-primary/20">
+                  <FileText className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-semibold truncate max-w-[250px]">
+                    {selectedItem ? selectedItem.caption || 'Unnamed Item' : 'Properties'}
+                  </CardTitle>
+                  {isDirty && (
+                    <Badge className="h-5 px-2 text-xs bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 shadow-sm">
+                      Unsaved
+                    </Badge>
+                  )}
+                  {validationErrors.length > 0 && (
+                    <Badge variant="destructive" className="h-5 px-2 text-xs shadow-sm">
+                      {validationErrors.length} {validationErrors.length === 1 ? 'error' : 'errors'}
+                    </Badge>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleImport}
-                  className="h-7 px-2"
-                  title="Import configuration"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExport}
-                  disabled={!currentConfig}
-                  className="h-7 px-2"
-                  title="Export configuration"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-                <Separator orientation="vertical" className="h-4" />
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleImport}
+                    className="h-8 w-8 p-0 hover:bg-accent/80 transition-all"
+                    title="Import configuration"
+                  >
+                    <Upload className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleExport}
+                    disabled={!currentConfig}
+                    className="h-8 w-8 p-0 hover:bg-accent/80 transition-all"
+                    title="Export configuration"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Separator orientation="vertical" className="h-5 bg-border/50" />
                 <Button
                   onClick={handleSave}
                   disabled={!isDirty || saveMutation.isPending}
                   size="sm"
-                  className="h-7 px-3 gap-1.5"
+                  className="h-8 px-4 gap-2 shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-primary to-primary/90"
                 >
                   {saveMutation.isPending ? (
                     <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span className="text-xs">Saving</span>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-xs font-medium">Saving...</span>
                     </>
                   ) : (
                     <>
-                      <Save className="h-3.5 w-3.5" />
-                      <span className="text-xs">Save</span>
+                      <Save className="h-4 w-4" />
+                      <span className="text-xs font-medium">Save Changes</span>
                     </>
                   )}
                 </Button>
               </div>
             </div>
           </CardHeader>
-          <Separator />
+          <Separator className="bg-border/50" />
           <CardContent className="flex-1 overflow-hidden p-0">
             <ScrollArea className="h-full">
               <PropertiesPanel
@@ -451,14 +466,21 @@ export default function DockConfigEditor() {
 
       {/* Validation Errors */}
       {validationErrors.length > 0 && (
-        <div className="border-t bg-destructive/5 px-6 py-3">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
+        <div className="border-t border-destructive/20 bg-gradient-to-r from-destructive/5 to-destructive/10 px-6 py-4 shadow-inner">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-destructive/10 border border-destructive/20 flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+            </div>
             <div className="flex-1">
-              <h4 className="text-sm font-medium text-destructive">Validation Errors</h4>
-              <ul className="text-xs text-destructive/80 mt-1 space-y-0.5 list-disc list-inside">
+              <h4 className="text-sm font-semibold text-destructive mb-2">
+                Validation {validationErrors.length === 1 ? 'Error' : 'Errors'}
+              </h4>
+              <ul className="space-y-1.5">
                 {validationErrors.map((error, i) => (
-                  <li key={i}>{error}</li>
+                  <li key={i} className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-destructive/60 flex-shrink-0" />
+                    <span className="text-xs text-destructive/90">{error}</span>
+                  </li>
                 ))}
               </ul>
             </div>

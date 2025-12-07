@@ -1,7 +1,16 @@
 /**
- * Tree View Component - Refactored
+ * Tree View Component - Modern & Sophisticated Design
  *
- * Key improvements:
+ * Design enhancements:
+ * - Refined visual hierarchy with subtle depth indicators
+ * - Smooth animations and micro-interactions
+ * - Enhanced hover states with better visual feedback
+ * - Modern card-based item design with proper spacing
+ * - Icon integration with fallback handling
+ * - Drag-and-drop with visual indicators
+ * - Context menu with icon support
+ *
+ * Technical improvements:
  * - Simplified callback pattern - parent provides handlers, we just call them with IDs
  * - Removed unnecessary Map-based caching that was recreated on every render
  * - TreeNode callbacks are now stable via useCallback with ID closure
@@ -158,19 +167,24 @@ const TreeNode = memo<TreeNodeProps>(function TreeNode({
   );
 
   return (
-    <div>
+    <div className="relative">
       <ContextMenu>
         <ContextMenuTrigger>
           <div
             className={cn(
-              'group flex items-center gap-1 px-2 py-1.5 rounded-md cursor-pointer transition-colors',
-              isSelected && 'bg-accent text-accent-foreground',
-              !isSelected && 'hover:bg-accent/50',
-              isDragOver && dragPosition === 'inside' && 'bg-primary/20',
-              isDragOver && dragPosition === 'before' && 'border-t-2 border-primary',
-              isDragOver && dragPosition === 'after' && 'border-b-2 border-primary'
+              'group relative flex items-center gap-1.5 px-2.5 py-2 rounded-lg cursor-pointer',
+              'transition-all duration-200 ease-in-out',
+              'border border-transparent',
+              isSelected && 'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 shadow-sm',
+              !isSelected && 'hover:bg-accent/60 hover:border-border/50',
+              isDragOver && dragPosition === 'inside' && 'bg-primary/15 border-primary/30 shadow-md',
+              isDragOver && dragPosition === 'before' && 'border-t-2 border-primary shadow-sm',
+              isDragOver && dragPosition === 'after' && 'border-b-2 border-primary shadow-sm'
             )}
-            style={{ paddingLeft: `${level * 16 + 8}px` }}
+            style={{
+              paddingLeft: `${level * 20 + 12}px`,
+              marginBottom: '2px'
+            }}
             onClick={onSelect}
             draggable
             onDragStart={handleDragStart}
@@ -178,22 +192,52 @@ const TreeNode = memo<TreeNodeProps>(function TreeNode({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
           >
-            <GripVertical className="h-4 w-4 opacity-0 group-hover:opacity-50 transition-opacity cursor-move" />
+            {/* Depth indicator line */}
+            {level > 0 && (
+              <div
+                className="absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b from-border/50 via-border to-border/50"
+                style={{ left: `${level * 20}px` }}
+              />
+            )}
+
+            <GripVertical className="h-3.5 w-3.5 opacity-0 group-hover:opacity-40 transition-opacity duration-200 cursor-move text-muted-foreground" />
+
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 p-0"
+              className={cn(
+                "h-5 w-5 p-0 hover:bg-accent/80 transition-colors",
+                !hasChildren && "invisible"
+              )}
               onClick={handleToggleClick}
               disabled={!hasChildren}
             >
               {chevronIcon}
             </Button>
-            {itemIcon}
-            <span className="flex-1 truncate ml-1">{item.caption}</span>
+
+            <div className={cn(
+              "flex items-center justify-center h-5 w-5 rounded-md bg-background/50 border border-border/50",
+              isSelected && "border-primary/40 bg-primary/5"
+            )}>
+              {itemIcon}
+            </div>
+
+            <span className={cn(
+              "flex-1 truncate text-sm font-medium transition-colors",
+              isSelected && "text-foreground",
+              !isSelected && "text-foreground/90"
+            )}>
+              {item.caption}
+            </span>
+
             {hasChildren && (
-              <span className="text-xs text-muted-foreground">
-                ({item.children!.length})
-              </span>
+              <div className={cn(
+                "flex items-center justify-center h-5 px-1.5 rounded-full text-xs font-medium",
+                "bg-muted/50 text-muted-foreground border border-border/50",
+                isSelected && "bg-primary/10 text-primary border-primary/20"
+              )}>
+                {item.children!.length}
+              </div>
             )}
           </div>
         </ContextMenuTrigger>
@@ -211,8 +255,8 @@ const TreeNode = memo<TreeNodeProps>(function TreeNode({
             Rename
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={onDelete} className="text-destructive">
-            <Trash2 className="h-4 w-4 mr-2" />
+          <ContextMenuItem onClick={onDelete} className="text-red-600 dark:text-red-500 focus:text-red-600 dark:focus:text-red-500 focus:bg-red-500/10">
+            <Trash2 className="h-4 w-4 mr-2 text-red-600 dark:text-red-500" />
             Delete
           </ContextMenuItem>
         </ContextMenuContent>
@@ -374,24 +418,31 @@ const TreeViewComponent: React.FC<TreeViewProps> = ({
   return (
     <>
       <ScrollArea className="h-full">
-        <div className="p-2 min-h-full" onClick={handleBackgroundClick}>
+        <div className="p-3 min-h-full" onClick={handleBackgroundClick}>
           {!items || items.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              <p>No menu items</p>
-              <p className="text-sm mt-2">Click "Add" to create your first menu item</p>
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center mb-4 shadow-sm">
+                <FolderTree className="h-8 w-8 text-primary/60" />
+              </div>
+              <h3 className="text-sm font-semibold text-foreground mb-1">No Menu Items</h3>
+              <p className="text-xs text-muted-foreground text-center max-w-[200px]">
+                Click the <span className="font-medium text-foreground">+</span> button above to create your first menu item
+              </p>
             </div>
           ) : (
-            <>
+            <div className="space-y-0.5">
               {renderTree(items)}
               {/* Clickable area below items to deselect */}
               <div
-                className="min-h-[40px] mt-2"
+                className="min-h-[60px] mt-4 rounded-lg border border-dashed border-border/40 hover:border-border/60 hover:bg-accent/20 transition-all duration-200 cursor-pointer flex items-center justify-center"
                 onClick={handleDeselectClick}
                 role="button"
                 tabIndex={-1}
                 aria-label="Deselect item"
-              />
-            </>
+              >
+                <span className="text-xs text-muted-foreground/50">Click to deselect</span>
+              </div>
+            </div>
           )}
         </div>
       </ScrollArea>

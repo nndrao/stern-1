@@ -1,7 +1,15 @@
 /**
- * Properties Panel - 2-Column Layout
+ * Properties Panel - Modern & Sophisticated Design
  *
- * Optimizations:
+ * Design enhancements:
+ * - Enhanced visual hierarchy with refined spacing
+ * - Modern card-based input styling
+ * - Gradient accents and subtle shadows
+ * - Smooth transitions and micro-interactions
+ * - Better color coding for states (unsaved, required, disabled)
+ * - Professional icon integration
+ *
+ * Layout optimizations:
  * - 2-column grid layout for better horizontal space usage
  * - Related fields grouped side-by-side
  * - More content visible without scrolling
@@ -94,14 +102,16 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
   if (!item) {
     return (
       <div className="h-full flex items-center justify-center p-6">
-        <div className="text-center space-y-2 max-w-xs">
-          <div className="mx-auto w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center">
-            <Tag className="h-6 w-6 text-muted-foreground" />
+        <div className="text-center space-y-4 max-w-xs">
+          <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center shadow-sm">
+            <Tag className="h-10 w-10 text-primary/60" />
           </div>
-          <h3 className="text-sm font-medium">No Item Selected</h3>
-          <p className="text-xs text-muted-foreground">
-            Select a menu item from the tree to edit
-          </p>
+          <div className="space-y-2">
+            <h3 className="text-base font-semibold text-foreground">No Item Selected</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Select a menu item from the tree to view and edit its properties
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -111,48 +121,73 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
 
   return (
     <div className="h-full flex flex-col">
-      {/* Compact Action Bar */}
+      {/* Enhanced Action Bar */}
       {formState.hasChanges && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20">
-          <AlertCircle className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-          <span className="text-xs font-medium text-amber-700 dark:text-amber-300 flex-1">
-            Unsaved changes
-          </span>
-          <Button variant="ghost" size="sm" onClick={resetChanges} className="h-7 px-2">
-            <RotateCcw className="h-3 w-3 mr-1" />
-            <span className="text-xs">Discard</span>
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-b border-amber-500/20 shadow-sm">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-amber-500/20 border border-amber-500/30">
+              <AlertCircle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
+            </div>
+            <span className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+              You have unsaved changes
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetChanges}
+            className="h-8 px-3 hover:bg-amber-500/20 border border-transparent hover:border-amber-500/30 transition-all"
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+            <span className="text-xs font-medium">Discard</span>
           </Button>
-          <Button size="sm" onClick={applyChanges} disabled={errors.length > 0} className="h-7 px-3 bg-amber-600 hover:bg-amber-700">
-            <Save className="h-3 w-3 mr-1" />
-            <span className="text-xs">Apply</span>
+          <Button
+            size="sm"
+            onClick={applyChanges}
+            disabled={errors.length > 0}
+            className="h-8 px-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-sm"
+          >
+            <Save className="h-3.5 w-3.5 mr-1.5" />
+            <span className="text-xs font-medium">Apply Changes</span>
           </Button>
         </div>
       )}
 
       <div className="flex-1 overflow-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          {/* Compact Tab Bar */}
-          <div className="sticky top-0 z-10 bg-background border-b px-4 pt-3 pb-2">
-            <TabsList className="grid w-full grid-cols-3 h-8">
-              <TabsTrigger value="general" className="text-xs gap-1.5">
-                <Tag className="h-3 w-3" />
-                General
+          {/* Enhanced Tab Bar */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b px-4 pt-4 pb-3">
+            <TabsList className="grid w-full grid-cols-3 h-9 bg-muted/50 border border-border/50 p-1">
+              <TabsTrigger
+                value="general"
+                className="text-xs gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                <span className="font-medium">General</span>
               </TabsTrigger>
-              <TabsTrigger value="window" disabled={formState.openMode !== 'window'} className="text-xs gap-1.5">
-                <Monitor className="h-3 w-3" />
-                Window
+              <TabsTrigger
+                value="window"
+                disabled={formState.openMode !== 'window'}
+                className="text-xs gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all disabled:opacity-40"
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                <span className="font-medium">Window</span>
               </TabsTrigger>
-              <TabsTrigger value="view" disabled={formState.openMode !== 'view'} className="text-xs gap-1.5">
-                <Eye className="h-3 w-3" />
-                View
+              <TabsTrigger
+                value="view"
+                disabled={formState.openMode !== 'view'}
+                className="text-xs gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all disabled:opacity-40"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span className="font-medium">View</span>
               </TabsTrigger>
             </TabsList>
           </div>
 
           {/* General Tab - 2-Column Layout */}
-          <TabsContent value="general" className="m-0 p-4 space-y-3">
+          <TabsContent value="general" className="m-0 p-5 space-y-4">
             {/* Caption & ID - Side by Side */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="caption" className="text-sm font-medium flex items-center gap-1.5">
@@ -193,10 +228,10 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-1" />
 
             {/* Icon & Sort Order - Side by Side */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="icon" className="text-sm font-medium flex items-center gap-1.5">
                   <Image className="h-3 w-3 text-muted-foreground" />
@@ -239,7 +274,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-1" />
 
             {/* URL - Full Width */}
             <div className="space-y-1.5">
@@ -302,9 +337,9 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
           </TabsContent>
 
           {/* Window Tab - 2-Column Grid */}
-          <TabsContent value="window" className="m-0 p-4 space-y-3">
+          <TabsContent value="window" className="m-0 p-5 space-y-4">
             {/* Dimensions - 2 Columns */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Width (px)</Label>
                 <Input
@@ -360,11 +395,11 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
               </div>
             </div>
 
-            <Separator />
+            <Separator className="my-1" />
 
             {/* Options - 2 Columns */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
                 <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Maximize2 className="h-3 w-3 text-muted-foreground" />
                   Resizable
@@ -379,7 +414,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                 />
               </div>
 
-              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
                 <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Square className="h-3 w-3 text-muted-foreground" />
                   Maximizable
@@ -394,7 +429,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                 />
               </div>
 
-              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
                 <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Minimize2 className="h-3 w-3 text-muted-foreground" />
                   Minimizable
@@ -409,7 +444,7 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
                 />
               </div>
 
-              <div className="flex items-center justify-between px-2 py-1.5 rounded border bg-card hover:bg-accent/30 transition-colors">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
                 <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
                   <Monitor className="h-3 w-3 text-muted-foreground" />
                   Center
@@ -427,8 +462,8 @@ function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPa
           </TabsContent>
 
           {/* View Tab - 2 Column */}
-          <TabsContent value="view" className="m-0 p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+          <TabsContent value="view" className="m-0 p-5 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Width (px)</Label>
                 <Input
