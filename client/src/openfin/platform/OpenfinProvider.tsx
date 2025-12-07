@@ -10,8 +10,7 @@ import {
   DockConfiguration
 } from '@stern/openfin-platform';
 import { TopTabBar } from '@/components/provider/navigation/TopTabBar';
-import { DockConfigEditor } from '@/components/provider/forms/DockConfigEditor';
-import { DataProviderEditor } from '@/components/provider/editors/DataProviderEditor';
+import DockConfigEditor from '@/components/provider/forms/DockConfigEditor';
 import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/ui/use-toast';
 import * as dock from './openfinDock';
@@ -54,6 +53,11 @@ const DashboardContent: React.FC<DashboardContentProps> = ({ activeTab, onTabCha
   // Note: useOpenfinTheme is called at App level, no need to call here
   // Calling it here causes performance issues and excessive re-subscriptions
 
+  // Set window title
+  useEffect(() => {
+    document.title = 'Dock Configurator';
+  }, []);
+
   // Log on mount (for debugging only)
   useEffect(() => {
     logger.info('[PROVIDER WINDOW] DashboardContent mounted', {
@@ -71,7 +75,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({ activeTab, onTabCha
       />
       <main className="flex-1 overflow-hidden">
         {activeTab === 'dock' && <DockConfigEditor />}
-        {activeTab === 'providers' && <DataProviderEditor />}
         {activeTab === 'settings' && <SettingsPanel />}
         {activeTab === 'help' && <HelpPanel />}
       </main>
@@ -319,41 +322,41 @@ export default function Provider() {
               light: {
                 brandPrimary: "#0A76D3",
                 brandSecondary: "#1E1F23",
-                backgroundPrimary: "#FFFFFF",
-                background1: "#FAFBFE",
-                background2: "#F5F6FA",
-                background3: "#ECEEF5",
-                background4: "#E0E3EB",
-                background5: "#D4D8E1",
-                background6: "#A8ADB9",
+                backgroundPrimary: "#F3F3F3",
+                background1: "#EEEFF2",
+                background2: "#E9EAEE",
+                background3: "#E0E2E9",
+                background4: "#D4D7DF",
+                background5: "#C8CCD5",
+                background6: "#9CA1AD",
                 statusSuccess: "#35C759",
                 statusWarning: "#FF9500",
                 statusCritical: "#FF3B30",
                 statusActive: "#0A76D3",
-                inputBackground: "#FFFFFF",
+                inputBackground: "#F3F3F3",
                 inputColor: "#1E1F23",
-                inputPlaceholder: "#A8ADB9",
-                inputDisabled: "#D4D8E1",
+                inputPlaceholder: "#9CA1AD",
+                inputDisabled: "#C8CCD5",
                 inputFocused: "#0A76D3",
                 textDefault: "#1E1F23",
                 textHelp: "#6C757D",
-                textInactive: "#A8ADB9"
+                textInactive: "#9CA1AD"
               },
               dark: {
                 brandPrimary: "#0A76D3",
-                brandSecondary: "#383A40",
-                backgroundPrimary: "#000000",
-                background1: "#111214",
-                background2: "#1E1F23",
-                background3: "#24262B",
-                background4: "#2F3136",
-                background5: "#383A40",
-                background6: "#53565F",
+                brandSecondary: "#45474D",
+                backgroundPrimary: "#0D0D0D",
+                background1: "#1E1F21",
+                background2: "#2B2C30",
+                background3: "#313338",
+                background4: "#3C3D43",
+                background5: "#45474D",
+                background6: "#60636C",
                 statusSuccess: "#35C759",
                 statusWarning: "#FF9500",
                 statusCritical: "#FF3B30",
                 statusActive: "#0879C4",
-                inputBackground: "#53565F",
+                inputBackground: "#60636C",
                 inputColor: "#FFFFFF",
                 inputPlaceholder: "#C9CBD2",
                 inputDisabled: "#7D808A",

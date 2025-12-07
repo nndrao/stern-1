@@ -22,16 +22,8 @@
           "description": "REST API endpoint for configuration service"
         }
       }
-    },
-    "defaultViewOptions": {
-      "customData": {
-        "platformContext": {
-          "apiUrl": "http://localhost:3001",
-          "environment": "local",
-          "description": "REST API endpoint for configuration service"
-        }
-      }
     }
+    
   },
   "desktopSettings": {
     "systemApps": {
@@ -54,19 +46,6 @@
     "product": "STAR Trading Platform",
     "email": "support@sterntrading.com",
     "forwardErrorReports": false
-  },
-  "customSettings": {
-    "apps": [
-      {
-        "appId": "stern-blotter",
-        "name": "stern-blotter",
-        "title": "STAR Blotter",
-        "description": "Main trading blotter",
-        "url": "http://localhost:5173/",
-        "manifestType": "view",
-        "icons": [{ "src": "http://localhost:5173/star.png" }],
-        "tags": ["trading", "blotter"]
-      }
-    ]
   }
+  
 }

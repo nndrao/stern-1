@@ -1,11 +1,22 @@
 /**
- * Properties Panel Component
- * Displays and edits properties of selected menu items
- * Uses simple props and local state for fast, responsive editing
+ * Properties Panel - Modern & Sophisticated Design
+ *
+ * Design enhancements:
+ * - Enhanced visual hierarchy with refined spacing
+ * - Modern card-based input styling
+ * - Gradient accents and subtle shadows
+ * - Smooth transitions and micro-interactions
+ * - Better color coding for states (unsaved, required, disabled)
+ * - Professional icon integration
+ *
+ * Layout optimizations:
+ * - 2-column grid layout for better horizontal space usage
+ * - Related fields grouped side-by-side
+ * - More content visible without scrolling
+ * - Maintains compact spacing
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,10 +24,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { buildUrl } from '@/openfin/utils';
-import { RefreshCw, Image } from 'lucide-react';
-import { logger } from '@/utils/logger';
-
+import {
+  RefreshCw,
+  Image,
+  Save,
+  RotateCcw,
+  Link2,
+  Tag,
+  Hash,
+  Monitor,
+  Eye,
+  Grid3x3,
+  AlertCircle,
+  Maximize2,
+  Square,
+  Minimize2
+} from 'lucide-react';
 import { DockMenuItem, DEFAULT_WINDOW_OPTIONS, DEFAULT_VIEW_OPTIONS } from '@stern/openfin-platform';
 
 interface PropertiesPanelProps {
@@ -25,466 +50,456 @@ interface PropertiesPanelProps {
   onIconSelect: (callback: (icon: string) => void) => void;
 }
 
-const PropertiesPanelComponent: React.FC<PropertiesPanelProps> = ({
-  item,
-  onUpdate,
-  onIconSelect
-}) => {
-  // Track component renders
-  logger.info('[STATE_UPDATE] PropertiesPanel rendered', {
-    itemId: item?.id,
-    itemCaption: item?.caption
-  }, 'PropertiesPanel');
+interface FormState extends Partial<DockMenuItem> {
+  hasChanges: boolean;
+}
 
-  // Local state for text inputs - only calls onUpdate on blur
-  const [localCaption, setLocalCaption] = useState(item?.caption || '');
-  const [localId, setLocalId] = useState(item?.id || '');
-  const [localUrl, setLocalUrl] = useState(item?.url || '');
-  const [localIcon, setLocalIcon] = useState(item?.icon || '');
-  const [localOrder, setLocalOrder] = useState(item?.order || 0);
+function PropertiesPanelTwoColumn({ item, onUpdate, onIconSelect }: PropertiesPanelProps) {
+  const [formState, setFormState] = useState<FormState>({ hasChanges: false });
+  const [activeTab, setActiveTab] = useState('general');
 
-  // Local state for window dimension inputs - only calls onUpdate on blur
-  const [localWidth, setLocalWidth] = useState(item?.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width);
-  const [localHeight, setLocalHeight] = useState(item?.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height);
-  const [localMinWidth, setLocalMinWidth] = useState(item?.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth);
-  const [localMinHeight, setLocalMinHeight] = useState(item?.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight);
-
-  // Local state for view dimension inputs - only calls onUpdate on blur
-  const [localViewWidth, setLocalViewWidth] = useState(item?.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width);
-  const [localViewHeight, setLocalViewHeight] = useState(item?.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height);
-
-  // Sync local state when item changes (different node selected)
   useEffect(() => {
     if (item) {
-      logger.info('[STATE_UPDATE] Syncing local state from item change', { itemId: item.id }, 'PropertiesPanel');
-
-      setLocalCaption(item.caption);
-      setLocalId(item.id);
-      setLocalUrl(item.url || '');
-      setLocalIcon(item.icon || '');
-      setLocalOrder(item.order);
-
-      // Sync window dimension state
-      setLocalWidth(item.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width);
-      setLocalHeight(item.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height);
-      setLocalMinWidth(item.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth);
-      setLocalMinHeight(item.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight);
-
-      // Sync view dimension state
-      setLocalViewWidth(item.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width);
-      setLocalViewHeight(item.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height);
-
-      logger.info('[STATE_UPDATE] Local state synced', {
-        caption: item.caption,
-        windowOptions: { width: item.windowOptions?.width, height: item.windowOptions?.height },
-        viewOptions: { width: item.viewOptions?.bounds?.width, height: item.viewOptions?.bounds?.height }
-      }, 'PropertiesPanel');
+      setFormState({ ...item, hasChanges: false });
     }
   }, [item?.id]);
 
-  // Helper to update item - just calls parent callback
-  const updateItem = useCallback((updates: Partial<DockMenuItem>) => {
-    if (item) {
-      logger.info('[STATE_UPDATE] Calling parent onUpdate (blur event)', {
-        itemId: item.id,
-        updates
-      }, 'PropertiesPanel');
-      onUpdate(item.id, updates);
-    }
-  }, [item?.id, onUpdate]);
+  const updateField = <K extends keyof DockMenuItem>(field: K, value: DockMenuItem[K]) => {
+    setFormState(prev => ({ ...prev, [field]: value, hasChanges: true }));
+  };
 
-  // Generate unique ID
-  const generateId = useCallback(() => {
-    const id = `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    setLocalId(id);
-    updateItem({ id });
-  }, [updateItem]);
+  const applyChanges = () => {
+    if (!item) return;
+    const { hasChanges, ...updates } = formState;
+    onUpdate(item.id, updates);
+    setFormState(prev => ({ ...prev, hasChanges: false }));
+  };
 
-  // Handle window option changes (immediate update for switches/selects)
-  // PERFORMANCE: Don't depend on item.windowOptions - access via closure
-  const handleWindowOptionChange = useCallback((key: string, value: any) => {
-    if (item) {
-      updateItem({
-        windowOptions: {
-          ...item.windowOptions,
-          [key]: value
-        }
-      });
-    }
-  }, [item?.id, updateItem]);
+  const resetChanges = () => {
+    if (item) setFormState({ ...item, hasChanges: false });
+  };
 
-  // Handle view option changes (immediate update for switches/selects)
-  // PERFORMANCE: Don't depend on item.viewOptions - access via closure
-  const handleViewOptionChange = useCallback((key: string, value: any) => {
-    if (item) {
-      updateItem({
-        viewOptions: {
-          ...item.viewOptions,
-          [key]: value
-        }
-      });
-    }
-  }, [item?.id, updateItem]);
+  const generateId = () => {
+    updateField('id', `menu-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  };
 
-  // Memoize full URL construction
+  const handleIconClick = () => {
+    onIconSelect((icon) => updateField('icon', icon));
+  };
+
   const fullUrl = useMemo(() =>
-    item?.url ? buildUrl(item.url) : '',
-    [item?.url]
+    formState.url ? buildUrl(formState.url) : '',
+    [formState.url]
   );
 
-  // If no item selected, show empty state
+  const errors = useMemo(() => {
+    const errs: string[] = [];
+    if (!formState.caption?.trim()) errs.push('Caption required');
+    if (!formState.id?.trim()) errs.push('ID required');
+    return errs;
+  }, [formState.caption, formState.id]);
+
   if (!item) {
     return (
-      <Card className="h-full flex items-center justify-center">
-        <CardContent className="text-center">
-          <p className="text-muted-foreground">
-            Select a menu item to edit its properties
-          </p>
-        </CardContent>
-      </Card>
+      <div className="h-full flex items-center justify-center p-6">
+        <div className="text-center space-y-4 max-w-xs">
+          <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center shadow-sm">
+            <Tag className="h-10 w-10 text-primary/60" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-base font-semibold text-foreground">No Item Selected</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Select a menu item from the tree to view and edit its properties
+            </p>
+          </div>
+        </div>
+      </div>
     );
   }
 
+  const hasChildren = item.children && item.children.length > 0;
+
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Item Properties</CardTitle>
-        <CardDescription>
-          Configure the selected menu item
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="window" disabled={item.openMode !== 'window'}>
-              Window
-            </TabsTrigger>
-            <TabsTrigger value="view" disabled={item.openMode !== 'view'}>
-              View
-            </TabsTrigger>
-          </TabsList>
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Enhanced Tab Bar */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b px-4 pt-4 pb-3">
+            <TabsList className="grid w-full grid-cols-3 h-9 bg-muted/50 border border-border/50 p-1">
+              <TabsTrigger
+                value="general"
+                className="text-xs gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                <span className="font-medium">General</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="window"
+                disabled={formState.openMode !== 'window'}
+                className="text-xs gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all disabled:opacity-40"
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                <span className="font-medium">Window</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="view"
+                disabled={formState.openMode !== 'view'}
+                className="text-xs gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all disabled:opacity-40"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span className="font-medium">View</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          <TabsContent value="general" className="space-y-4">
-            {/* Caption */}
-            <div className="space-y-2">
-              <Label htmlFor="caption">Caption *</Label>
-              <Input
-                id="caption"
-                value={localCaption}
-                onChange={(e) => setLocalCaption(e.target.value)}
-                onBlur={() => updateItem({ caption: localCaption })}
-                placeholder="Menu item text"
-                required
-              />
-            </div>
-
-            {/* ID */}
-            <div className="space-y-2">
-              <Label htmlFor="id">Unique ID *</Label>
-              <div className="flex gap-2">
+          {/* General Tab - 2-Column Layout */}
+          <TabsContent value="general" className="m-0 p-5 space-y-4">
+            {/* Caption & ID - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="caption" className="text-sm font-medium flex items-center gap-1.5">
+                  <Tag className="h-3 w-3 text-muted-foreground" />
+                  Display Name
+                  <span className="text-red-600 dark:text-red-500 ml-0.5">*</span>
+                </Label>
                 <Input
-                  id="id"
-                  value={localId}
-                  onChange={(e) => setLocalId(e.target.value)}
-                  onBlur={() => updateItem({ id: localId })}
-                  placeholder="Unique identifier"
-                  required
+                  id="caption"
+                  value={formState.caption || ''}
+                  onChange={(e) => updateField('caption', e.target.value)}
+                  placeholder="Menu item name"
+                  className="h-8 text-sm"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={generateId}
-                  title="Generate ID"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="id" className="text-sm font-medium flex items-center gap-1.5">
+                  <Hash className="h-3 w-3 text-muted-foreground" />
+                  Unique ID
+                  <span className="text-red-600 dark:text-red-500 ml-0.5">*</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="id"
+                    value={formState.id || ''}
+                    onChange={(e) => updateField('id', e.target.value)}
+                    placeholder="menu-item-id"
+                    className="flex-1 h-8 font-mono text-xs"
+                  />
+                  <Button variant="outline" size="icon" onClick={generateId} className="h-8 w-8 flex-shrink-0">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
             </div>
 
-            {/* URL */}
-            <div className="space-y-2">
-              <Label htmlFor="url">Component URL</Label>
+            <Separator className="my-1" />
+
+            {/* Icon & Sort Order - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="icon" className="text-sm font-medium flex items-center gap-1.5">
+                  <Image className="h-3 w-3 text-muted-foreground" />
+                  Icon
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="icon"
+                    value={formState.icon || ''}
+                    onChange={(e) => updateField('icon', e.target.value)}
+                    placeholder="/icons/app.svg"
+                    className="flex-1 h-8 font-mono text-xs"
+                  />
+                  <Button variant="outline" size="icon" onClick={handleIconClick} className="h-8 w-8 flex-shrink-0">
+                    <Image className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {formState.icon && (
+                  <div className="flex items-center gap-2 p-1.5 rounded bg-muted/50 border">
+                    <img src={formState.icon} alt="" className="h-4 w-4" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
+                    <span className="text-xs text-muted-foreground font-mono truncate">{formState.icon}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="order" className="text-sm font-medium flex items-center gap-1.5">
+                  <Grid3x3 className="h-3 w-3 text-muted-foreground" />
+                  Sort Order
+                </Label>
+                <Input
+                  id="order"
+                  type="number"
+                  value={formState.order || 0}
+                  onChange={(e) => updateField('order', parseInt(e.target.value) || 0)}
+                  min="0"
+                  className="h-8"
+                />
+                <p className="text-xs text-muted-foreground">Lower numbers appear first</p>
+              </div>
+            </div>
+
+            <Separator className="my-1" />
+
+            {/* URL - Full Width */}
+            <div className="space-y-1.5">
+              <Label htmlFor="url" className="text-sm font-medium flex items-center gap-1.5">
+                <Link2 className="h-3 w-3 text-muted-foreground" />
+                Component URL
+              </Label>
               <Input
                 id="url"
-                value={localUrl}
-                onChange={(e) => setLocalUrl(e.target.value)}
-                onBlur={() => updateItem({ url: localUrl })}
-                placeholder="/data-grid, /watchlist, etc."
-                disabled={item.children && item.children.length > 0}
+                value={formState.url || ''}
+                onChange={(e) => updateField('url', e.target.value)}
+                placeholder="/blotters/simple"
+                disabled={hasChildren}
+                className="h-8 font-mono text-xs"
               />
-              {fullUrl && (
-                <p className="text-xs text-muted-foreground">
-                  Full URL: {fullUrl}?id={item.id}
-                </p>
+              {fullUrl && !hasChildren && (
+                <div className="px-2 py-1.5 rounded bg-muted/50 border">
+                  <p className="text-xs font-medium text-muted-foreground mb-0.5">Full URL:</p>
+                  <code className="text-xs text-foreground break-all">{fullUrl}?id={formState.id}</code>
+                </div>
+              )}
+              {hasChildren && (
+                <p className="text-xs text-amber-600">Parent items cannot have a URL</p>
               )}
             </div>
 
-            {/* Open Mode */}
-            <div className="space-y-2">
-              <Label htmlFor="openMode">Open Mode</Label>
+            {/* Open Mode - Full Width */}
+            <div className="space-y-1.5">
+              <Label htmlFor="openMode" className="text-sm font-medium flex items-center gap-1.5">
+                <Monitor className="h-3 w-3 text-muted-foreground" />
+                Open Mode
+              </Label>
               <Select
-                value={item.openMode}
-                onValueChange={(value: 'window' | 'view') => updateItem({ openMode: value })}
-                disabled={item.children && item.children.length > 0}
+                value={formState.openMode || 'window'}
+                onValueChange={(value: 'window' | 'view') => {
+                  updateField('openMode', value);
+                  setActiveTab(value === 'window' ? 'window' : 'view');
+                }}
+                disabled={hasChildren}
               >
-                <SelectTrigger id="openMode">
+                <SelectTrigger id="openMode" className="h-8">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="window">New Window</SelectItem>
-                  <SelectItem value="view">New View (Tab)</SelectItem>
+                  <SelectItem value="window">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Monitor className="h-3 w-3" />
+                      New Window
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="view">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Eye className="h-3 w-3" />
+                      New View (Tab)
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </TabsContent>
 
-            {/* Icon */}
-            <div className="space-y-2">
-              <Label htmlFor="icon">Icon</Label>
-              <div className="flex gap-2">
+          {/* Window Tab - 2-Column Grid */}
+          <TabsContent value="window" className="m-0 p-5 space-y-4">
+            {/* Dimensions - 2 Columns */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Width (px)</Label>
                 <Input
-                  id="icon"
-                  value={localIcon}
-                  onChange={(e) => setLocalIcon(e.target.value)}
-                  onBlur={() => updateItem({ icon: localIcon })}
-                  placeholder="/icons/app.svg"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => onIconSelect((icon) => {
-                    setLocalIcon(icon);
-                    updateItem({ icon });
+                  type="number"
+                  value={formState.windowOptions?.width || DEFAULT_WINDOW_OPTIONS.width}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    width: parseInt(e.target.value) || 0
                   })}
-                  title="Select Icon"
-                >
-                  <Image className="h-4 w-4" />
-                </Button>
+                  min="100"
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Height (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.windowOptions?.height || DEFAULT_WINDOW_OPTIONS.height}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    height: parseInt(e.target.value) || 0
+                  })}
+                  min="100"
+                  className="h-8"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Min Width (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.windowOptions?.minWidth || DEFAULT_WINDOW_OPTIONS.minWidth}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    minWidth: parseInt(e.target.value) || 0
+                  })}
+                  min="0"
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Min Height (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.windowOptions?.minHeight || DEFAULT_WINDOW_OPTIONS.minHeight}
+                  onChange={(e) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    minHeight: parseInt(e.target.value) || 0
+                  })}
+                  min="0"
+                  className="h-8"
+                />
               </div>
             </div>
 
-            {/* Order */}
-            <div className="space-y-2">
-              <Label htmlFor="order">Sort Order</Label>
-              <Input
-                id="order"
-                type="number"
-                value={localOrder}
-                onChange={(e) => setLocalOrder(parseInt(e.target.value) || 0)}
-                onBlur={() => updateItem({ order: localOrder })}
-                min="0"
-              />
-            </div>
-          </TabsContent>
+            <Separator className="my-1" />
 
-          <TabsContent value="window" className="space-y-4">
-            <div className="space-y-4">
-              {/* Window Dimensions */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Dimensions</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="width">Width</Label>
-                    <Input
-                      id="width"
-                      type="number"
-                      value={localWidth}
-                      onChange={(e) => {
-                        const newValue = parseInt(e.target.value) || 0;
-                        logger.info('[STATE_UPDATE] Width onChange (local state only)', { oldValue: localWidth, newValue }, 'PropertiesPanel');
-                        setLocalWidth(newValue);
-                      }}
-                      onBlur={() => {
-                        logger.info('[STATE_UPDATE] Width onBlur (updating parent)', { value: localWidth }, 'PropertiesPanel');
-                        handleWindowOptionChange('width', localWidth);
-                      }}
-                      min="100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="height">Height</Label>
-                    <Input
-                      id="height"
-                      type="number"
-                      value={localHeight}
-                      onChange={(e) => setLocalHeight(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleWindowOptionChange('height', localHeight)}
-                      min="100"
-                    />
-                  </div>
-                </div>
+            {/* Options - 2 Columns */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                  <Maximize2 className="h-3 w-3 text-muted-foreground" />
+                  Resizable
+                </Label>
+                <Switch
+                  checked={formState.windowOptions?.resizable ?? DEFAULT_WINDOW_OPTIONS.resizable}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    resizable: checked
+                  })}
+                  className="scale-75"
+                />
               </div>
 
-              <Separator />
-
-              {/* Window Constraints */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Size Constraints</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="minWidth">Min Width</Label>
-                    <Input
-                      id="minWidth"
-                      type="number"
-                      value={localMinWidth}
-                      onChange={(e) => setLocalMinWidth(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleWindowOptionChange('minWidth', localMinWidth)}
-                      min="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="minHeight">Min Height</Label>
-                    <Input
-                      id="minHeight"
-                      type="number"
-                      value={localMinHeight}
-                      onChange={(e) => setLocalMinHeight(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleWindowOptionChange('minHeight', localMinHeight)}
-                      min="0"
-                    />
-                  </div>
-                </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                  <Square className="h-3 w-3 text-muted-foreground" />
+                  Maximizable
+                </Label>
+                <Switch
+                  checked={formState.windowOptions?.maximizable ?? DEFAULT_WINDOW_OPTIONS.maximizable}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    maximizable: checked
+                  })}
+                  className="scale-75"
+                />
               </div>
 
-              <Separator />
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                  <Minimize2 className="h-3 w-3 text-muted-foreground" />
+                  Minimizable
+                </Label>
+                <Switch
+                  checked={formState.windowOptions?.minimizable ?? DEFAULT_WINDOW_OPTIONS.minimizable}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    minimizable: checked
+                  })}
+                  className="scale-75"
+                />
+              </div>
 
-              {/* Window Options */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Window Options</h4>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="resizable">Resizable</Label>
-                    <Switch
-                      id="resizable"
-                      checked={item.windowOptions?.resizable ?? DEFAULT_WINDOW_OPTIONS.resizable}
-                      onCheckedChange={(checked) => handleWindowOptionChange('resizable', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="maximizable">Maximizable</Label>
-                    <Switch
-                      id="maximizable"
-                      checked={item.windowOptions?.maximizable ?? DEFAULT_WINDOW_OPTIONS.maximizable}
-                      onCheckedChange={(checked) => handleWindowOptionChange('maximizable', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="minimizable">Minimizable</Label>
-                    <Switch
-                      id="minimizable"
-                      checked={item.windowOptions?.minimizable ?? DEFAULT_WINDOW_OPTIONS.minimizable}
-                      onCheckedChange={(checked) => handleWindowOptionChange('minimizable', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="center">Center on Screen</Label>
-                    <Switch
-                      id="center"
-                      checked={item.windowOptions?.center ?? DEFAULT_WINDOW_OPTIONS.center}
-                      onCheckedChange={(checked) => handleWindowOptionChange('center', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="frame">Show Frame</Label>
-                    <Switch
-                      id="frame"
-                      checked={item.windowOptions?.frame ?? DEFAULT_WINDOW_OPTIONS.frame}
-                      onCheckedChange={(checked) => handleWindowOptionChange('frame', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="alwaysOnTop">Always on Top</Label>
-                    <Switch
-                      id="alwaysOnTop"
-                      checked={item.windowOptions?.alwaysOnTop ?? false}
-                      onCheckedChange={(checked) => handleWindowOptionChange('alwaysOnTop', checked)}
-                    />
-                  </div>
-                </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border/60 bg-card hover:bg-accent/40 transition-all shadow-sm">
+                <Label className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                  <Monitor className="h-3 w-3 text-muted-foreground" />
+                  Center
+                </Label>
+                <Switch
+                  checked={formState.windowOptions?.center ?? DEFAULT_WINDOW_OPTIONS.center}
+                  onCheckedChange={(checked) => updateField('windowOptions', {
+                    ...formState.windowOptions,
+                    center: checked
+                  })}
+                  className="scale-75"
+                />
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="view" className="space-y-4">
-            <div className="space-y-4">
-              {/* View Bounds */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">View Bounds</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="viewWidth">Width</Label>
-                    <Input
-                      id="viewWidth"
-                      type="number"
-                      value={localViewWidth}
-                      onChange={(e) => setLocalViewWidth(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleViewOptionChange('bounds', {
-                        ...item.viewOptions?.bounds,
-                        width: localViewWidth
-                      })}
-                      min="100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="viewHeight">Height</Label>
-                    <Input
-                      id="viewHeight"
-                      type="number"
-                      value={localViewHeight}
-                      onChange={(e) => setLocalViewHeight(parseInt(e.target.value) || 0)}
-                      onBlur={() => handleViewOptionChange('bounds', {
-                        ...item.viewOptions?.bounds,
-                        height: localViewHeight
-                      })}
-                      min="100"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Custom Data */}
-              <div>
-                <h4 className="text-sm font-medium mb-3">Custom Data (JSON)</h4>
-                <textarea
-                  className="w-full h-32 p-2 text-sm border rounded-md font-mono"
-                  value={JSON.stringify(item.viewOptions?.customData || {}, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      const customData = JSON.parse(e.target.value);
-                      handleViewOptionChange('customData', customData);
-                    } catch {
-                      // Invalid JSON, ignore
+          {/* View Tab - 2 Column */}
+          <TabsContent value="view" className="m-0 p-5 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Width (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width}
+                  onChange={(e) => updateField('viewOptions', {
+                    ...formState.viewOptions,
+                    bounds: {
+                      ...formState.viewOptions?.bounds,
+                      width: parseInt(e.target.value) || 0,
+                      height: formState.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height
                     }
-                  }}
-                  placeholder="{}"
+                  })}
+                  min="100"
+                  className="h-8"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Height (px)</Label>
+                <Input
+                  type="number"
+                  value={formState.viewOptions?.bounds?.height || DEFAULT_VIEW_OPTIONS.bounds.height}
+                  onChange={(e) => updateField('viewOptions', {
+                    ...formState.viewOptions,
+                    bounds: {
+                      ...formState.viewOptions?.bounds,
+                      height: parseInt(e.target.value) || 0,
+                      width: formState.viewOptions?.bounds?.width || DEFAULT_VIEW_OPTIONS.bounds.width
+                    }
+                  })}
+                  min="100"
+                  className="h-8"
                 />
               </div>
             </div>
           </TabsContent>
         </Tabs>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Enhanced Action Bar - Moved to Bottom */}
+      {formState.hasChanges && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-t border-border/50 shadow-sm">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 border border-primary/20">
+              <AlertCircle className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              You have unsaved changes
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetChanges}
+            className="h-8 px-3 hover:bg-accent transition-all"
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+            <span className="text-xs font-medium">Discard</span>
+          </Button>
+          <Button
+            size="sm"
+            onClick={applyChanges}
+            disabled={errors.length > 0}
+            className="h-8 px-4 shadow-sm"
+          >
+            <Save className="h-3.5 w-3.5 mr-1.5" />
+            <span className="text-xs font-medium">Apply Changes</span>
+          </Button>
+        </div>
+      )}
+    </div>
   );
-};
+}
 
-// Memoize component to prevent re-renders when item reference changes but data is the same
-// This happens because TreeView finds and returns new object references on every click
-export const PropertiesPanel = React.memo(PropertiesPanelComponent, (prevProps, nextProps) => {
-  // Only re-render if the item ID changes or item becomes null/non-null
-  // Don't compare by reference - TreeView returns new objects from tree traversal
-  const prevId = prevProps.item?.id;
-  const nextId = nextProps.item?.id;
-
-  // If ID is the same, don't re-render (callbacks are stable via useCallback)
-  const isSameItem = prevId === nextId;
-
-  logger.info('[STATE_UPDATE] PropertiesPanel memo comparison', {
-    prevId,
-    nextId,
-    willRerender: !isSameItem
-  }, 'PropertiesPanel');
-
-  return isSameItem;
-});
+export const PropertiesPanel = PropertiesPanelTwoColumn;

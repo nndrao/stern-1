@@ -419,7 +419,7 @@ async function updateAllDockIcons(): Promise<void> {
  */
 export function dockGetCustomActions(): CustomActionsMap {
   logger.info('[DOCK] Registering custom actions', {
-    actions: ['launch-component', 'reload-dock', 'show-dock-devtools', 'set-theme', 'toggle-theme', 'toggle-provider-window', 'show-system-diagnostics']
+    actions: ['launch-component', 'reload-dock', 'reload-dock-from-db', 'show-dock-devtools', 'set-theme', 'toggle-theme', 'toggle-provider-window', 'show-system-diagnostics']
   }, 'dock');
 
   return {
@@ -497,6 +497,65 @@ export function dockGetCustomActions(): CustomActionsMap {
         logger.info('Dock reload complete', undefined, 'dock');
       } catch (error) {
         logger.error('Failed to reload dock', error, 'dock');
+      }
+    },
+
+    /**
+     * Reload dock configuration from database
+     *
+     * This fetches the latest configuration from the API and re-registers the dock.
+     * Used after saving changes in the dock configurator.
+     */
+    'reload-dock-from-db': async (payload?: CustomActionPayload): Promise<void> => {
+      try {
+        logger.info('Reloading dock configuration from database', undefined, 'dock');
+
+        // Import the necessary services
+        const { dockConfigService } = await import('@/services/api/dockConfigService');
+        const { buildUrl } = await import('@/openfin/utils');
+
+        // Fetch latest configuration from database
+        const menuItemsConfig = await dockConfigService.loadApplicationsMenuItems('System');
+
+        if (!menuItemsConfig) {
+          logger.error('No dock configuration found in database', undefined, 'dock');
+          return;
+        }
+
+        logger.info('Fetched latest dock configuration', {
+          configId: menuItemsConfig.configId,
+          menuItemsCount: menuItemsConfig.config.menuItems.length
+        }, 'dock');
+
+        // Convert to DockConfiguration
+        const dockConfig = {
+          ...menuItemsConfig,
+          componentType: 'dock' as const,
+          componentSubType: 'default' as const
+        };
+
+        // Deregister current dock
+        await Dock.deregister();
+        logger.debug('Dock deregistered', undefined, 'dock');
+
+        // Wait for cleanup
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Get platform icon
+        const platform = getCurrentSync();
+        const icon = (platform as any).identity?.icon || buildUrl('/star.png');
+
+        // Re-register with new configuration
+        const result = await registerFromConfig(dockConfig, icon);
+        logger.info('Dock re-registered with fresh database configuration', {
+          menuItemsCount: menuItemsConfig.config.menuItems.length
+        }, 'dock');
+
+        // Show the dock
+        await Dock.show();
+        logger.info('Dock reload from database complete', undefined, 'dock');
+      } catch (error) {
+        logger.error('Failed to reload dock from database', error, 'dock');
       }
     },
 
@@ -781,6 +840,52 @@ export function dockGetCustomActions(): CustomActionsMap {
     },
 
     /**
+     * Open data provider configuration window
+     */
+    'open-data-provider-config': async (): Promise<void> => {
+      try {
+        logger.info('Opening data provider configuration', undefined, 'dock');
+
+        // Check if window already exists
+        const windowName = 'data-provider-config';
+        try {
+          const existingWindow = fin.Window.wrapSync({
+            uuid: fin.me.uuid,
+            name: windowName
+          });
+          await existingWindow.setAsForeground();
+          await existingWindow.focus();
+          logger.info('Data provider config window focused', undefined, 'dock');
+          return;
+        } catch {
+          // Window doesn't exist, create it
+        }
+
+        // Create new window
+        const { getCurrentSync } = await import('@openfin/workspace-platform');
+        const platform = getCurrentSync();
+
+        await platform.createWindow({
+          name: windowName,
+          url: 'http://localhost:5173/config/data-providers',
+          defaultWidth: 1200,
+          defaultHeight: 800,
+          defaultCentered: true,
+          autoShow: true,
+          frame: true,
+          resizable: true,
+          maximizable: true,
+          minimizable: true,
+          saveWindowState: false
+        });
+
+        logger.info('Data provider config window opened', undefined, 'dock');
+      } catch (error) {
+        logger.error('Failed to open data provider config', error, 'dock');
+      }
+    },
+
+    /**
      * Show system diagnostics - displays OpenFin version info and warnings
      */
     'show-system-diagnostics': async (): Promise<void> => {
@@ -1044,6 +1149,13 @@ function buildSystemButtons(): DockButton[] {
           iconUrl: getThemedIcon('dev-tools'),
           action: {
             id: 'show-system-diagnostics'
+          }
+        },
+        {
+          tooltip: 'Data Providers',
+          iconUrl: getThemedIcon('data'),
+          action: {
+            id: 'open-data-provider-config'
           }
         },
         {

@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { useTheme } from 'next-themes';
 import {
   LayoutDashboard,
-  Database,
   Settings,
   HelpCircle,
   Moon,
@@ -33,11 +32,6 @@ const navItems: NavItem[] = [
     id: 'dock',
     label: 'Dock',
     icon: <LayoutDashboard className="h-4 w-4" />
-  },
-  {
-    id: 'providers',
-    label: 'Data Providers',
-    icon: <Database className="h-4 w-4" />
   },
   {
     id: 'settings',
@@ -89,13 +83,7 @@ export const TopTabBar: React.FC<TopTabBarProps> = ({
 
   return (
     <div className="flex items-center justify-between h-10 px-3 bg-muted/30 border-b border-border">
-      {/* Left: App Title */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-foreground">STAR Platform</span>
-        <span className="text-xs text-muted-foreground">v1.0.0</span>
-      </div>
-
-      {/* Center: Navigation Tabs */}
+      {/* Left: Navigation Tabs */}
       <nav className="flex items-center gap-1">
         {navItems.map((item) => (
           <button
