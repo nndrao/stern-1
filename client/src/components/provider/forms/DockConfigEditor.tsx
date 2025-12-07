@@ -305,91 +305,29 @@ export default function DockConfigEditor() {
   const itemCount = menuItems.length;
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-background via-background to-muted/10">
-      {/* Header */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <FolderTree className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold tracking-tight">Dock Configuration</h1>
-                <p className="text-sm text-muted-foreground flex items-center gap-2 mt-0.5">
-                  <Badge variant="outline" className="h-5 px-1.5 text-xs">
-                    {itemCount} {itemCount === 1 ? 'item' : 'items'}
-                  </Badge>
-                  {isDirty && (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
-                      Unsaved changes
-                    </Badge>
-                  )}
-                  {validationErrors.length > 0 && (
-                    <Badge variant="destructive" className="h-5 px-1.5 text-xs">
-                      {validationErrors.length} {validationErrors.length === 1 ? 'error' : 'errors'}
-                    </Badge>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleImport}
-                className="h-9"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Import
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                disabled={!currentConfig}
-                className="h-9"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-              <Separator orientation="vertical" className="h-6" />
-              <Button
-                onClick={handleSave}
-                disabled={!isDirty || saveMutation.isPending}
-                size="sm"
-                className="h-9 min-w-[100px]"
-              >
-                {saveMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full bg-background">
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden p-6 gap-6">
+      <div className="flex flex-1 overflow-hidden p-4 gap-4">
         {/* Left Panel - Tree */}
-        <Card className="w-[380px] flex flex-col shadow-lg border-muted/40">
-          <CardHeader className="pb-3 space-y-1">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <FolderTree className="h-4 w-4 text-muted-foreground" />
-              Menu Structure
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Drag and drop to reorder menu items
-            </CardDescription>
+        <Card className="w-[380px] flex flex-col shadow-sm">
+          <CardHeader className="pb-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <FolderTree className="h-4 w-4 text-muted-foreground" />
+                Menu Structure
+                <Badge variant="outline" className="h-5 px-1.5 text-xs font-normal ml-1">
+                  {itemCount}
+                </Badge>
+              </CardTitle>
+              <Button
+                onClick={() => handleAddMenuItem()}
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </CardHeader>
           <Separator />
           <CardContent className="flex-1 overflow-hidden p-0">
@@ -407,33 +345,69 @@ export default function DockConfigEditor() {
               </div>
             </ScrollArea>
           </CardContent>
-          <Separator />
-          <div className="p-4">
-            <Button
-              onClick={() => handleAddMenuItem()}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Menu Item
-            </Button>
-          </div>
         </Card>
 
         {/* Right Panel - Properties */}
-        <Card className="flex-1 flex flex-col shadow-lg border-muted/40">
-          <CardHeader className="pb-3 space-y-1">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              {selectedItem ? 'Properties' : 'No Selection'}
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {selectedItem
-                ? `Editing: ${selectedItem.caption || 'Unnamed Item'}`
-                : 'Select a menu item to edit its properties'
-              }
-            </CardDescription>
+        <Card className="flex-1 flex flex-col shadow-sm">
+          <CardHeader className="pb-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  {selectedItem ? selectedItem.caption || 'Unnamed Item' : 'Properties'}
+                </CardTitle>
+                {isDirty && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                    Unsaved
+                  </Badge>
+                )}
+                {validationErrors.length > 0 && (
+                  <Badge variant="destructive" className="h-5 px-1.5 text-xs">
+                    {validationErrors.length}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleImport}
+                  className="h-7 px-2"
+                  title="Import configuration"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExport}
+                  disabled={!currentConfig}
+                  className="h-7 px-2"
+                  title="Export configuration"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+                <Separator orientation="vertical" className="h-4" />
+                <Button
+                  onClick={handleSave}
+                  disabled={!isDirty || saveMutation.isPending}
+                  size="sm"
+                  className="h-7 px-3 gap-1.5"
+                >
+                  {saveMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span className="text-xs">Saving</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-3.5 w-3.5" />
+                      <span className="text-xs">Save</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <Separator />
           <CardContent className="flex-1 overflow-hidden p-0">
