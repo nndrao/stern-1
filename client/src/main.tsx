@@ -33,6 +33,7 @@ const SimpleBlotter = lazy(() => import('./components/widgets/blotters/simpleblo
 const RenameViewDialog = lazy(() => import('./routes/RenameViewDialog'));
 const ManageLayoutsDialog = lazy(() => import('./routes/dialogs/ManageLayoutsDialog'));
 const DataProviderConfigWindow = lazy(() => import('./components/provider/DataProviderConfigWindow'));
+const ToolbarCustomizationWindow = lazy(() => import('./components/provider/ToolbarCustomizationWindow'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -81,6 +82,14 @@ createRoot(document.getElementById('root')!).render(
                   element={
                     <Suspense fallback={<LoadingFallback />}>
                       <DataProviderConfigWindow />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/config/toolbar-customization"
+                  element={
+                    <Suspense fallback={<LoadingFallback />}>
+                      <ToolbarCustomizationWindow />
                     </Suspense>
                   }
                 />

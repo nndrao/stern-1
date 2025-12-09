@@ -52,6 +52,7 @@ import {
   Wand2,
   ChevronUp,
   ChevronDown,
+  Save,
 } from 'lucide-react';
 import { ActionPickerWizard, ActionPickerResult } from './ActionPickerWizard';
 import { IconPickerDialog, resolveIcon } from './IconPickerDialog';
@@ -326,6 +327,7 @@ const ButtonEditor: React.FC<ButtonEditorProps> = ({
             action: result.actionId,
             actionData: result.actionData,
           });
+          setShowActionPicker(false);
         }}
       />
 
@@ -376,10 +378,13 @@ const ButtonListItem: React.FC<ButtonListItemProps> = ({
   return (
     <div
       className={`
-        flex items-center gap-2 p-2 border rounded-lg bg-background
+        flex items-center gap-2 p-2.5 rounded-lg transition-all duration-200
         ${button.visible === false ? 'opacity-50' : ''}
-        ${button.isNew ? 'border-primary border-dashed' : ''}
-        ${isSelected ? 'ring-2 ring-primary' : ''}
+        ${button.isNew ? 'border border-primary/30 border-dashed bg-primary/5' : 'border border-transparent'}
+        ${isSelected
+          ? 'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 shadow-sm'
+          : 'hover:bg-accent/60 hover:border-border/50'
+        }
       `}
     >
       {/* Reorder Buttons */}
@@ -694,32 +699,31 @@ export const ToolbarCustomizationWizard: React.FC<ToolbarCustomizationWizardProp
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>Customize Toolbar</DialogTitle>
-          <DialogDescription>
-            Add, remove, and configure toolbar buttons. Changes are saved with
-            your layout.
-          </DialogDescription>
-        </DialogHeader>
-
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 bg-gradient-to-br from-background via-background to-muted/5">
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as any)}
           className="flex-1 flex flex-col min-h-0"
         >
-          <div className="px-6">
-            <TabsList>
-              <TabsTrigger value="main">
-                Main Toolbar
-                <Badge variant="secondary" className="ml-1.5">
+          {/* Enhanced Tab Bar */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b px-6 pt-6 pb-3">
+            <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/50 border border-border/50 p-1">
+              <TabsTrigger
+                value="main"
+                className="text-sm gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+              >
+                <span className="font-medium">Main Toolbar</span>
+                <Badge variant="secondary" className="h-5 px-2 text-xs font-medium border-border/50 shadow-sm">
                   {buttons.length}
                 </Badge>
               </TabsTrigger>
-              <TabsTrigger value="additional">
-                Additional Toolbars
+              <TabsTrigger
+                value="additional"
+                className="text-sm gap-2 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all"
+              >
+                <span className="font-medium">Additional Toolbars</span>
                 {additionalToolbars.length > 0 && (
-                  <Badge variant="secondary" className="ml-1.5">
+                  <Badge variant="secondary" className="h-5 px-2 text-xs font-medium border-border/50 shadow-sm">
                     {additionalToolbars.length}
                   </Badge>
                 )}
@@ -738,20 +742,34 @@ export const ToolbarCustomizationWizard: React.FC<ToolbarCustomizationWizardProp
               <ToolbarPreview buttons={buttons} />
 
               {/* Button List Header */}
-              <div className="flex items-center justify-between mt-4 mb-2">
-                <Label>Custom Buttons</Label>
-                <Button size="sm" onClick={handleAddButton}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Button
+              <div className="flex items-center justify-between mt-4 mb-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-semibold">Custom Buttons</Label>
+                  <Badge variant="outline" className="h-5 px-2 text-xs font-medium">
+                    {buttons.length} button{buttons.length !== 1 ? 's' : ''}
+                  </Badge>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleAddButton}
+                  className="h-8 px-3 gap-1.5 shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-primary to-primary/90"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="text-xs font-medium">Add Button</span>
                 </Button>
               </div>
 
               {/* Button List */}
               <ScrollArea className="flex-1">
                 {buttons.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>No custom buttons yet.</p>
-                    <p className="text-sm">Click "Add Button" to create one.</p>
+                  <div className="flex flex-col items-center justify-center py-16 px-4">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex items-center justify-center mb-4 shadow-sm">
+                      <Plus className="h-8 w-8 text-primary/60" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-foreground mb-1">No Custom Buttons</h3>
+                    <p className="text-xs text-muted-foreground text-center max-w-[280px]">
+                      Click the <span className="font-medium text-foreground">Add Button</span> button above to create your first custom toolbar button
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2 pr-4">
@@ -801,19 +819,34 @@ export const ToolbarCustomizationWizard: React.FC<ToolbarCustomizationWizardProp
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="px-6 py-4 border-t">
+        {/* Enhanced Footer */}
+        <DialogFooter className="px-6 py-4 border-t bg-muted/20 shadow-inner">
           <div className="flex items-center gap-2 mr-auto">
             {hasChanges && (
-              <Badge variant="outline" className="text-orange-600">
-                Unsaved changes
-              </Badge>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center w-5 h-5 rounded-md bg-amber-500/20 border border-amber-500/30">
+                  <div className="w-2 h-2 rounded-full bg-amber-600 dark:bg-amber-400 animate-pulse" />
+                </div>
+                <span className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                  Unsaved changes
+                </span>
+              </div>
             )}
           </div>
-          <Button variant="outline" onClick={handleClose}>
-            Cancel
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            className="h-9 px-4 shadow-sm hover:shadow transition-all"
+          >
+            <span className="text-sm font-medium">Cancel</span>
           </Button>
-          <Button onClick={handleSave} disabled={!hasChanges}>
-            Save Changes
+          <Button
+            onClick={handleSave}
+            disabled={!hasChanges}
+            className="h-9 px-5 shadow-sm hover:shadow-md transition-all bg-gradient-to-r from-primary to-primary/90"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            <span className="text-sm font-medium">Save Changes</span>
           </Button>
         </DialogFooter>
       </DialogContent>

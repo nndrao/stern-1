@@ -35,6 +35,8 @@ import { DIALOG_TYPES, DIALOG_CONFIGS } from '@/config/dialogConfig';
 import { logger } from '@/utils/logger';
 import { BlotterType, BLOTTER_TYPES } from '@/types/blotter';
 import { useActionExecutor } from '@/hooks/useActionRegistry';
+import { useToast } from '@/hooks/ui/use-toast';
+import { useConfigSync } from '@/hooks/useConfigSync';
 import {
   ToolbarButton,
   DynamicToolbar,
@@ -112,6 +114,9 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
   // Theme hooks
   useOpenfinTheme();
   useAgGridTheme();
+
+  // UI hooks
+  const { toast } = useToast();
 
   // Platform access
   const platform = useSternPlatform();
@@ -521,16 +526,44 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
 
   // Handle toolbar customization save
   const handleSaveToolbarConfig = useCallback(
-    (buttons: ToolbarButton[]) => {
+    async (buttons: ToolbarButton[]) => {
       setCustomButtons(buttons);
+
+      // Check if a layout is selected
+      if (!layoutManager.selectedLayoutId) {
+        // No layout selected - try to create/save as new layout first
+        try {
+          await layoutManager.saveAsNewLayout('Custom Layout', false);
+          toast({
+            title: 'Layout Created',
+            description: 'Created a new layout to save your toolbar customizations.',
+          });
+        } catch (error) {
+          toast({
+            title: 'Error',
+            description: 'Could not save toolbar customizations. Please select or create a layout first.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
       // Save to layout config
-      layoutManager.updateToolbarConfig({
-        customButtons: buttons,
-        additionalToolbars,
-        toolbarStates,
-      });
+      try {
+        await layoutManager.updateToolbarConfig({
+          customButtons: buttons,
+          additionalToolbars,
+          toolbarStates,
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to save toolbar customizations.',
+          variant: 'destructive',
+        });
+      }
     },
-    [layoutManager, additionalToolbars, toolbarStates]
+    [layoutManager, additionalToolbars, toolbarStates, toast]
   );
 
   // Handle additional toolbar state changes
@@ -543,6 +576,129 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
     },
     []
   );
+
+  // Handle toolbar customization - open in OpenFin window
+  const handleCustomizeToolbar = useCallback(async () => {
+    if (isOpenFin()) {
+      try {
+        const { getCurrentSync } = await import('@openfin/workspace-platform');
+        const platform = getCurrentSync();
+
+        // Create customization window with current config in customData
+        const windowName = `toolbar-customization-${viewInstanceId}`;
+
+        await platform.createWindow({
+          name: windowName,
+          url: 'http://localhost:5173/config/toolbar-customization',
+          defaultWidth: 1400,
+          defaultHeight: 900,
+          defaultCentered: true,
+          autoShow: true,
+          frame: true,
+          resizable: true,
+          maximizable: true,
+          minimizable: true,
+          customData: {
+            toolbarConfig: {
+              customButtons,
+              additionalToolbars,
+              toolbarStates,
+            },
+            sourceViewId: viewInstanceId,
+          },
+        });
+
+        logger.info('Opened toolbar customization window', {
+          windowName,
+          buttonsCount: customButtons.length
+        }, 'SimpleBlotter');
+      } catch (error) {
+        logger.error('Failed to open toolbar customization window', error, 'SimpleBlotter');
+        toast({
+          title: 'Error',
+          description: 'Failed to open toolbar customization window.',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // Fallback to inline dialog in non-OpenFin environments
+      setIsToolbarWizardOpen(true);
+    }
+  }, [viewInstanceId, customButtons, additionalToolbars, toolbarStates, toast]);
+
+  // Subscribe to toolbar config updates via ConfigSyncWorker
+  const handleToolbarConfigUpdate = useCallback(async (config: BlotterToolbarConfig) => {
+    logger.info('Received toolbar config update from ConfigSyncWorker', {
+      buttonsCount: config.customButtons?.length || 0,
+    }, 'SimpleBlotter');
+
+    // Update local state
+    setCustomButtons(config.customButtons || []);
+
+    // Use functional setState to get current values without dependencies
+    setAdditionalToolbars(currentAdditionalToolbars => {
+      setToolbarStates(currentToolbarStates => {
+        // Save to layout using current state values
+        (async () => {
+          try {
+            if (!layoutManager.selectedLayoutId) {
+              // No layout selected - try to create/save as new layout first
+              try {
+                await layoutManager.saveAsNewLayout('Custom Layout', false);
+                logger.info('Created new layout for toolbar config', undefined, 'SimpleBlotter');
+              } catch (error) {
+                logger.error('Could not create layout for toolbar config', error, 'SimpleBlotter');
+                toast({
+                  title: 'Error',
+                  description: 'Could not save toolbar customizations. Please select or create a layout first.',
+                  variant: 'destructive',
+                });
+                return;
+              }
+            }
+
+            // Save to layout config with current state
+            await layoutManager.updateToolbarConfig({
+              customButtons: config.customButtons || [],
+              additionalToolbars: currentAdditionalToolbars,
+              toolbarStates: currentToolbarStates,
+            });
+
+            logger.info('Toolbar config saved to layout', {
+              layoutId: layoutManager.selectedLayoutId,
+              buttonsCount: config.customButtons?.length || 0
+            }, 'SimpleBlotter');
+
+            toast({
+              title: 'Toolbar Updated',
+              description: `${config.customButtons?.length || 0} custom button(s) configured successfully.`,
+            });
+          } catch (error) {
+            logger.error('Failed to save toolbar config to layout', error, 'SimpleBlotter');
+            toast({
+              title: 'Error',
+              description: 'Failed to save toolbar customizations.',
+              variant: 'destructive',
+            });
+          }
+        })();
+
+        return currentToolbarStates;
+      });
+      return currentAdditionalToolbars;
+    });
+  }, [layoutManager, toast]);
+
+  // Connect to ConfigSyncWorker
+  useConfigSync({
+    viewId: viewInstanceId,
+    blotterId: 'SimpleBlotter',
+    windowName: typeof window !== 'undefined' ? window.name : undefined,
+    onToolbarConfigUpdated: handleToolbarConfigUpdate,
+    onError: (error) => {
+      logger.error('ConfigSync error', error, 'SimpleBlotter');
+    },
+  });
 
   // ============================================================================
   // Render
@@ -576,7 +732,7 @@ export const SimpleBlotter: React.FC<SimpleBlotterProps> = ({
           onManageLayouts={handleManageLayouts}
           customButtons={customButtons}
           onAction={handleAction}
-          onCustomizeToolbar={() => setIsToolbarWizardOpen(true)}
+          onCustomizeToolbar={handleCustomizeToolbar}
           updateCount={updateCount}
         />
       </CollapsibleToolbar>
