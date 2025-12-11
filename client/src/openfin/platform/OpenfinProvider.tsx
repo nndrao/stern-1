@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { init, getCurrentSync } from '@openfin/workspace-platform';
+import { Home } from '@openfin/workspace';
+import { BrowserInitConfig } from '@openfin/workspace-platform';
 import {
   createWorkspaceStorageOverride,
   createCustomActions,
@@ -559,6 +561,29 @@ export default function Provider() {
 
             // Show dock after registration
             await dock.show();
+
+            // Register and show Home (workspace launcher)
+            try {
+              await Home.register({
+                title: settings.platformSettings.title,
+                id: `${settings.platformSettings.id}-home`,
+                icon: settings.platformSettings.icon,
+                onUserInput: async (request: any) => {
+                  // Return empty results - apps are launched from dock menu
+                  return {
+                    results: []
+                  };
+                },
+                onResultDispatch: async () => {
+                  // No-op - apps are launched from dock
+                }
+              });
+
+              await Home.show();
+              logger.info('Home registered and shown', undefined, 'Provider');
+            } catch (homeError: any) {
+              logger.warn('Failed to register Home', homeError, 'Provider');
+            }
           } else {
             logger.warn('Dock API not available - skipping dock registration', undefined, 'Provider');
             logger.info('Make sure @openfin/workspace package is properly installed', undefined, 'Provider');

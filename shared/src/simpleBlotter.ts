@@ -13,6 +13,29 @@
 // ============================================================================
 
 /**
+ * Button placement zone within toolbar
+ */
+export type ToolbarZone = 'start' | 'left' | 'center' | 'right' | 'end';
+
+/**
+ * Button variant styling
+ */
+export type ToolbarButtonVariant = 'default' | 'outline' | 'ghost' | 'destructive';
+
+/**
+ * Menu item for dropdown buttons
+ */
+export interface ToolbarMenuItem {
+  id: string;
+  label: string;
+  icon?: string;
+  action: string;
+  actionData?: Record<string, unknown>;
+  disabled?: boolean;
+  separator?: boolean;
+}
+
+/**
  * Custom toolbar button definition
  */
 export interface ToolbarButton {
@@ -20,21 +43,151 @@ export interface ToolbarButton {
   label: string;
   icon?: string;
   tooltip?: string;
-  action: string; // Action identifier to handle in component
+
+  /**
+   * Action identifier - one of:
+   * - Built-in action: 'grid:refresh', 'grid:export', etc.
+   * - Custom action: 'custom:myAction' (handled via onAction callback)
+   * - Dialog action: 'dialog:myDialog' (opens registered dialog)
+   */
+  action: string;
+
+  /** Additional data passed to action handler */
+  actionData?: Record<string, unknown>;
+
+  /** Where in the toolbar to place this button */
+  zone?: ToolbarZone;
+
+  /** Visual variant */
+  variant?: ToolbarButtonVariant;
+
+  /** Show label text or icon-only */
+  showLabel?: boolean;
+
+  /** Disabled state */
+  disabled?: boolean;
+
+  /** Visibility (can be toggled) */
+  visible?: boolean;
+
+  /** Dropdown menu items (makes this a dropdown button) */
+  menuItems?: ToolbarMenuItem[];
+
+  /** Render order within zone (lower = first) */
+  order?: number;
+}
+
+/**
+ * Collapsible toolbar color options
+ */
+export type ToolbarColor = 'blue' | 'green' | 'purple' | 'orange' | 'pink' | 'cyan' | 'red' | 'yellow';
+
+/**
+ * Dynamic toolbar definition (for additional toolbars)
+ */
+export interface DynamicToolbar {
+  id: string;
+
+  /** Display name (for management UI) */
+  name?: string;
+
+  /** Position relative to main toolbar */
+  position: 'above' | 'below';
+
+  /** Render order (lower = closer to main toolbar) */
+  order?: number;
+
+  /** Collapsible toolbar color */
+  color?: ToolbarColor;
+
+  /** Initial collapsed state */
+  defaultCollapsed?: boolean;
+
+  /** Initial pinned state */
+  defaultPinned?: boolean;
+
+  /** Buttons to render in this toolbar */
+  buttons?: ToolbarButton[];
+
+  /** Custom React component reference (alternative to buttons) */
+  componentRef?: string;
+
+  /** Props to pass to custom component */
+  componentProps?: Record<string, unknown>;
 }
 
 /**
  * Toolbar configuration for SimpleBlotter
  */
 export interface BlotterToolbarConfig {
-  showLayoutSelector: boolean;
-  showExportButton: boolean;
-  showFilterBar: boolean;
-  showColumnChooser: boolean;
-  showRefreshButton: boolean;
-  showSettingsButton: boolean;
+  showLayoutSelector?: boolean;
+  showExportButton?: boolean;
+  showFilterBar?: boolean;
+  showColumnChooser?: boolean;
+  showRefreshButton?: boolean;
+  showSettingsButton?: boolean;
+
+  /** Custom buttons in the main toolbar */
   customButtons?: ToolbarButton[];
+
+  /** Additional toolbars (secondary, tertiary, etc.) */
+  additionalToolbars?: DynamicToolbar[];
+
+  /** Collapsed/pinned states for all toolbars (keyed by toolbar ID) */
+  toolbarStates?: ToolbarStatesMap;
 }
+
+// ============================================================================
+// Action Registry Types (for runtime action binding)
+// ============================================================================
+
+/**
+ * Parameter definition for configurable actions
+ */
+export interface ActionParameter {
+  name: string;
+  label: string;
+  type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect';
+  required?: boolean;
+  default?: unknown;
+  options?: Array<{ label: string; value: unknown }>;
+  description?: string;
+}
+
+/**
+ * Registered action metadata (serializable part)
+ */
+export interface ActionMetadata {
+  id: string;
+  name: string;
+  description?: string;
+  category: string;
+  icon?: string;
+  parameters?: ActionParameter[];
+}
+
+/**
+ * Built-in action identifiers
+ */
+export const BUILT_IN_ACTIONS = {
+  // Grid actions
+  REFRESH: 'grid:refresh',
+  EXPORT_CSV: 'grid:exportCsv',
+  EXPORT_EXCEL: 'grid:exportExcel',
+  RESET_COLUMNS: 'grid:resetColumns',
+  RESET_FILTERS: 'grid:resetFilters',
+  AUTO_SIZE_COLUMNS: 'grid:autoSizeColumns',
+
+  // Selection actions
+  SELECT_ALL: 'selection:all',
+  DESELECT_ALL: 'selection:none',
+  COPY_SELECTED: 'selection:copy',
+
+  // Dialog actions
+  COLUMN_CHOOSER: 'dialog:columnChooser',
+  ADVANCED_FILTERS: 'dialog:advancedFilters',
+  SETTINGS: 'dialog:settings',
+} as const;
 
 // ============================================================================
 // Rule Type Definitions
@@ -338,6 +491,13 @@ export interface BlotterToolbarState {
 }
 
 /**
+ * Toolbar states map (collapsed/pinned per toolbar)
+ */
+export interface ToolbarStatesMap {
+  [toolbarId: string]: BlotterToolbarState;
+}
+
+/**
  * Layout configuration for a SimpleBlotter.
  * Stored in UnifiedConfig.config with componentType: 'simple-blotter-layout'
  * Links to parent blotter via UnifiedConfig.parentId field.
@@ -348,8 +508,15 @@ export interface SimpleBlotterLayoutConfig {
   selectedProviderId?: string | null;
 
   // === Toolbar State ===
-  /** Toolbar collapsed/pinned state */
+  /** Toolbar collapsed/pinned state (legacy - main toolbar only) */
   toolbarState?: BlotterToolbarState;
+
+  // === Extended Toolbar Configuration ===
+  /** Custom toolbar configuration for this layout */
+  toolbarConfig?: BlotterToolbarConfig;
+
+  /** Toolbar states (collapsed/pinned) for all toolbars */
+  toolbarStates?: ToolbarStatesMap;
 
   // === AG-Grid Column Configuration ===
   /** Column definitions (simplified - actual ColDef is complex) */
